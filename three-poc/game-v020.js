@@ -1,15 +1,13 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-import { GlbPlayerVisual, PLAYER_GLB_CONTRACT } from './player-visual-glb.js?v=025';
+import { GlbPlayerVisual, PLAYER_GLB_CONTRACT } from './player-visual-glb.js?v=026';
 
-// v0.2.5 preserves the proven gameplay controller and keeps GLB-first loading.
-// Character presentation runs through AnimationMixer states: Idle/Walk/Harvest.
-await import('./game-v014.js?v=025-runtime');
+await import('./game-v014.js?v=026-runtime');
 
 const badge=document.querySelector('.badge');
 const version=document.getElementById('version');
 const harvestPanel=document.getElementById('harvest');
 const playerRoot=globalThis.__villagerPlayerRoot||null;
-if(version)version.textContent='3D-0.2.5';
+if(version)version.textContent='3D-0.2.6';
 
 if(!playerRoot){
   if(badge)badge.textContent='ROOT?';
@@ -17,30 +15,11 @@ if(!playerRoot){
 }else{
   const fallbackObjects=[...playerRoot.children];
   for(const object of fallbackObjects)object.visible=false;
-
-  const visual=new GlbPlayerVisual({
-    playerRoot,
-    fallbackObjects,
-    modelUrl:`${PLAYER_GLB_CONTRACT.preferredPath}?v=025`,
-    targetHeight:PLAYER_GLB_CONTRACT.targetHeight,
-    localGroundOffset:-0.53,
-  });
-
+  const visual=new GlbPlayerVisual({playerRoot,fallbackObjects,modelUrl:`${PLAYER_GLB_CONTRACT.preferredPath}?v=026`,targetHeight:PLAYER_GLB_CONTRACT.targetHeight,localGroundOffset:-0.53});
   if(badge)badge.textContent='GLB…';
   const loaded=await visual.load();
-  if(loaded){
-    if(badge)badge.textContent='GLB';
-  }else{
-    for(const object of fallbackObjects)object.visible=true;
-    if(badge)badge.textContent='FALLBACK';
-  }
-
+  if(loaded){if(badge)badge.textContent='GLB';}else{for(const object of fallbackObjects)object.visible=true;if(badge)badge.textContent='FALLBACK';}
   const visualClock=new THREE.Clock();
-  function updateExternalVisual(){
-    requestAnimationFrame(updateExternalVisual);
-    const dt=Math.min(visualClock.getDelta(),.05);
-    const harvesting=!!harvestPanel&&!harvestPanel.classList.contains('hidden');
-    visual.update(dt,{harvesting});
-  }
+  function updateExternalVisual(){requestAnimationFrame(updateExternalVisual);const dt=Math.min(visualClock.getDelta(),.05);const harvesting=!!harvestPanel&&!harvestPanel.classList.contains('hidden');visual.update(dt,{harvesting});}
   updateExternalVisual();
 }
