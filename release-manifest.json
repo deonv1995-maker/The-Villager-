@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
-  "version": "0.6.0",
-  "releaseId": "v0.6.0",
+  "version": "0.6.1",
+  "releaseId": "v0.6.1",
   "runtime": "phaser4",
   "entry": "src/phaser-game.js",
   "pwa": "src/pwa.js",
@@ -44,6 +44,7 @@
     "src/inventory.js",
     "src/resources.js",
     "src/crafting.js",
+    "src/village.js",
     "src/pwa.js"
   ],
   "deprecatedRuntime": [
