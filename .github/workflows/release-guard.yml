@@ -18,6 +18,7 @@ jobs:
           node <<'NODE'
           const fs = require('fs');
           const zlib = require('zlib');
+          const crypto = require('crypto');
           const manifest = JSON.parse(fs.readFileSync('release-manifest.json', 'utf8'));
           const buildInfo = JSON.parse(fs.readFileSync('build-info.json', 'utf8'));
           const fail = msg => { console.error(`::error::${msg}`); process.exitCode = 1; };
@@ -25,6 +26,7 @@ jobs:
           if (!manifest.version || !manifest.releaseId) fail('release-manifest.json must define version and releaseId');
           if (buildInfo.version !== manifest.version) fail('build-info.json must mirror release-manifest.json version');
           if (!manifest.entry || !manifest.pwa) fail('release manifest must define entry and pwa modules');
+          if (!manifest.playerAtlas) fail('release manifest must define playerAtlas geometry');
 
           const required = [manifest.entry, manifest.pwa, ...manifest.shell, ...Object.values(manifest.assets)];
           for (const file of new Set(required)) if (!fs.existsSync(file)) fail(`Manifest references missing file: ${file}`);
@@ -44,13 +46,22 @@ jobs:
           if (/the-villager-v0\.5\.|0\.5\.[0-9]+/.test(sw)) fail('sw.js must not hard-code a build version');
 
           try {
+            const atlas = manifest.playerAtlas;
             const playerPath = manifest.assets.playerSheet;
-            if (!playerPath.endsWith('.png')) fail('playerSheet must be a real PNG file, not a text/base64 transport');
+            if (!playerPath.endsWith('.png')) fail('playerSheet must be a real PNG file');
             const png = fs.readFileSync(playerPath);
             if (png.subarray(0,8).toString('hex') !== '89504e470d0a1a0a') fail('playerSheet is not a PNG');
             if (png.length < 33) fail('playerSheet PNG is truncated');
+
             const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
-            if (width !== 288 || height !== 256) fail(`playerSheet must be the packed 288x256 production atlas, got ${width}x${height}`);
+            if (width !== atlas.width || height !== atlas.height) fail(`playerSheet dimensions ${width}x${height} do not match manifest ${atlas.width}x${atlas.height}`);
+            if (atlas.frameWidth * atlas.columns !== atlas.width) fail('playerAtlas columns do not tile the PNG width exactly');
+            if (atlas.frameHeight * atlas.rows !== atlas.height) fail('playerAtlas rows do not tile the PNG height exactly');
+            if (atlas.columns !== 6 || atlas.rows !== 1) fail('v0.5.8 ranger must be a six-frame single-row strip');
+
+            const sha = crypto.createHash('sha256').update(png).digest('hex');
+            if (sha !== atlas.sha256) fail(`playerSheet sha256 mismatch: ${sha}`);
+
             let offset = 8, idat = [], sawIEND = false;
             while (offset + 12 <= png.length) {
               const len = png.readUInt32BE(offset); const type = png.toString('ascii', offset+4, offset+8);
@@ -64,8 +75,14 @@ jobs:
             if (!idat.length) throw new Error('missing IDAT data');
             zlib.inflateSync(Buffer.concat(idat));
 
+            const meta = JSON.parse(fs.readFileSync(manifest.assets.playerAnimations, 'utf8'));
+            if (meta.frameWidth !== atlas.frameWidth || meta.frameHeight !== atlas.frameHeight || meta.columns !== atlas.columns || meta.rows !== atlas.rows) {
+              fail('player animation metadata does not match release-manifest playerAtlas');
+            }
+
             const art = fs.readFileSync('src/art.js','utf8');
-            if (!art.includes('frameWidth:48,frameHeight:64')) fail('src/art.js must render the packed ranger as 48x64 frames');
+            if (!art.includes('release.playerAtlas')) fail('src/art.js must consume playerAtlas geometry from release-manifest.json');
+            if (/frameWidth:\s*\d+|frameHeight:\s*\d+/.test(art)) fail('src/art.js must not hard-code player frame geometry');
           } catch (error) {
             fail(`playerSheet validation failed: ${error.message}`);
           }
