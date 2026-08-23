@@ -16,26 +16,28 @@ function buildFallbackClips(model){
   {
     const t=[0,1,2],tracks=[];
     addQuatTrack(tracks,uaL,t,[[0,0,-1.48],[.015,0,-1.49],[0,0,-1.48]]);addQuatTrack(tracks,uaR,t,[[0,0,1.48],[-.015,0,1.49],[0,0,1.48]]);
-    // Small inward elbow bend on this rig's local Y axis, not X/Z.
     addQuatTrack(tracks,laL,t,[[0,-.10,0],[0,-.12,0],[0,-.10,0]]);addQuatTrack(tracks,laR,t,[[0,.10,0],[0,.12,0],[0,.10,0]]);
     addQuatTrack(tracks,sp1,t,[[0,0,0],[.015,0,0],[0,0,0]]);addQuatTrack(tracks,sp2,t,[[0,0,0],[-.010,0,0],[0,0,0]]);
     clips.push(new THREE.AnimationClip('Idle',2,tracks));
   }
   {
     const t=[0,.25,.5,.75,1],tracks=[];
-    const l=[.72,0,-.72,0,.72],r=l.map(v=>-v);
-    // Stronger shoulder swing so movement reads clearly from the isometric camera.
-    addQuatTrack(tracks,uaL,t,l.map(v=>[v,0,-1.43]));addQuatTrack(tracks,uaR,t,r.map(v=>[v,0,1.43]));
-    addQuatTrack(tracks,laL,t,[[0,-.14,0],[0,-.22,0],[0,-.14,0],[0,-.08,0],[0,-.14,0]]);addQuatTrack(tracks,laR,t,[[0,.14,0],[0,.08,0],[0,.14,0],[0,.22,0],[0,.14,0]]);
-    addQuatTrack(tracks,thL,t,l.map(v=>[v*.70,0,0]));addQuatTrack(tracks,thR,t,r.map(v=>[v*.70,0,0]));
+    const legL=[.72,0,-.72,0,.72],legR=legL.map(v=>-v);
+    // The peasant rig's upper-arm local X is the twist axis. Keep the Z offset that
+    // lowers the arms, and swing around local Y so the hands travel forward/back.
+    const armL=[.58,0,-.58,0,.58],armR=armL.map(v=>-v);
+    addQuatTrack(tracks,uaL,t,armL.map(v=>[0,v,-1.43]));addQuatTrack(tracks,uaR,t,armR.map(v=>[0,v,1.43]));
+    // Keep a relaxed elbow bend and vary it slightly through the stride.
+    addQuatTrack(tracks,laL,t,[[0,-.12,0],[0,-.20,0],[0,-.16,0],[0,-.08,0],[0,-.12,0]]);addQuatTrack(tracks,laR,t,[[0,.12,0],[0,.08,0],[0,.16,0],[0,.20,0],[0,.12,0]]);
+    addQuatTrack(tracks,thL,t,legL.map(v=>[v*.70,0,0]));addQuatTrack(tracks,thR,t,legR.map(v=>[v*.70,0,0]));
     addQuatTrack(tracks,caL,t,[[0,0,0],[.18,0,0],[.30,0,0],[0,0,0],[0,0,0]]);addQuatTrack(tracks,caR,t,[[.30,0,0],[0,0,0],[0,0,0],[.18,0,0],[.30,0,0]]);
-    addQuatTrack(tracks,sp1,t,[[.025,0,.06],[.02,0,.02],[.025,0,-.06],[.02,0,-.02],[.025,0,.06]]);
-    addQuatTrack(tracks,sp2,t,[[0,0,-.035],[0,0,-.01],[0,0,.035],[0,0,.01],[0,0,-.035]]);
+    // Counter-rotate the torso around vertical Y so the shoulders follow the stride.
+    addQuatTrack(tracks,sp1,t,[[.025,-.07,0],[.02,-.02,0],[.025,.07,0],[.02,.02,0],[.025,-.07,0]]);
+    addQuatTrack(tracks,sp2,t,[[0,.04,0],[0,.01,0],[0,-.04,0],[0,-.01,0],[0,.04,0]]);
     clips.push(new THREE.AnimationClip('Walk',1,tracks));
   }
   {
     const t=[0,.26,.54,.82,1.10],tracks=[];
-    // Bring both arms forward, then fold elbows inward on local Y for a chopping motion.
     addQuatTrack(tracks,uaL,t,[[.12,0,-1.34],[.56,0,-1.18],[.92,0,-1.00],[.40,0,-1.20],[.12,0,-1.34]]);
     addQuatTrack(tracks,uaR,t,[[.12,0,1.34],[.56,0,1.18],[.92,0,1.00],[.40,0,1.20],[.12,0,1.34]]);
     addQuatTrack(tracks,laL,t,[[0,-.18,0],[0,-.52,0],[0,-.92,0],[0,-.40,0],[0,-.18,0]]);
