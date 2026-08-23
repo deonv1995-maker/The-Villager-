@@ -34,9 +34,6 @@ if (playerRoot) {
   const torso = groups.find(group => group.position.y > 0.3);
   const legs = groups.filter(group => group.position.y < 0 && Math.abs(group.position.x) > 0.1);
 
-  // Stronger medieval-adventurer silhouette: broader shoulders/chest, slightly
-  // shorter-looking torso, fuller legs and more substantial boots. Rig pivots stay
-  // unchanged, so the established walk and harvest animations remain compatible.
   if (torso) {
     torso.scale.x = 1.08;
     torso.scale.y = 0.96;
@@ -47,7 +44,9 @@ if (playerRoot) {
     leg.scale.z = 1.08;
   }
 
-  // Make the overall figure read less narrow from the isometric camera while
-  // preserving height and the corrected sole contact point.
   playerRoot.scale.set(1.10, 1.05, 1.05);
+
+  // Explicit compatibility hook for later visual layers. Gameplay ownership stays
+  // here; external models are presentation-only and never become movement roots.
+  globalThis.__villagerPlayerRoot = playerRoot;
 }
