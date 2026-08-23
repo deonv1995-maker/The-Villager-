@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "version": "0.5.8",
   "releaseId": "v0.5.8",
   "entry": "src/game-v03.js",
@@ -11,6 +11,18 @@
     "grass": "assets/grass-raster.png",
     "playerSheet": "assets/player/player_ranger_walk_v058.png",
     "playerAnimations": "assets/player/player_ranger_walk_v058.json"
+  },
+  "playerAtlas": {
+    "width": 384,
+    "height": 64,
+    "frameWidth": 64,
+    "frameHeight": 64,
+    "columns": 6,
+    "rows": 1,
+    "walkFps": 8,
+    "drawWidth": 104,
+    "drawHeight": 104,
+    "sha256": "f1acc7561e7bc8e0150991bfb6cf894bd5de365b09425c2d6b23ea0346d1b621"
   },
   "shell": [
     "index.html",
