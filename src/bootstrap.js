@@ -38,9 +38,44 @@ function releaseUrl(path, releaseId) {
   return url.href;
 }
 
+async function loadEngine(engine) {
+  if (!engine?.name || !engine?.version || !engine?.url || !engine?.global) {
+    throw new Error('release-manifest engine definition is incomplete');
+  }
+
+  const existing = window[engine.global];
+  if (existing) {
+    const existingVersion = existing.VERSION || existing.version;
+    if (existingVersion && existingVersion !== engine.version) {
+      throw new Error(`Engine mismatch: expected ${engine.version}, got ${existingVersion}`);
+    }
+    return existing;
+  }
+
+  await new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = engine.url;
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    script.dataset.engine = `${engine.name}@${engine.version}`;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Failed to load ${engine.name} ${engine.version}`));
+    document.head.appendChild(script);
+  });
+
+  const loaded = window[engine.global];
+  if (!loaded) throw new Error(`${engine.name} did not expose ${engine.global}`);
+  const loadedVersion = loaded.VERSION || loaded.version;
+  if (loadedVersion && loadedVersion !== engine.version) {
+    throw new Error(`Engine mismatch: expected ${engine.version}, got ${loadedVersion}`);
+  }
+  return loaded;
+}
+
 function applyReleaseToDocument(release) {
   document.documentElement.dataset.releaseId = release.releaseId;
   document.documentElement.dataset.buildVersion = release.version;
+  document.documentElement.dataset.engine = `${release.engine?.name || 'unknown'}-${release.engine?.version || 'unknown'}`;
 
   const badge = document.getElementById('build-version');
   if (badge) badge.textContent = `v${release.version}`;
@@ -70,6 +105,7 @@ async function boot() {
     window.__THE_VILLAGER_RELEASE__ = Object.freeze(release);
     applyReleaseToDocument(release);
 
+    await loadEngine(release.engine);
     await import(releaseUrl(release.entry, release.releaseId));
     await import(releaseUrl(release.pwa, release.releaseId));
   } catch (error) {
