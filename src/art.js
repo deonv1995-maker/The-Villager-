@@ -48,7 +48,7 @@ const ASSETS={
   tree:image('tree'),
   rock:image('rock'),
   grass:image('grass'),
-  playerSheet:textImage('playerSheet')
+  playerSheet:image('playerSheet')
 };
 
 const PLAYER_SHEET={frameWidth:32,frameHeight:32,drawWidth:88,drawHeight:88,walkFps:8};
