@@ -18,9 +18,7 @@ function image(path) {
   return img;
 }
 
-function ready(img) {
-  return img.complete && img.naturalWidth > 0;
-}
+function ready(img) { return img.complete && img.naturalWidth > 0; }
 
 function hash(x, y, salt = 0) {
   let n = (Math.floor(x) * 374761393 + Math.floor(y) * 668265263 + salt * 1442695041) | 0;
@@ -42,32 +40,63 @@ function poly(ctx, pts, color) {
   ctx.fill();
 }
 
+function ellipse(ctx, x, y, rx, ry, color, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 export function drawGround(ctx, originX, originY, width, height, grid = 32) {
-  ctx.fillStyle = '#557d34';
+  ctx.fillStyle = '#4d7834';
   ctx.fillRect(0, 0, width, height);
 
   const sx = ((originX % grid) + grid) % grid;
   const sy = ((originY % grid) + grid) % grid;
+
   for (let y = sy - grid; y < height + grid; y += grid) {
     for (let x = sx - grid; x < width + grid; x += grid) {
-      if (ready(ASSETS.ground)) ctx.drawImage(ASSETS.ground, x, y, grid, grid);
-      else {
-        ctx.fillStyle = '#5f8a3b';
-        ctx.fillRect(x, y, grid, grid);
-      }
-
       const gx = Math.floor((x - originX) / grid);
       const gy = Math.floor((y - originY) / grid);
-      const d = hash(gx, gy, 7);
-      if (d < .08) {
-        rect(ctx, x + 5, y + 20, 11, 6, '#765238');
-        rect(ctx, x + 8, y + 20, 6, 3, '#a06f49');
+
+      if (ready(ASSETS.ground)) ctx.drawImage(ASSETS.ground, x, y, grid, grid);
+      else { ctx.fillStyle = '#5f8a3b'; ctx.fillRect(x, y, grid, grid); }
+
+      const tone = hash(gx, gy, 2);
+      if (tone < .18) rect(ctx, x, y, grid, grid, 'rgba(36,77,37,.09)');
+      else if (tone > .84) rect(ctx, x, y, grid, grid, 'rgba(190,207,103,.06)');
+
+      const dirt = hash(gx, gy, 7);
+      if (dirt < .12) {
+        rect(ctx, x + 3, y + 18, 13, 7, '#6f4d32');
+        rect(ctx, x + 7, y + 18, 7, 4, '#9f7149');
+        if (dirt < .045) rect(ctx, x + 15, y + 22, 7, 4, '#7e5636');
       }
+
+      const tuft = hash(gx, gy, 11);
+      if (tuft < .20) {
+        rect(ctx, x + 5, y + 8, 2, 8, '#345d2b');
+        rect(ctx, x + 8, y + 5, 2, 11, '#7aa64b');
+        rect(ctx, x + 11, y + 9, 2, 7, '#4f7f37');
+      }
+
       const flower = hash(gx, gy, 13);
-      if (flower < .045) {
-        rect(ctx, x + 22, y + 13, 2, 7, '#42672e');
-        rect(ctx, x + 20, y + 11, 3, 3, '#eee5a0');
-        rect(ctx, x + 23, y + 9, 3, 3, '#f3f0d4');
+      if (flower < .065) {
+        const fx = x + 20 + Math.floor(hash(gx, gy, 14) * 5);
+        const fy = y + 10 + Math.floor(hash(gx, gy, 15) * 8);
+        rect(ctx, fx, fy + 2, 2, 7, '#365f2e');
+        const c = flower < .02 ? '#d96b63' : flower < .04 ? '#e9d35d' : '#eee9cf';
+        rect(ctx, fx - 2, fy, 3, 3, c);
+        rect(ctx, fx + 1, fy - 2, 3, 3, c);
+      }
+
+      const pebble = hash(gx, gy, 17);
+      if (pebble < .08) {
+        rect(ctx, x + 22, y + 23, 5, 3, '#5d6258');
+        rect(ctx, x + 23, y + 22, 3, 2, '#979c88');
       }
     }
   }
@@ -80,27 +109,39 @@ export function drawResource(ctx, node) {
 }
 
 function drawTreeSprite(ctx, node) {
+  ellipse(ctx, node.x + 4, node.y + 16, 48, 13, '#122016', .28);
   if (!ready(ASSETS.trees)) return drawTreeFallback(ctx, node.x, node.y);
   const variant = Math.floor(hash(node.x, node.y, 3) * 3) % 3;
-  ctx.drawImage(ASSETS.trees, variant * 128, 0, 128, 160, node.x - 64, node.y - 140, 128, 160);
+  ctx.drawImage(ASSETS.trees, variant * 128, 0, 128, 160, node.x - 68, node.y - 146, 136, 170);
+  if (hash(node.x, node.y, 21) > .5) {
+    rect(ctx, node.x - 17, node.y + 15, 7, 3, '#769b4a');
+    rect(ctx, node.x + 12, node.y + 17, 9, 3, '#4f7a37');
+  }
 }
 
 function drawRockSprite(ctx, node) {
+  ellipse(ctx, node.x, node.y + 12, 31, 10, '#111514', .24);
   if (!ready(ASSETS.rocks)) return drawRockFallback(ctx, node.x, node.y);
   const variant = Math.floor(hash(node.x, node.y, 5) * 4) % 4;
-  ctx.drawImage(ASSETS.rocks, variant * 96, 0, 96, 96, node.x - 48, node.y - 76, 96, 96);
+  ctx.drawImage(ASSETS.rocks, variant * 96, 0, 96, 96, node.x - 50, node.y - 78, 100, 100);
+  if (hash(node.x, node.y, 22) > .6) {
+    rect(ctx, node.x - 23, node.y + 11, 6, 3, '#55733b');
+    rect(ctx, node.x + 18, node.y + 10, 5, 3, '#75984b');
+  }
 }
 
 function drawGrassSprite(ctx, node) {
+  ellipse(ctx, node.x, node.y + 10, 23, 7, '#121912', .18);
   if (!ready(ASSETS.grass)) return drawGrassFallback(ctx, node.x, node.y);
   const variant = Math.floor(hash(node.x, node.y, 9) * 4) % 4;
-  ctx.drawImage(ASSETS.grass, variant * 64, 0, 64, 64, node.x - 32, node.y - 48, 64, 64);
+  ctx.drawImage(ASSETS.grass, variant * 64, 0, 64, 64, node.x - 34, node.y - 50, 68, 68);
 }
 
 export function drawPlayer(ctx, player, gameTime, crafting) {
   const frame = playerFrame(player.state, gameTime);
   const x = Math.round(player.x);
   const y = Math.round(player.y);
+  ellipse(ctx, x, y + 16, 18, 7, '#101713', .30);
 
   if (!ready(ASSETS.player)) {
     drawPlayerFallback(ctx, player, gameTime);
@@ -109,7 +150,7 @@ export function drawPlayer(ctx, player, gameTime, crafting) {
     const flip = player.facingX < -.2;
     ctx.translate(x, 0);
     if (flip) ctx.scale(-1, 1);
-    ctx.drawImage(ASSETS.player, frame * 64, 0, 64, 80, -32, y - 62, 64, 80);
+    ctx.drawImage(ASSETS.player, frame * 64, 0, 64, 80, -38, y - 72, 76, 95);
     ctx.restore();
   }
 
@@ -131,27 +172,26 @@ function drawTool(ctx, player, t, crafting) {
   const swing = Math.sin(t * 10) * .72 * dir;
 
   ctx.save();
-  ctx.translate(player.x + dir * 11, player.y - 23);
+  ctx.translate(player.x + dir * 13, player.y - 28);
   ctx.rotate(swing);
   rect(ctx, -2, -1, 5, 7, TOOL.skin);
-  rect(ctx, 0, 3, 4, 27, TOOL.leather);
-  rect(ctx, 1, 5, 2, 22, TOOL.leatherDark);
+  rect(ctx, 0, 3, 4, 29, TOOL.leather);
+  rect(ctx, 1, 5, 2, 24, TOOL.leatherDark);
 
-  if (!equipped) {
-    rect(ctx, -1, 24, 6, 6, TOOL.skin);
-  } else if (cls === 'axe') {
+  if (!equipped) rect(ctx, -1, 26, 6, 6, TOOL.skin);
+  else if (cls === 'axe') {
     const head = equipped.id === 'stone_axe' ? TOOL.stone : TOOL.metal;
-    poly(ctx, [[-11,22],[3,20],[10,23],[4,31],[-10,29]], head);
-    rect(ctx, -8, 23, 9, 3, TOOL.metalHi);
+    poly(ctx, [[-11,24],[3,22],[10,25],[4,33],[-10,31]], head);
+    rect(ctx, -8, 25, 9, 3, TOOL.metalHi);
   } else if (cls === 'pickaxe') {
     const head = equipped.id === 'stone_pickaxe' ? TOOL.stone : TOOL.metal;
-    poly(ctx, [[-12,21],[0,19],[12,22],[9,26],[0,23],[-9,26]], head);
-    rect(ctx, -6, 21, 12, 2, TOOL.metalHi);
+    poly(ctx, [[-12,23],[0,21],[12,24],[9,28],[0,25],[-9,28]], head);
+    rect(ctx, -6, 23, 12, 2, TOOL.metalHi);
   } else {
     ctx.strokeStyle = TOOL.metalHi;
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(8, 23, 10, -1.25, .6);
+    ctx.arc(8, 25, 10, -1.25, .6);
     ctx.stroke();
   }
   ctx.restore();
@@ -159,7 +199,8 @@ function drawTool(ctx, player, t, crafting) {
 
 export function drawTargetRing(ctx, node) {
   if (!node?.active) return;
-  ctx.strokeStyle = 'rgba(246,226,133,.88)';
+  ellipse(ctx, node.x, node.y + 8, node.config.radius + 13, 12, '#e8cf67', .10);
+  ctx.strokeStyle = 'rgba(246,226,133,.9)';
   ctx.lineWidth = 2;
   ctx.setLineDash([5, 4]);
   ctx.beginPath();
@@ -169,20 +210,18 @@ export function drawTargetRing(ctx, node) {
 }
 
 export function drawWorldBorder(ctx, world) {
-  ctx.strokeStyle = '#1f3522';
+  ctx.strokeStyle = '#1b2e1e';
   ctx.lineWidth = 10;
   ctx.strokeRect(0, 0, world.width, world.height);
-  ctx.strokeStyle = '#7b9d50';
+  ctx.strokeStyle = '#78984e';
   ctx.lineWidth = 2;
   ctx.strokeRect(5, 5, world.width - 10, world.height - 10);
 }
 
 function drawTreeFallback(ctx, x, y) {
   rect(ctx, x - 8, y - 54, 16, 72, '#6e4128');
-  ctx.fillStyle = '#2f6c35';
-  ctx.beginPath(); ctx.arc(x, y - 71, 38, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#4f8d42';
-  ctx.beginPath(); ctx.arc(x - 17, y - 78, 21, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#2f6c35'; ctx.beginPath(); ctx.arc(x, y - 71, 38, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#4f8d42'; ctx.beginPath(); ctx.arc(x - 17, y - 78, 21, 0, Math.PI * 2); ctx.fill();
 }
 
 function drawRockFallback(ctx, x, y) {
@@ -191,8 +230,7 @@ function drawRockFallback(ctx, x, y) {
 }
 
 function drawGrassFallback(ctx, x, y) {
-  ctx.strokeStyle = '#72a64b';
-  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#72a64b'; ctx.lineWidth = 4;
   for (let i = -15; i <= 15; i += 6) {
     ctx.beginPath(); ctx.moveTo(x + i, y + 10); ctx.lineTo(x + i * .55, y - 18 - Math.abs(i) * .3); ctx.stroke();
   }
