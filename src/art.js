@@ -1,5 +1,5 @@
 const ASSETS = {
-  ground: image('../assets/ground-raster.png'),
+  ground: textImage('../assets/world-ground-v05.png.base64'),
   tree: image('../assets/tree-raster.png'),
   rock: image('../assets/rock-raster.png'),
   grass: image('../assets/grass-raster.png'),
@@ -15,6 +15,16 @@ function image(path) {
   const img = new Image();
   img.decoding = 'async';
   img.src = new URL(path, import.meta.url).href;
+  return img;
+}
+
+function textImage(path) {
+  const img = new Image();
+  img.decoding = 'async';
+  fetch(new URL(path, import.meta.url).href, { cache: 'no-store' })
+    .then((r) => r.text())
+    .then((b64) => { img.src = `data:image/png;base64,${b64.trim()}`; })
+    .catch(() => {});
   return img;
 }
 
@@ -50,27 +60,28 @@ function ellipse(ctx, x, y, rx, ry, color, alpha = 1) {
   ctx.restore();
 }
 
-export function drawGround(ctx, originX, originY, width, height, grid = 48) {
-  ctx.fillStyle = '#718c35';
+export function drawGround(ctx, originX, originY, width, height) {
+  ctx.fillStyle = '#355f2c';
   ctx.fillRect(0, 0, width, height);
+  if (!ready(ASSETS.ground)) return;
 
-  const tile = 96;
+  const tile = 384;
   const sx = ((originX % tile) + tile) % tile;
   const sy = ((originY % tile) + tile) % tile;
 
-  if (ready(ASSETS.ground)) {
-    for (let y = sy - tile; y < height + tile; y += tile) {
-      for (let x = sx - tile; x < width + tile; x += tile) {
-        const gx = Math.floor((x - originX) / tile);
-        const gy = Math.floor((y - originY) / tile);
-        const flipX = hash(gx, gy, 2) > .5;
-        const flipY = hash(gx, gy, 3) > .5;
-        ctx.save();
-        ctx.translate(x + (flipX ? tile : 0), y + (flipY ? tile : 0));
-        ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
-        ctx.drawImage(ASSETS.ground, 0, 0, tile, tile);
-        ctx.restore();
-      }
+  for (let y = sy - tile; y < height + tile; y += tile) {
+    for (let x = sx - tile; x < width + tile; x += tile) {
+      const gx = Math.floor((x - originX) / tile);
+      const gy = Math.floor((y - originY) / tile);
+      const flipX = hash(gx, gy, 2) > .5;
+      const flipY = hash(gx, gy, 3) > .5;
+      const rotate = hash(gx, gy, 4) > .72;
+      ctx.save();
+      ctx.translate(x + tile / 2, y + tile / 2);
+      if (rotate) ctx.rotate(Math.PI);
+      ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+      ctx.drawImage(ASSETS.ground, -tile / 2, -tile / 2, tile, tile);
+      ctx.restore();
     }
   }
 }
@@ -82,66 +93,66 @@ export function drawResource(ctx, node) {
 }
 
 function drawTree(ctx, node) {
-  ellipse(ctx, node.x + 5, node.y + 18, 60, 16, '#11180f', .28);
+  ellipse(ctx, node.x + 6, node.y + 20, 70, 18, '#0d150d', .34);
   if (!ready(ASSETS.tree)) return;
-  const scale = .90 + hash(node.x, node.y, 4) * .18;
-  const w = 146 * scale;
-  const h = 210 * scale;
+  const scale = 1.02 + hash(node.x, node.y, 4) * .18;
+  const w = 175 * scale;
+  const h = 252 * scale;
   const flip = hash(node.x, node.y, 5) > .5;
   ctx.save();
   ctx.translate(node.x, node.y);
   if (flip) ctx.scale(-1, 1);
-  ctx.drawImage(ASSETS.tree, -w / 2, -h + 24, w, h);
+  ctx.drawImage(ASSETS.tree, -w / 2, -h + 28, w, h);
   ctx.restore();
 }
 
 function drawRock(ctx, node) {
-  ellipse(ctx, node.x, node.y + 12, 40, 11, '#111514', .24);
+  ellipse(ctx, node.x, node.y + 13, 43, 12, '#0e1210', .28);
   if (!ready(ASSETS.rock)) return;
-  const scale = .76 + hash(node.x, node.y, 7) * .22;
-  const w = 109 * scale;
-  const h = 88 * scale;
+  const scale = .84 + hash(node.x, node.y, 7) * .24;
+  const w = 124 * scale;
+  const h = 100 * scale;
   const flip = hash(node.x, node.y, 8) > .5;
   ctx.save();
   ctx.translate(node.x, node.y);
   if (flip) ctx.scale(-1, 1);
-  ctx.drawImage(ASSETS.rock, -w / 2, -h + 17, w, h);
+  ctx.drawImage(ASSETS.rock, -w / 2, -h + 18, w, h);
   ctx.restore();
 }
 
 function drawGrass(ctx, node) {
-  ellipse(ctx, node.x, node.y + 8, 24, 7, '#101610', .16);
+  ellipse(ctx, node.x, node.y + 8, 27, 8, '#0d140d', .18);
   if (!ready(ASSETS.grass)) return;
-  const scale = .85 + hash(node.x, node.y, 10) * .30;
-  const w = 54 * scale;
-  const h = 64 * scale;
+  const scale = .95 + hash(node.x, node.y, 10) * .34;
+  const w = 64 * scale;
+  const h = 76 * scale;
   const flip = hash(node.x, node.y, 11) > .5;
   ctx.save();
   ctx.translate(node.x, node.y);
   if (flip) ctx.scale(-1, 1);
-  ctx.drawImage(ASSETS.grass, -w / 2, -h + 14, w, h);
+  ctx.drawImage(ASSETS.grass, -w / 2, -h + 15, w, h);
   ctx.restore();
 }
 
 export function drawPlayer(ctx, player, gameTime, crafting) {
   const walking = player.state === 'walk';
   const harvesting = player.state.startsWith('harvest-');
-  const bob = walking ? Math.sin(gameTime * 10) * 2.5 : harvesting ? Math.sin(gameTime * 7) * 1.2 : Math.sin(gameTime * 2.2) * .7;
-  const lean = harvesting ? Math.sin(gameTime * 7) * .035 : walking ? Math.sin(gameTime * 9) * .02 : 0;
+  const bob = walking ? Math.sin(gameTime * 10) * 2.8 : harvesting ? Math.sin(gameTime * 7) * 1.4 : Math.sin(gameTime * 2.2) * .7;
+  const lean = harvesting ? Math.sin(gameTime * 7) * .045 : walking ? Math.sin(gameTime * 9) * .018 : 0;
   const x = Math.round(player.x);
   const y = Math.round(player.y);
 
-  ellipse(ctx, x, y + 15, 19, 7, '#101713', .28);
+  ellipse(ctx, x, y + 17, 21, 8, '#0b100c', .34);
 
   if (ready(ASSETS.player)) {
-    const w = 58;
-    const h = 129;
+    const w = 66;
+    const h = 146;
     const flip = player.facingX < -.2;
     ctx.save();
     ctx.translate(x, y + bob);
     if (flip) ctx.scale(-1, 1);
     ctx.rotate(lean * (flip ? -1 : 1));
-    ctx.drawImage(ASSETS.player, -w / 2, -h + 19, w, h);
+    ctx.drawImage(ASSETS.player, -w / 2, -h + 20, w, h);
     ctx.restore();
   }
 
@@ -155,26 +166,26 @@ function drawTool(ctx, player, t, crafting) {
   const swing = Math.sin(t * 10) * .72 * dir;
 
   ctx.save();
-  ctx.translate(player.x + dir * 18, player.y - 34);
+  ctx.translate(player.x + dir * 20, player.y - 38);
   ctx.rotate(swing);
   rect(ctx, -2, -1, 5, 7, TOOL.skin);
-  rect(ctx, 0, 3, 4, 30, TOOL.leather);
-  rect(ctx, 1, 5, 2, 25, TOOL.leatherDark);
+  rect(ctx, 0, 3, 4, 32, TOOL.leather);
+  rect(ctx, 1, 5, 2, 27, TOOL.leatherDark);
 
-  if (!equipped) rect(ctx, -1, 27, 6, 6, TOOL.skin);
+  if (!equipped) rect(ctx, -1, 29, 6, 6, TOOL.skin);
   else if (cls === 'axe') {
     const head = equipped.id === 'stone_axe' ? TOOL.stone : TOOL.metal;
-    poly(ctx, [[-12,24],[3,22],[11,25],[4,34],[-11,32]], head);
-    rect(ctx, -8, 25, 9, 3, TOOL.metalHi);
+    poly(ctx, [[-12,26],[3,23],[12,26],[4,36],[-11,33]], head);
+    rect(ctx, -8, 27, 9, 3, TOOL.metalHi);
   } else if (cls === 'pickaxe') {
     const head = equipped.id === 'stone_pickaxe' ? TOOL.stone : TOOL.metal;
-    poly(ctx, [[-13,23],[0,21],[13,24],[9,28],[0,25],[-10,28]], head);
-    rect(ctx, -6, 23, 12, 2, TOOL.metalHi);
+    poly(ctx, [[-13,25],[0,22],[13,25],[9,29],[0,26],[-10,29]], head);
+    rect(ctx, -6, 25, 12, 2, TOOL.metalHi);
   } else {
     ctx.strokeStyle = TOOL.metalHi;
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.arc(8, 25, 10, -1.25, .6);
+    ctx.arc(8, 27, 10, -1.25, .6);
     ctx.stroke();
   }
   ctx.restore();
@@ -193,10 +204,10 @@ export function drawTargetRing(ctx, node) {
 }
 
 export function drawWorldBorder(ctx, world) {
-  ctx.strokeStyle = '#1b2e1e';
-  ctx.lineWidth = 10;
+  ctx.strokeStyle = '#172418';
+  ctx.lineWidth = 12;
   ctx.strokeRect(0, 0, world.width, world.height);
-  ctx.strokeStyle = '#78984e';
+  ctx.strokeStyle = '#8aa45b';
   ctx.lineWidth = 2;
-  ctx.strokeRect(5, 5, world.width - 10, world.height - 10);
+  ctx.strokeRect(6, 6, world.width - 12, world.height - 12);
 }
