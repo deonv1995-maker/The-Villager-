@@ -20,13 +20,22 @@ function assetUrl(key) {
   return url.href;
 }
 
-const [configModule, inventoryModule, inputModule, resourcesModule, craftingModule, villageModule] = await Promise.all([
+const [
+  configModule,
+  inventoryModule,
+  inputModule,
+  resourcesModule,
+  craftingModule,
+  villageModule,
+  environmentArtModule,
+] = await Promise.all([
   import(moduleUrl('./config.js')),
   import(moduleUrl('./inventory.js')),
   import(moduleUrl('./input.js')),
   import(moduleUrl('./resources.js')),
   import(moduleUrl('./crafting.js')),
   import(moduleUrl('./village.js')),
+  import(moduleUrl('./environment-art.js')),
 ]);
 
 const { GAME_CONFIG } = configModule;
@@ -35,6 +44,7 @@ const { VirtualJoystick } = inputModule;
 const { createStarterResources } = resourcesModule;
 const { CraftingSystem, renderCrafting } = craftingModule;
 const { VILLAGE_CONFIG, createVillage } = villageModule;
+const { createWorldArt } = environmentArtModule;
 
 const root = document.getElementById('phaser-root');
 const joystick = new VirtualJoystick(
@@ -110,6 +120,7 @@ class VillagerScene extends Phaser.Scene {
     this.facingX = 0;
     this.facingY = 1;
     this.village = null;
+    this.worldArt = null;
   }
 
   preload() {
@@ -129,10 +140,11 @@ class VillagerScene extends Phaser.Scene {
   create() {
     window.__THE_VILLAGER_SCENE__ = this;
 
-    this.cameras.main.setBackgroundColor('#365f31');
+    this.cameras.main.setBackgroundColor('#315f2f');
     this.cameras.main.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
     this.physics.world.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
 
+    this.worldArt = createWorldArt(this, GAME_CONFIG);
     this.village = createVillage(this);
     this.createResources();
     this.createPlayer();
@@ -141,10 +153,12 @@ class VillagerScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.village.blockers);
 
     this.cameras.main.startFollow(this.player, true, GAME_CONFIG.camera.followLerp, GAME_CONFIG.camera.followLerp);
-    this.cameras.main.setRoundPixels(false);
+    this.cameras.main.setZoom(GAME_CONFIG.camera.zoom);
+    this.cameras.main.setRoundPixels(true);
 
     this.scale.on('resize', () => {
       this.cameras.main.setSize(window.innerWidth, window.innerHeight);
+      this.cameras.main.setZoom(GAME_CONFIG.camera.zoom);
     });
   }
 
@@ -339,11 +353,11 @@ const game = new Phaser.Game({
   parent: root,
   width: window.innerWidth,
   height: window.innerHeight,
-  backgroundColor: '#365f31',
+  backgroundColor: '#315f2f',
   transparent: false,
-  antialias: true,
-  pixelArt: false,
-  roundPixels: false,
+  antialias: false,
+  pixelArt: true,
+  roundPixels: true,
   physics: {
     default: 'arcade',
     arcade: {
