@@ -1,9 +1,10 @@
 const ASSETS = {
   ground: textImage('../assets/world-ground-v05.png.base64'),
-  tree: image('../assets/tree-raster.png'),
-  rock: image('../assets/rock-raster.png'),
-  grass: image('../assets/grass-raster.png'),
-  playerSheet: image('../assets/player/player_ranger_walk_v052.png'),
+  tree: image('../assets/tree-raster.png?v=0.5.3'),
+  rock: image('../assets/rock-raster.png?v=0.5.3'),
+  grass: image('../assets/grass-raster.png?v=0.5.3'),
+  playerSheet: image('../assets/player/player_ranger_walk_v052.png?v=0.5.3'),
+  playerFallback: image('../assets/player-raster.png?v=0.5.3'),
 };
 
 const PLAYER_SHEET = { frameWidth: 32, frameHeight: 32, drawWidth: 88, drawHeight: 88, walkFps: 8 };
@@ -26,7 +27,25 @@ function drawGrass(ctx,node){ellipse(ctx,node.x,node.y+8,27,8,'#0d140d',.18);if(
 function direction(player){const x=player.facingX,y=player.facingY;if(Math.abs(x)>Math.abs(y))return x<0?'left':'right';return y<0?'up':'down';}
 function frameFor(player,t){const dir=direction(player);const row={down:0,left:1,right:2,up:3}[dir];if(player.state==='walk')return{col:Math.floor(t*PLAYER_SHEET.walkFps)%6,row};return{col:0,row};}
 
-export function drawPlayer(ctx,player,gameTime,crafting){const harvesting=player.state.startsWith('harvest-'),x=Math.round(player.x),y=Math.round(player.y);ellipse(ctx,x,y+15,23,8,'#0b100c',.38);if(ready(ASSETS.playerSheet)){const f=frameFor(player,gameTime),sx=f.col*PLAYER_SHEET.frameWidth,sy=f.row*PLAYER_SHEET.frameHeight;ctx.save();ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';ctx.imageSmoothingEnabled=false;ctx.drawImage(ASSETS.playerSheet,sx,sy,PLAYER_SHEET.frameWidth,PLAYER_SHEET.frameHeight,x-PLAYER_SHEET.drawWidth/2,y-PLAYER_SHEET.drawHeight+20,PLAYER_SHEET.drawWidth,PLAYER_SHEET.drawHeight);ctx.restore();}if(harvesting)drawTool(ctx,player,gameTime,crafting);}
+export function drawPlayer(ctx,player,gameTime,crafting){
+  const harvesting=player.state.startsWith('harvest-'),x=Math.round(player.x),y=Math.round(player.y);
+  ellipse(ctx,x,y+15,23,8,'#0b100c',.38);
+  ctx.save();
+  ctx.globalAlpha=1;
+  ctx.globalCompositeOperation='source-over';
+  ctx.imageSmoothingEnabled=false;
+  if(ready(ASSETS.playerSheet)){
+    const f=frameFor(player,gameTime),sx=f.col*PLAYER_SHEET.frameWidth,sy=f.row*PLAYER_SHEET.frameHeight;
+    ctx.drawImage(ASSETS.playerSheet,sx,sy,PLAYER_SHEET.frameWidth,PLAYER_SHEET.frameHeight,x-PLAYER_SHEET.drawWidth/2,y-PLAYER_SHEET.drawHeight+20,PLAYER_SHEET.drawWidth,PLAYER_SHEET.drawHeight);
+  }else if(ready(ASSETS.playerFallback)){
+    const flip=player.facingX<-.2;
+    ctx.translate(x,y);
+    if(flip)ctx.scale(-1,1);
+    ctx.drawImage(ASSETS.playerFallback,-33,-126,66,146);
+  }
+  ctx.restore();
+  if(harvesting)drawTool(ctx,player,gameTime,crafting);
+}
 function drawTool(ctx,player,t,crafting){const cls=player.state==='harvest-tree'?'axe':player.state==='harvest-rock'?'pickaxe':'sickle',equipped=crafting.getEquipped(cls),dir=player.facingX<-.2?-1:1,swing=Math.sin(t*10)*.72*dir;ctx.save();ctx.translate(player.x+dir*20,player.y-38);ctx.rotate(swing);rect(ctx,-2,-1,5,7,TOOL.skin);rect(ctx,0,3,4,32,TOOL.leather);rect(ctx,1,5,2,27,TOOL.leatherDark);if(!equipped)rect(ctx,-1,29,6,6,TOOL.skin);else if(cls==='axe'){const head=equipped.id==='stone_axe'?TOOL.stone:TOOL.metal;poly(ctx,[[-12,26],[3,23],[12,26],[4,36],[-11,33]],head);rect(ctx,-8,27,9,3,TOOL.metalHi);}else if(cls==='pickaxe'){const head=equipped.id==='stone_pickaxe'?TOOL.stone:TOOL.metal;poly(ctx,[[-13,25],[0,22],[13,25],[9,29],[0,26],[-10,29]],head);rect(ctx,-6,25,12,2,TOOL.metalHi);}else{ctx.strokeStyle=TOOL.metalHi;ctx.lineWidth=4;ctx.beginPath();ctx.arc(8,27,10,-1.25,.6);ctx.stroke();}ctx.restore();}
 export function drawTargetRing(ctx,node){if(!node?.active)return;ellipse(ctx,node.x,node.y+8,node.config.radius+13,12,'#e8cf67',.10);ctx.strokeStyle='rgba(246,226,133,.9)';ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();ctx.ellipse(node.x,node.y+8,node.config.radius+12,11,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
 export function drawWorldBorder(ctx,world){ctx.strokeStyle='#172418';ctx.lineWidth=12;ctx.strokeRect(0,0,world.width,world.height);ctx.strokeStyle='#8aa45b';ctx.lineWidth=2;ctx.strokeRect(6,6,world.width-12,world.height-12);}
