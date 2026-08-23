@@ -27,44 +27,78 @@ jobs:
           if (buildInfo.version !== manifest.version) fail('build-info.json must mirror release-manifest.json version');
           if (!manifest.entry || !manifest.pwa) fail('release manifest must define entry and pwa modules');
           if (!manifest.playerAtlas) fail('release manifest must define playerAtlas geometry');
+          if (manifest.runtime !== 'phaser4') fail('v0.6+ releases must use the Phaser 4 runtime');
+
+          if (!manifest.engine || manifest.engine.name !== 'Phaser' || manifest.engine.version !== '4.2.1') {
+            fail('release manifest must pin Phaser 4.2.1');
+          }
+          if (manifest.engine.global !== 'Phaser') fail('Phaser global must be named Phaser');
+          if (manifest.engine.url !== 'https://cdnjs.cloudflare.com/ajax/libs/phaser/4.2.1/phaser.min.js') {
+            fail('Phaser engine URL must be the pinned 4.2.1 CDN artifact');
+          }
 
           const required = [manifest.entry, manifest.pwa, ...manifest.shell, ...Object.values(manifest.assets)];
           for (const file of new Set(required)) if (!fs.existsSync(file)) fail(`Manifest references missing file: ${file}`);
 
-          const runtimeFiles = ['index.html','sw.js','src/bootstrap.js','src/pwa.js','src/game-v03.js','src/art.js'];
-          for (const file of runtimeFiles) {
-            const text = fs.readFileSync(file, 'utf8');
-            for (const deprecated of manifest.deprecatedAssets || []) if (text.includes(deprecated)) fail(`${file} references deprecated asset ${deprecated}`);
+          for (const deprecated of manifest.deprecatedRuntime || []) {
+            if (manifest.entry === deprecated || manifest.shell.includes(deprecated)) {
+              fail(`Deprecated runtime is active: ${deprecated}`);
+            }
           }
 
-          const index = fs.readFileSync('index.html','utf8');
-          if ((index.match(/<script[^>]+src=/g) || []).length !== 1 || !index.includes('src/bootstrap.js')) fail('index.html must have exactly one runtime entry: src/bootstrap.js');
+          const runtimeFiles = ['index.html', 'sw.js', 'src/bootstrap.js', 'src/pwa.js', manifest.entry];
+          for (const file of runtimeFiles) {
+            const text = fs.readFileSync(file, 'utf8');
+            for (const deprecated of manifest.deprecatedAssets || []) {
+              if (text.includes(deprecated)) fail(`${file} references deprecated asset ${deprecated}`);
+            }
+          }
 
-          const pwa = fs.readFileSync('src/pwa.js','utf8');
-          const sw = fs.readFileSync('sw.js','utf8');
-          if (/FALLBACK_BUILD_VERSION|0\.5\.[0-9]+/.test(pwa)) fail('src/pwa.js must not hard-code a build version');
-          if (/the-villager-v0\.5\.|0\.5\.[0-9]+/.test(sw)) fail('sw.js must not hard-code a build version');
+          const index = fs.readFileSync('index.html', 'utf8');
+          if ((index.match(/<script[^>]+src=/g) || []).length !== 1 || !index.includes('src/bootstrap.js')) {
+            fail('index.html must have exactly one runtime entry: src/bootstrap.js');
+          }
+          if (!index.includes('id="phaser-root"')) fail('index.html must provide the Phaser mount root');
+          if (index.includes('id="game"')) fail('legacy canvas #game must not be active in Phaser releases');
+
+          const bootstrap = fs.readFileSync('src/bootstrap.js', 'utf8');
+          if (!bootstrap.includes('loadEngine(release.engine)')) fail('bootstrap must load the engine from the release manifest');
+          if (!bootstrap.includes('engine.version')) fail('bootstrap must validate the pinned engine version');
+
+          const phaserRuntime = fs.readFileSync(manifest.entry, 'utf8');
+          if (!phaserRuntime.includes('new Phaser.Game')) fail('Phaser entry must create a Phaser.Game instance');
+          if (!phaserRuntime.includes('release.playerAtlas')) fail('Phaser entry must consume playerAtlas geometry from the release manifest');
+          if (!phaserRuntime.includes("type: Phaser.AUTO")) fail('Phaser entry must use Phaser.AUTO rendering');
+          if (!phaserRuntime.includes("default: 'arcade'")) fail('Phaser entry must use Arcade Physics for the migration runtime');
+
+          const pwa = fs.readFileSync('src/pwa.js', 'utf8');
+          const sw = fs.readFileSync('sw.js', 'utf8');
+          if (/FALLBACK_BUILD_VERSION|\b0\.\d+\.\d+\b/.test(pwa)) fail('src/pwa.js must not hard-code a build version');
+          if (/the-villager-v\d|\b0\.\d+\.\d+\b/.test(sw)) fail('sw.js must not hard-code a build version');
 
           try {
             const atlas = manifest.playerAtlas;
             const playerPath = manifest.assets.playerSheet;
             if (!playerPath.endsWith('.png')) fail('playerSheet must be a real PNG file');
             const png = fs.readFileSync(playerPath);
-            if (png.subarray(0,8).toString('hex') !== '89504e470d0a1a0a') fail('playerSheet is not a PNG');
+            if (png.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') fail('playerSheet is not a PNG');
             if (png.length < 33) fail('playerSheet PNG is truncated');
 
             const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
-            if (width !== atlas.width || height !== atlas.height) fail(`playerSheet dimensions ${width}x${height} do not match manifest ${atlas.width}x${atlas.height}`);
+            if (width !== atlas.width || height !== atlas.height) {
+              fail(`playerSheet dimensions ${width}x${height} do not match manifest ${atlas.width}x${atlas.height}`);
+            }
             if (atlas.frameWidth * atlas.columns !== atlas.width) fail('playerAtlas columns do not tile the PNG width exactly');
             if (atlas.frameHeight * atlas.rows !== atlas.height) fail('playerAtlas rows do not tile the PNG height exactly');
-            if (atlas.columns !== 6 || atlas.rows !== 1) fail('v0.5.8 ranger must be a six-frame single-row strip');
+            if (atlas.frameWidth <= 0 || atlas.frameHeight <= 0 || atlas.columns <= 0 || atlas.rows <= 0) fail('playerAtlas geometry must be positive');
 
             const sha = crypto.createHash('sha256').update(png).digest('hex');
             if (sha !== atlas.sha256) fail(`playerSheet sha256 mismatch: ${sha}`);
 
             let offset = 8, idat = [], sawIEND = false;
             while (offset + 12 <= png.length) {
-              const len = png.readUInt32BE(offset); const type = png.toString('ascii', offset+4, offset+8);
+              const len = png.readUInt32BE(offset);
+              const type = png.toString('ascii', offset + 4, offset + 8);
               const dataStart = offset + 8, dataEnd = dataStart + len;
               if (dataEnd + 4 > png.length) throw new Error(`truncated ${type} chunk`);
               if (type === 'IDAT') idat.push(png.subarray(dataStart, dataEnd));
@@ -79,14 +113,10 @@ jobs:
             if (meta.frameWidth !== atlas.frameWidth || meta.frameHeight !== atlas.frameHeight || meta.columns !== atlas.columns || meta.rows !== atlas.rows) {
               fail('player animation metadata does not match release-manifest playerAtlas');
             }
-
-            const art = fs.readFileSync('src/art.js','utf8');
-            if (!art.includes('release.playerAtlas')) fail('src/art.js must consume playerAtlas geometry from release-manifest.json');
-            if (/frameWidth:\s*\d+|frameHeight:\s*\d+/.test(art)) fail('src/art.js must not hard-code player frame geometry');
           } catch (error) {
             fail(`playerSheet validation failed: ${error.message}`);
           }
 
           if (process.exitCode) process.exit(process.exitCode);
-          console.log(`Release ${manifest.releaseId} validated.`);
+          console.log(`Release ${manifest.releaseId} validated on ${manifest.engine.name} ${manifest.engine.version}.`);
           NODE
