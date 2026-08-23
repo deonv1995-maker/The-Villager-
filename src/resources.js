@@ -32,19 +32,19 @@ export class ResourceNode {
 
 export function createStarterResources() {
   return [
-    new ResourceNode('tree', 480, 420),
-    new ResourceNode('tree', 690, 320),
-    new ResourceNode('tree', 940, 560),
-    new ResourceNode('tree', 1160, 370),
-    new ResourceNode('tree', 1370, 710),
-    new ResourceNode('rock', 580, 650),
-    new ResourceNode('rock', 850, 780),
-    new ResourceNode('rock', 1240, 540),
-    new ResourceNode('rock', 1480, 410),
-    new ResourceNode('grass', 430, 760),
-    new ResourceNode('grass', 760, 520),
-    new ResourceNode('grass', 1040, 340),
-    new ResourceNode('grass', 1280, 820),
-    new ResourceNode('grass', 1540, 650),
+    new ResourceNode('tree', 380, 330),
+    new ResourceNode('tree', 565, 255),
+    new ResourceNode('tree', 1280, 285),
+    new ResourceNode('tree', 1480, 395),
+    new ResourceNode('tree', 1510, 830),
+    new ResourceNode('rock', 430, 655),
+    new ResourceNode('rock', 585, 900),
+    new ResourceNode('rock', 1260, 905),
+    new ResourceNode('rock', 1510, 560),
+    new ResourceNode('grass', 340, 810),
+    new ResourceNode('grass', 560, 520),
+    new ResourceNode('grass', 1215, 455),
+    new ResourceNode('grass', 1320, 810),
+    new ResourceNode('grass', 1580, 690),
   ];
 }
