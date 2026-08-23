@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
-  "version": "0.7.1",
-  "releaseId": "v0.7.1",
+  "version": "0.7.2",
+  "releaseId": "v0.7.2",
   "runtime": "phaser4",
   "entry": "src/phaser-game.js",
   "pwa": "src/pwa.js",
@@ -11,6 +11,7 @@
     "tree":"assets/tree-raster.png",
     "rock":"assets/rock-raster.png",
     "grass":"assets/grass-raster.png",
+    "environmentAtlas":"assets/environment_atlas_v072.png",
     "playerSheet":"assets/player/player_ranger_walk_v058.png",
     "playerAnimations":"assets/player/player_ranger_walk_v058.json"
   },
