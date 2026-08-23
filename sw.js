@@ -1,4 +1,4 @@
-const CACHE_NAME = 'the-villager-v0.3.1';
+const CACHE_NAME = 'the-villager-v0.4.0';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -6,6 +6,11 @@ const CORE_ASSETS = [
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-maskable.svg',
+  './assets/ground-tile.svg',
+  './assets/tree-atlas.svg',
+  './assets/rock-atlas.svg',
+  './assets/grass-atlas.svg',
+  './assets/player-sheet.svg',
   './src/game-v03.js',
   './src/game.js',
   './src/art.js',
