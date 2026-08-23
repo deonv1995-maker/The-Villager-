@@ -16,28 +16,32 @@ function buildFallbackClips(model){
   const clips=[];
   {
     const t=[0,1,2],tracks=[];
-    addQuatTrack(tracks,uaL,t,[[0,0,-.92],[.04,0,-.96],[0,0,-.92]]);addQuatTrack(tracks,uaR,t,[[0,0,.92],[-.04,0,.96],[0,0,.92]]);
-    addQuatTrack(tracks,laL,t,[[0,0,.12],[0,0,.16],[0,0,.12]]);addQuatTrack(tracks,laR,t,[[0,0,-.12],[0,0,-.16],[0,0,-.12]]);
-    addQuatTrack(tracks,sp1,t,[[0,0,0],[.025,0,0],[0,0,0]]);addQuatTrack(tracks,sp2,t,[[0,0,0],[-.018,0,0],[0,0,0]]);
+    // This rig imports in a T-pose. Rotate shoulders almost 90 degrees toward the
+    // torso so idle hands rest naturally beside the thighs instead of hovering out.
+    addQuatTrack(tracks,uaL,t,[[0,0,-1.40],[.02,0,-1.42],[0,0,-1.40]]);addQuatTrack(tracks,uaR,t,[[0,0,1.40],[-.02,0,1.42],[0,0,1.40]]);
+    addQuatTrack(tracks,laL,t,[[0,0,.05],[0,0,.08],[0,0,.05]]);addQuatTrack(tracks,laR,t,[[0,0,-.05],[0,0,-.08],[0,0,-.05]]);
+    addQuatTrack(tracks,sp1,t,[[0,0,0],[.018,0,0],[0,0,0]]);addQuatTrack(tracks,sp2,t,[[0,0,0],[-.012,0,0],[0,0,0]]);
     clips.push(new THREE.AnimationClip('Idle',2,tracks));
   }
   {
     const t=[0,.25,.5,.75,1],tracks=[];
-    const l=[.48,0,-.48,0,.48],r=l.map(v=>-v);
-    addQuatTrack(tracks,uaL,t,l.map(v=>[v,0,-.90]));addQuatTrack(tracks,uaR,t,r.map(v=>[v,0,.90]));
-    addQuatTrack(tracks,laL,t,[[0,0,.14],[-.08,0,.14],[0,0,.14],[.08,0,.14],[0,0,.14]]);addQuatTrack(tracks,laR,t,[[0,0,-.14],[.08,0,-.14],[0,0,-.14],[-.08,0,-.14],[0,0,-.14]]);
+    const l=[.42,0,-.42,0,.42],r=l.map(v=>-v);
+    addQuatTrack(tracks,uaL,t,l.map(v=>[v,0,-1.36]));addQuatTrack(tracks,uaR,t,r.map(v=>[v,0,1.36]));
+    addQuatTrack(tracks,laL,t,[[0,0,.07],[-.08,0,.07],[0,0,.07],[.08,0,.07],[0,0,.07]]);addQuatTrack(tracks,laR,t,[[0,0,-.07],[.08,0,-.07],[0,0,-.07],[-.08,0,-.07],[0,0,-.07]]);
     addQuatTrack(tracks,thL,t,l.map(v=>[v*.78,0,0]));addQuatTrack(tracks,thR,t,r.map(v=>[v*.78,0,0]));
     addQuatTrack(tracks,caL,t,[[0,0,0],[.20,0,0],[.34,0,0],[0,0,0],[0,0,0]]);addQuatTrack(tracks,caR,t,[[.34,0,0],[0,0,0],[0,0,0],[.20,0,0],[.34,0,0]]);
     addQuatTrack(tracks,sp1,t,[[.03,0,0],[.02,0,.035],[.03,0,0],[.02,0,-.035],[.03,0,0]]);
     clips.push(new THREE.AnimationClip('Walk',1,tracks));
   }
   {
-    const t=[0,.35,.7,1.05,1.4],tracks=[];
-    addQuatTrack(tracks,uaL,t,[[-.35,0,-.62],[-.75,0,-.42],[-1.0,0,-.22],[-.50,0,-.50],[-.35,0,-.62]]);
-    addQuatTrack(tracks,uaR,t,[[-.35,0,.62],[-.75,0,.42],[-1.0,0,.22],[-.50,0,.50],[-.35,0,.62]]);
-    addQuatTrack(tracks,laL,t,[[-.25,0,.12],[-.55,0,.10],[-.70,0,.08],[-.30,0,.10],[-.25,0,.12]]);addQuatTrack(tracks,laR,t,[[-.25,0,-.12],[-.55,0,-.10],[-.70,0,-.08],[-.30,0,-.10],[-.25,0,-.12]]);
-    addQuatTrack(tracks,sp1,t,[[.06,0,0],[.12,0,0],[.24,0,0],[.10,0,0],[.06,0,0]]);addQuatTrack(tracks,sp2,t,[[.04,0,0],[.08,0,0],[.16,0,0],[.06,0,0],[.04,0,0]]);
-    clips.push(new THREE.AnimationClip('Harvest',1.4,tracks));
+    const t=[0,.28,.58,.88,1.18],tracks=[];
+    // On this skeleton positive local X brings the arms forward. Keep enough Z
+    // rotation to bring them inward, then swing forward/down for the chop cycle.
+    addQuatTrack(tracks,uaL,t,[[.20,0,-1.18],[.72,0,-1.05],[1.05,0,-.92],[.48,0,-1.08],[.20,0,-1.18]]);
+    addQuatTrack(tracks,uaR,t,[[.20,0,1.18],[.72,0,1.05],[1.05,0,.92],[.48,0,1.08],[.20,0,1.18]]);
+    addQuatTrack(tracks,laL,t,[[-.10,0,.06],[-.42,0,.04],[-.78,0,.03],[-.34,0,.04],[-.10,0,.06]]);addQuatTrack(tracks,laR,t,[[-.10,0,-.06],[-.42,0,-.04],[-.78,0,-.03],[-.34,0,-.04],[-.10,0,-.06]]);
+    addQuatTrack(tracks,sp1,t,[[.03,0,0],[.08,0,0],[.18,0,0],[.08,0,0],[.03,0,0]]);addQuatTrack(tracks,sp2,t,[[.02,0,0],[.05,0,0],[.11,0,0],[.04,0,0],[.02,0,0]]);
+    clips.push(new THREE.AnimationClip('Harvest',1.18,tracks));
   }
   return clips;
 }
