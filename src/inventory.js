@@ -7,9 +7,42 @@ export class Inventory {
   }
 
   add(itemId, amount = 1) {
-    if (!ITEM_TYPES[itemId] || amount <= 0) return;
+    if (!ITEM_TYPES[itemId] || amount <= 0) return false;
     this.items.set(itemId, (this.items.get(itemId) || 0) + amount);
-    this.onChanged?.(this.snapshot());
+    this.emitChanged();
+    return true;
+  }
+
+  remove(itemId, amount = 1) {
+    if (amount <= 0) return false;
+    const current = this.get(itemId);
+    if (current < amount) return false;
+
+    const next = current - amount;
+    if (next > 0) this.items.set(itemId, next);
+    else this.items.delete(itemId);
+
+    this.emitChanged();
+    return true;
+  }
+
+  has(itemId, amount = 1) {
+    return this.get(itemId) >= amount;
+  }
+
+  hasAll(costs) {
+    return Object.entries(costs).every(([itemId, amount]) => this.has(itemId, amount));
+  }
+
+  consume(costs) {
+    if (!this.hasAll(costs)) return false;
+    for (const [itemId, amount] of Object.entries(costs)) {
+      const next = this.get(itemId) - amount;
+      if (next > 0) this.items.set(itemId, next);
+      else this.items.delete(itemId);
+    }
+    this.emitChanged();
+    return true;
   }
 
   get(itemId) {
@@ -22,6 +55,10 @@ export class Inventory {
       quantity,
       ...ITEM_TYPES[id],
     }));
+  }
+
+  emitChanged() {
+    this.onChanged?.(this.snapshot());
   }
 }
 
