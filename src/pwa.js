@@ -1,4 +1,4 @@
-const BUILD_VERSION = '0.4.2';
+const BUILD_VERSION = '0.4.3';
 const reloadKey = `the-villager-reloaded-${BUILD_VERSION}`;
 
 function markBuildVersion() {
