@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>The Villager — Low Poly 3D POC</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div id="game-root"></div>
+
+  <div id="hud">
+    <div class="top-row">
+      <button class="gold-button" aria-label="Inventory">🎒</button>
+      <button class="gold-button" aria-label="Tools">🛠️</button>
+      <div class="badge">3D POC</div>
+    </div>
+
+    <div id="joystick" aria-label="Movement joystick">
+      <div id="joystick-knob"></div>
+    </div>
+
+    <div id="hint">Move close to the tree or rock to harvest.</div>
+    <div id="harvest" class="hidden">
+      <div id="harvest-label">Harvesting</div>
+      <div class="bar"><div id="harvest-fill"></div></div>
+    </div>
+    <div id="version">3D-0.1</div>
+  </div>
+
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
