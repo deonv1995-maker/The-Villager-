@@ -11,6 +11,7 @@ export const GAME_CONFIG = Object.freeze({
   },
   camera: {
     followLerp: 0.14,
+    zoom: 0.82,
   },
   joystick: {
     radius: 42,
