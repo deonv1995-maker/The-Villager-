@@ -50,7 +50,7 @@ jobs:
             if (png.subarray(0,8).toString('hex') !== '89504e470d0a1a0a') fail('playerSheet is not a PNG');
             if (png.length < 33) fail('playerSheet PNG is truncated');
             const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
-            if (width !== 384 || height !== 256) fail(`playerSheet must retain full 384x256 production resolution, got ${width}x${height}`);
+            if (width !== 288 || height !== 256) fail(`playerSheet must be the packed 288x256 production atlas, got ${width}x${height}`);
             let offset = 8, idat = [], sawIEND = false;
             while (offset + 12 <= png.length) {
               const len = png.readUInt32BE(offset); const type = png.toString('ascii', offset+4, offset+8);
@@ -65,7 +65,7 @@ jobs:
             zlib.inflateSync(Buffer.concat(idat));
 
             const art = fs.readFileSync('src/art.js','utf8');
-            if (!art.includes('frameWidth:64,frameHeight:64')) fail('src/art.js must render the production ranger as 64x64 frames');
+            if (!art.includes('frameWidth:48,frameHeight:64')) fail('src/art.js must render the packed ranger as 48x64 frames');
           } catch (error) {
             fail(`playerSheet validation failed: ${error.message}`);
           }
