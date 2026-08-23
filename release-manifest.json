@@ -1,7 +1,7 @@
 {
   "schemaVersion": 4,
-  "version": "0.7.8",
-  "releaseId": "v0.7.8",
+  "version": "0.7.9",
+  "releaseId": "v0.7.9",
   "runtime": "phaser4",
   "entry": "src/phaser-game.js",
   "pwa": "src/pwa.js",
