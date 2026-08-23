@@ -1,24 +1,24 @@
-const CACHE_NAME = 'the-villager-v0.4.2';
+const CACHE_NAME = 'the-villager-v0.4.3';
 const APP_SHELL = [
   './',
   './index.html',
-  './styles.css?v=0.4.2',
+  './styles.css?v=0.4.3',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-maskable.svg',
-  './assets/ground-tile.svg',
-  './assets/tree-atlas.svg',
-  './assets/rock-atlas.svg',
-  './assets/grass-atlas.svg',
-  './assets/player-sheet.svg',
-  './src/game-v03.js?v=0.4.2',
-  './src/art.js?v=0.4.2',
+  './assets/ground-raster.png',
+  './assets/tree-raster.png',
+  './assets/rock-raster.png',
+  './assets/grass-raster.png',
+  './assets/player-raster.png',
+  './src/game-v03.js?v=0.4.3',
+  './src/art.js?v=0.4.3',
   './src/config.js',
   './src/input.js',
   './src/inventory.js',
   './src/resources.js',
   './src/crafting.js',
-  './src/pwa.js?v=0.4.2'
+  './src/pwa.js?v=0.4.3'
 ];
 
 self.addEventListener('install', (event) => {

@@ -1,9 +1,9 @@
 const ASSETS = {
-  ground: image('../assets/ground-tile.svg'),
-  trees: image('../assets/tree-atlas.svg'),
-  rocks: image('../assets/rock-atlas.svg'),
-  grass: image('../assets/grass-atlas.svg'),
-  player: image('../assets/player-sheet.svg'),
+  ground: image('../assets/ground-raster.png'),
+  tree: image('../assets/tree-raster.png'),
+  rock: image('../assets/rock-raster.png'),
+  grass: image('../assets/grass-raster.png'),
+  player: image('../assets/player-raster.png'),
 };
 
 const TOOL = {
@@ -50,119 +50,102 @@ function ellipse(ctx, x, y, rx, ry, color, alpha = 1) {
   ctx.restore();
 }
 
-export function drawGround(ctx, originX, originY, width, height, grid = 32) {
-  ctx.fillStyle = '#4d7834';
+export function drawGround(ctx, originX, originY, width, height, grid = 48) {
+  ctx.fillStyle = '#718c35';
   ctx.fillRect(0, 0, width, height);
 
-  const sx = ((originX % grid) + grid) % grid;
-  const sy = ((originY % grid) + grid) % grid;
+  const tile = 96;
+  const sx = ((originX % tile) + tile) % tile;
+  const sy = ((originY % tile) + tile) % tile;
 
-  for (let y = sy - grid; y < height + grid; y += grid) {
-    for (let x = sx - grid; x < width + grid; x += grid) {
-      const gx = Math.floor((x - originX) / grid);
-      const gy = Math.floor((y - originY) / grid);
-
-      if (ready(ASSETS.ground)) ctx.drawImage(ASSETS.ground, x, y, grid, grid);
-      else { ctx.fillStyle = '#5f8a3b'; ctx.fillRect(x, y, grid, grid); }
-
-      const tone = hash(gx, gy, 2);
-      if (tone < .18) rect(ctx, x, y, grid, grid, 'rgba(36,77,37,.09)');
-      else if (tone > .84) rect(ctx, x, y, grid, grid, 'rgba(190,207,103,.06)');
-
-      const dirt = hash(gx, gy, 7);
-      if (dirt < .12) {
-        rect(ctx, x + 3, y + 18, 13, 7, '#6f4d32');
-        rect(ctx, x + 7, y + 18, 7, 4, '#9f7149');
-        if (dirt < .045) rect(ctx, x + 15, y + 22, 7, 4, '#7e5636');
-      }
-
-      const tuft = hash(gx, gy, 11);
-      if (tuft < .20) {
-        rect(ctx, x + 5, y + 8, 2, 8, '#345d2b');
-        rect(ctx, x + 8, y + 5, 2, 11, '#7aa64b');
-        rect(ctx, x + 11, y + 9, 2, 7, '#4f7f37');
-      }
-
-      const flower = hash(gx, gy, 13);
-      if (flower < .065) {
-        const fx = x + 20 + Math.floor(hash(gx, gy, 14) * 5);
-        const fy = y + 10 + Math.floor(hash(gx, gy, 15) * 8);
-        rect(ctx, fx, fy + 2, 2, 7, '#365f2e');
-        const c = flower < .02 ? '#d96b63' : flower < .04 ? '#e9d35d' : '#eee9cf';
-        rect(ctx, fx - 2, fy, 3, 3, c);
-        rect(ctx, fx + 1, fy - 2, 3, 3, c);
-      }
-
-      const pebble = hash(gx, gy, 17);
-      if (pebble < .08) {
-        rect(ctx, x + 22, y + 23, 5, 3, '#5d6258');
-        rect(ctx, x + 23, y + 22, 3, 2, '#979c88');
+  if (ready(ASSETS.ground)) {
+    for (let y = sy - tile; y < height + tile; y += tile) {
+      for (let x = sx - tile; x < width + tile; x += tile) {
+        const gx = Math.floor((x - originX) / tile);
+        const gy = Math.floor((y - originY) / tile);
+        const flipX = hash(gx, gy, 2) > .5;
+        const flipY = hash(gx, gy, 3) > .5;
+        ctx.save();
+        ctx.translate(x + (flipX ? tile : 0), y + (flipY ? tile : 0));
+        ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+        ctx.drawImage(ASSETS.ground, 0, 0, tile, tile);
+        ctx.restore();
       }
     }
   }
 }
 
 export function drawResource(ctx, node) {
-  if (node.type === 'tree') return drawTreeSprite(ctx, node);
-  if (node.type === 'rock') return drawRockSprite(ctx, node);
-  return drawGrassSprite(ctx, node);
+  if (node.type === 'tree') return drawTree(ctx, node);
+  if (node.type === 'rock') return drawRock(ctx, node);
+  return drawGrass(ctx, node);
 }
 
-function drawTreeSprite(ctx, node) {
-  ellipse(ctx, node.x + 4, node.y + 16, 48, 13, '#122016', .28);
-  if (!ready(ASSETS.trees)) return drawTreeFallback(ctx, node.x, node.y);
-  const variant = Math.floor(hash(node.x, node.y, 3) * 3) % 3;
-  ctx.drawImage(ASSETS.trees, variant * 128, 0, 128, 160, node.x - 68, node.y - 146, 136, 170);
-  if (hash(node.x, node.y, 21) > .5) {
-    rect(ctx, node.x - 17, node.y + 15, 7, 3, '#769b4a');
-    rect(ctx, node.x + 12, node.y + 17, 9, 3, '#4f7a37');
-  }
+function drawTree(ctx, node) {
+  ellipse(ctx, node.x + 5, node.y + 18, 60, 16, '#11180f', .28);
+  if (!ready(ASSETS.tree)) return;
+  const scale = .90 + hash(node.x, node.y, 4) * .18;
+  const w = 146 * scale;
+  const h = 210 * scale;
+  const flip = hash(node.x, node.y, 5) > .5;
+  ctx.save();
+  ctx.translate(node.x, node.y);
+  if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(ASSETS.tree, -w / 2, -h + 24, w, h);
+  ctx.restore();
 }
 
-function drawRockSprite(ctx, node) {
-  ellipse(ctx, node.x, node.y + 12, 31, 10, '#111514', .24);
-  if (!ready(ASSETS.rocks)) return drawRockFallback(ctx, node.x, node.y);
-  const variant = Math.floor(hash(node.x, node.y, 5) * 4) % 4;
-  ctx.drawImage(ASSETS.rocks, variant * 96, 0, 96, 96, node.x - 50, node.y - 78, 100, 100);
-  if (hash(node.x, node.y, 22) > .6) {
-    rect(ctx, node.x - 23, node.y + 11, 6, 3, '#55733b');
-    rect(ctx, node.x + 18, node.y + 10, 5, 3, '#75984b');
-  }
+function drawRock(ctx, node) {
+  ellipse(ctx, node.x, node.y + 12, 40, 11, '#111514', .24);
+  if (!ready(ASSETS.rock)) return;
+  const scale = .76 + hash(node.x, node.y, 7) * .22;
+  const w = 109 * scale;
+  const h = 88 * scale;
+  const flip = hash(node.x, node.y, 8) > .5;
+  ctx.save();
+  ctx.translate(node.x, node.y);
+  if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(ASSETS.rock, -w / 2, -h + 17, w, h);
+  ctx.restore();
 }
 
-function drawGrassSprite(ctx, node) {
-  ellipse(ctx, node.x, node.y + 10, 23, 7, '#121912', .18);
-  if (!ready(ASSETS.grass)) return drawGrassFallback(ctx, node.x, node.y);
-  const variant = Math.floor(hash(node.x, node.y, 9) * 4) % 4;
-  ctx.drawImage(ASSETS.grass, variant * 64, 0, 64, 64, node.x - 34, node.y - 50, 68, 68);
+function drawGrass(ctx, node) {
+  ellipse(ctx, node.x, node.y + 8, 24, 7, '#101610', .16);
+  if (!ready(ASSETS.grass)) return;
+  const scale = .85 + hash(node.x, node.y, 10) * .30;
+  const w = 54 * scale;
+  const h = 64 * scale;
+  const flip = hash(node.x, node.y, 11) > .5;
+  ctx.save();
+  ctx.translate(node.x, node.y);
+  if (flip) ctx.scale(-1, 1);
+  ctx.drawImage(ASSETS.grass, -w / 2, -h + 14, w, h);
+  ctx.restore();
 }
 
 export function drawPlayer(ctx, player, gameTime, crafting) {
-  const frame = playerFrame(player.state, gameTime);
+  const walking = player.state === 'walk';
+  const harvesting = player.state.startsWith('harvest-');
+  const bob = walking ? Math.sin(gameTime * 10) * 2.5 : harvesting ? Math.sin(gameTime * 7) * 1.2 : Math.sin(gameTime * 2.2) * .7;
+  const lean = harvesting ? Math.sin(gameTime * 7) * .035 : walking ? Math.sin(gameTime * 9) * .02 : 0;
   const x = Math.round(player.x);
   const y = Math.round(player.y);
-  ellipse(ctx, x, y + 16, 18, 7, '#101713', .30);
 
-  if (!ready(ASSETS.player)) {
-    drawPlayerFallback(ctx, player, gameTime);
-  } else {
-    ctx.save();
+  ellipse(ctx, x, y + 15, 19, 7, '#101713', .28);
+
+  if (ready(ASSETS.player)) {
+    const w = 58;
+    const h = 129;
     const flip = player.facingX < -.2;
-    ctx.translate(x, 0);
+    ctx.save();
+    ctx.translate(x, y + bob);
     if (flip) ctx.scale(-1, 1);
-    ctx.drawImage(ASSETS.player, frame * 64, 0, 64, 80, -38, y - 72, 76, 95);
+    ctx.rotate(lean * (flip ? -1 : 1));
+    ctx.drawImage(ASSETS.player, -w / 2, -h + 19, w, h);
     ctx.restore();
   }
 
-  if (player.state.startsWith('harvest-')) drawTool(ctx, player, gameTime, crafting);
-}
-
-function playerFrame(state, t) {
-  if (state === 'walk') return Math.floor(t * 7) % 2 ? 1 : 2;
-  if (state === 'harvest-tree') return Math.floor(t * 6) % 2 ? 3 : 4;
-  if (state === 'harvest-rock') return Math.floor(t * 6) % 2 ? 5 : 6;
-  if (state === 'harvest-grass') return 7;
-  return 0;
+  if (harvesting) drawTool(ctx, player, gameTime, crafting);
 }
 
 function drawTool(ctx, player, t, crafting) {
@@ -172,20 +155,20 @@ function drawTool(ctx, player, t, crafting) {
   const swing = Math.sin(t * 10) * .72 * dir;
 
   ctx.save();
-  ctx.translate(player.x + dir * 13, player.y - 28);
+  ctx.translate(player.x + dir * 18, player.y - 34);
   ctx.rotate(swing);
   rect(ctx, -2, -1, 5, 7, TOOL.skin);
-  rect(ctx, 0, 3, 4, 29, TOOL.leather);
-  rect(ctx, 1, 5, 2, 24, TOOL.leatherDark);
+  rect(ctx, 0, 3, 4, 30, TOOL.leather);
+  rect(ctx, 1, 5, 2, 25, TOOL.leatherDark);
 
-  if (!equipped) rect(ctx, -1, 26, 6, 6, TOOL.skin);
+  if (!equipped) rect(ctx, -1, 27, 6, 6, TOOL.skin);
   else if (cls === 'axe') {
     const head = equipped.id === 'stone_axe' ? TOOL.stone : TOOL.metal;
-    poly(ctx, [[-11,24],[3,22],[10,25],[4,33],[-10,31]], head);
+    poly(ctx, [[-12,24],[3,22],[11,25],[4,34],[-11,32]], head);
     rect(ctx, -8, 25, 9, 3, TOOL.metalHi);
   } else if (cls === 'pickaxe') {
     const head = equipped.id === 'stone_pickaxe' ? TOOL.stone : TOOL.metal;
-    poly(ctx, [[-12,23],[0,21],[12,24],[9,28],[0,25],[-9,28]], head);
+    poly(ctx, [[-13,23],[0,21],[13,24],[9,28],[0,25],[-10,28]], head);
     rect(ctx, -6, 23, 12, 2, TOOL.metalHi);
   } else {
     ctx.strokeStyle = TOOL.metalHi;
@@ -216,29 +199,4 @@ export function drawWorldBorder(ctx, world) {
   ctx.strokeStyle = '#78984e';
   ctx.lineWidth = 2;
   ctx.strokeRect(5, 5, world.width - 10, world.height - 10);
-}
-
-function drawTreeFallback(ctx, x, y) {
-  rect(ctx, x - 8, y - 54, 16, 72, '#6e4128');
-  ctx.fillStyle = '#2f6c35'; ctx.beginPath(); ctx.arc(x, y - 71, 38, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#4f8d42'; ctx.beginPath(); ctx.arc(x - 17, y - 78, 21, 0, Math.PI * 2); ctx.fill();
-}
-
-function drawRockFallback(ctx, x, y) {
-  poly(ctx, [[x-28,y+10],[x-20,y-12],[x-8,y-28],[x+8,y-24],[x+28,y],[x+20,y+14],[x-20,y+14]], '#59606a');
-  poly(ctx, [[x-18,y],[x-8,y-22],[x+2,y-21],[x,y+8]], '#949aa2');
-}
-
-function drawGrassFallback(ctx, x, y) {
-  ctx.strokeStyle = '#72a64b'; ctx.lineWidth = 4;
-  for (let i = -15; i <= 15; i += 6) {
-    ctx.beginPath(); ctx.moveTo(x + i, y + 10); ctx.lineTo(x + i * .55, y - 18 - Math.abs(i) * .3); ctx.stroke();
-  }
-}
-
-function drawPlayerFallback(ctx, player, t) {
-  const bob = player.state === 'walk' ? Math.round(Math.abs(Math.sin(t * 10)) * 2) : 0;
-  rect(ctx, player.x - 12, player.y - 28 + bob, 24, 35, '#315c3c');
-  rect(ctx, player.x - 9, player.y - 42 + bob, 18, 15, '#d99363');
-  rect(ctx, player.x - 10, player.y - 46 + bob, 20, 7, '#4b2c20');
 }
