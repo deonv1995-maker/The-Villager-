@@ -43,9 +43,11 @@ const ASSETS={
   playerSheet:image('playerSheet')
 };
 
-// v0.5.8 uses a single clean six-frame strip. The source art is never sliced
-// across neighbouring sprites; left-facing movement is mirrored at render time.
-const PLAYER_SHEET={frameWidth:64,frameHeight:64,columns:6,drawWidth:104,drawHeight:104,walkFps:8};
+const PLAYER_SHEET=Object.freeze({...release.playerAtlas});
+if(!PLAYER_SHEET.frameWidth||!PLAYER_SHEET.frameHeight||!PLAYER_SHEET.columns||!PLAYER_SHEET.drawWidth||!PLAYER_SHEET.drawHeight){
+  throw new Error('Release manifest is missing playerAtlas geometry.');
+}
+
 const TOOL={leather:'#8d5c35',leatherDark:'#4a2d20',skin:'#d99363',metal:'#aeb7bd',metalHi:'#d5dcdf',stone:'#929aa0'};
 
 function hash(x,y,salt=0){let n=(Math.floor(x)*374761393+Math.floor(y)*668265263+salt*1442695041)|0;n=(n^(n>>>13))*1274126177;return((n^(n>>>16))>>>0)/4294967295;}
