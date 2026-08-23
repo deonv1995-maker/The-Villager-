@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "version": "0.5.4",
+  "releaseId": "v0.5.4",
+  "entry": "src/game-v03.js",
+  "pwa": "src/pwa.js",
+  "assets": {
+    "ground": "assets/world-ground-v05.png.base64",
+    "tree": "assets/tree-raster.png",
+    "rock": "assets/rock-raster.png",
+    "grass": "assets/grass-raster.png",
+    "playerSheet": "assets/player/player_ranger_walk_v052.png",
+    "playerAnimations": "assets/player/player_ranger_walk_v052.json"
+  },
+  "shell": [
+    "index.html",
+    "styles.css",
+    "manifest.webmanifest",
+    "icons/icon.svg",
+    "icons/icon-maskable.svg",
+    "src/bootstrap.js",
+    "src/game-v03.js",
+    "src/art.js",
+    "src/config.js",
+    "src/input.js",
+    "src/inventory.js",
+    "src/resources.js",
+    "src/crafting.js",
+    "src/pwa.js"
+  ],
+  "deprecatedAssets": [
+    "assets/player-raster.png",
+    "assets/player-sheet-v05.txt",
+    "assets/player-sheet.svg",
+    "assets/ranger-walk-sheet-v051.png.base64"
+  ]
+}
