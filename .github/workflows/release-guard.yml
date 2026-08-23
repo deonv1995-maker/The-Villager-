@@ -50,8 +50,7 @@ jobs:
             if (png.subarray(0,8).toString('hex') !== '89504e470d0a1a0a') fail('playerSheet is not a PNG');
             if (png.length < 33) fail('playerSheet PNG is truncated');
             const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
-            if (width !== 192 || height !== 128) fail(`playerSheet must be 192x128, got ${width}x${height}`);
-            // Ensure the full PNG is parseable enough to reach IEND and that all IDAT data inflates.
+            if (width !== 288 || height !== 256) fail(`playerSheet must be the packed 288x256 production atlas, got ${width}x${height}`);
             let offset = 8, idat = [], sawIEND = false;
             while (offset + 12 <= png.length) {
               const len = png.readUInt32BE(offset); const type = png.toString('ascii', offset+4, offset+8);
@@ -64,6 +63,9 @@ jobs:
             if (!sawIEND) throw new Error('missing IEND chunk');
             if (!idat.length) throw new Error('missing IDAT data');
             zlib.inflateSync(Buffer.concat(idat));
+
+            const art = fs.readFileSync('src/art.js','utf8');
+            if (!art.includes('frameWidth:48,frameHeight:64')) fail('src/art.js must render the packed ranger as 48x64 frames');
           } catch (error) {
             fail(`playerSheet validation failed: ${error.message}`);
           }
