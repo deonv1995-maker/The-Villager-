@@ -1,6 +1,8 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.180.0/+esm';
 
+// GLTFLoader is resolved from jsDelivr's ESM bundle so its internal Three.js
+// dependency is browser-resolvable on raw.githack/static hosting.
 const DEFAULT_ANIMATION_ALIASES = Object.freeze({
   idle: ['idle', 'stand', 'standing', 'breathing'],
   walk: ['walk', 'walking', 'locomotion'],
@@ -19,128 +21,30 @@ function findClip(clips, aliases) {
   }
   return null;
 }
-
-function setShadowFlags(root) {
-  root.traverse(object => {
-    if (!object.isMesh) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
-    if (object.material) object.material.needsUpdate = true;
-  });
-}
-
+function setShadowFlags(root) { root.traverse(object => { if (!object.isMesh) return; object.castShadow = true; object.receiveShadow = true; if (object.material) object.material.needsUpdate = true; }); }
 function normalizeModel(model, targetHeight) {
   model.updateMatrixWorld(true);
-  const bounds = new THREE.Box3().setFromObject(model);
-  const size = new THREE.Vector3();
-  bounds.getSize(size);
+  const bounds = new THREE.Box3().setFromObject(model), size = new THREE.Vector3(); bounds.getSize(size);
   if (!Number.isFinite(size.y) || size.y <= 0.001) throw new Error('Loaded character has invalid bounds.');
-
-  const scale = targetHeight / size.y;
-  model.scale.multiplyScalar(scale);
-  model.updateMatrixWorld(true);
-
-  const scaledBounds = new THREE.Box3().setFromObject(model);
-  // Ground the model locally at y=0. The parent visual container owns any
-  // compatibility offset required by the gameplay root.
-  model.position.y -= scaledBounds.min.y;
-  model.updateMatrixWorld(true);
+  model.scale.multiplyScalar(targetHeight / size.y); model.updateMatrixWorld(true);
+  const scaledBounds = new THREE.Box3().setFromObject(model); model.position.y -= scaledBounds.min.y; model.updateMatrixWorld(true);
 }
-
 export class GlbPlayerVisual {
-  constructor({
-    playerRoot,
-    fallbackObjects,
-    modelUrl,
-    targetHeight = 3.25,
-    localGroundOffset = -0.53,
-    animationAliases = DEFAULT_ANIMATION_ALIASES,
-  }) {
-    this.playerRoot = playerRoot;
-    this.fallbackObjects = fallbackObjects;
-    this.modelUrl = modelUrl;
-    this.targetHeight = targetHeight;
-    this.animationAliases = animationAliases;
-    this.container = new THREE.Group();
-    this.container.name = 'ExternalPlayerVisual';
-    this.container.position.y = localGroundOffset;
-    this.playerRoot.add(this.container);
-
-    this.mixer = null;
-    this.actions = new Map();
-    this.activeAction = null;
-    this.loaded = false;
-    this.failed = false;
-    this.lastPosition = new THREE.Vector3();
-    this.playerRoot.getWorldPosition(this.lastPosition);
-    this.velocitySample = new THREE.Vector3();
+  constructor({playerRoot,fallbackObjects,modelUrl,targetHeight=3.25,localGroundOffset=-0.53,animationAliases=DEFAULT_ANIMATION_ALIASES}) {
+    this.playerRoot=playerRoot; this.fallbackObjects=fallbackObjects; this.modelUrl=modelUrl; this.targetHeight=targetHeight; this.animationAliases=animationAliases;
+    this.container=new THREE.Group(); this.container.name='ExternalPlayerVisual'; this.container.position.y=localGroundOffset; this.playerRoot.add(this.container);
+    this.mixer=null; this.actions=new Map(); this.activeAction=null; this.loaded=false; this.failed=false; this.lastPosition=new THREE.Vector3(); this.playerRoot.getWorldPosition(this.lastPosition); this.velocitySample=new THREE.Vector3();
   }
-
-  async load() {
-    const loader = new GLTFLoader();
-    try {
-      const gltf = await loader.loadAsync(this.modelUrl);
-      const model = gltf.scene || gltf.scenes?.[0];
-      if (!model) throw new Error('GLB contains no scene.');
-
-      setShadowFlags(model);
-      normalizeModel(model, this.targetHeight);
-      this.container.add(model);
-
-      if (gltf.animations?.length) {
-        this.mixer = new THREE.AnimationMixer(model);
-        for (const [state, aliases] of Object.entries(this.animationAliases)) {
-          const clip = findClip(gltf.animations, aliases);
-          if (!clip) continue;
-          const action = this.mixer.clipAction(clip);
-          action.enabled = true;
-          action.setEffectiveWeight(1);
-          this.actions.set(state, action);
-        }
-      }
-
-      for (const object of this.fallbackObjects) object.visible = false;
-      this.loaded = true;
-      this.playState('idle', 0);
-      console.info('[The Villager] GLB character loaded:', this.modelUrl);
-      return true;
-    } catch (error) {
-      this.failed = true;
-      console.warn('[The Villager] GLB character unavailable; using procedural fallback.', error);
-      return false;
-    }
+  async load(){
+    const loader=new GLTFLoader();
+    try{
+      const gltf=await loader.loadAsync(this.modelUrl), model=gltf.scene||gltf.scenes?.[0]; if(!model) throw new Error('GLB contains no scene.');
+      setShadowFlags(model); normalizeModel(model,this.targetHeight); this.container.add(model);
+      if(gltf.animations?.length){this.mixer=new THREE.AnimationMixer(model);for(const [state,aliases] of Object.entries(this.animationAliases)){const clip=findClip(gltf.animations,aliases);if(!clip)continue;const action=this.mixer.clipAction(clip);action.enabled=true;action.setEffectiveWeight(1);this.actions.set(state,action);}}
+      for(const object of this.fallbackObjects)object.visible=false; this.loaded=true; this.playState('idle',0); console.info('[The Villager] GLB character loaded:',this.modelUrl); return true;
+    }catch(error){this.failed=true;console.warn('[The Villager] GLB character unavailable; using procedural fallback.',error);return false;}
   }
-
-  playState(state, fadeSeconds = 0.16) {
-    if (!this.loaded || !this.mixer) return;
-    const next = this.actions.get(state) || this.actions.get('idle');
-    if (!next || next === this.activeAction) return;
-    if (this.activeAction) this.activeAction.fadeOut(fadeSeconds);
-    next.reset().fadeIn(fadeSeconds).play();
-    this.activeAction = next;
-  }
-
-  update(dt, { harvesting = false } = {}) {
-    if (!this.loaded) return;
-
-    const now = new THREE.Vector3();
-    this.playerRoot.getWorldPosition(now);
-    this.velocitySample.copy(now).sub(this.lastPosition);
-    const speed = dt > 0 ? this.velocitySample.length() / dt : 0;
-    this.lastPosition.copy(now);
-
-    if (harvesting) this.playState('harvest');
-    else if (speed > 0.08) this.playState('walk');
-    else this.playState('idle');
-
-    this.mixer?.update(dt);
-  }
+  playState(state,fadeSeconds=.16){if(!this.loaded||!this.mixer)return;const next=this.actions.get(state)||this.actions.get('idle');if(!next||next===this.activeAction)return;if(this.activeAction)this.activeAction.fadeOut(fadeSeconds);next.reset().fadeIn(fadeSeconds).play();this.activeAction=next;}
+  update(dt,{harvesting=false}={}){if(!this.loaded)return;const now=new THREE.Vector3();this.playerRoot.getWorldPosition(now);this.velocitySample.copy(now).sub(this.lastPosition);const speed=dt>0?this.velocitySample.length()/dt:0;this.lastPosition.copy(now);if(harvesting)this.playState('harvest');else if(speed>.08)this.playState('walk');else this.playState('idle');this.mixer?.update(dt);}
 }
-
-export const PLAYER_GLB_CONTRACT = Object.freeze({
-  preferredPath: './assets/characters/villager-male.glb',
-  targetHeight: 3.25,
-  required: [],
-  preferredAnimations: ['Idle', 'Walk', 'Chop'],
-  notes: 'Model faces +Z, feet at ground after normalization, Y-up. Missing animations fall back gracefully.',
-});
+export const PLAYER_GLB_CONTRACT=Object.freeze({preferredPath:'./assets/characters/villager-male.glb',targetHeight:3.25,required:[],preferredAnimations:['Idle','Walk','Chop'],notes:'Model faces +Z, feet at ground after normalization, Y-up. Missing animations fall back gracefully.'});
