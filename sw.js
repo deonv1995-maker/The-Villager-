@@ -1,66 +1,65 @@
-const CACHE_NAME = 'the-villager-v0.5.3';
-const APP_SHELL = [
-  './','./index.html','./styles.css?v=0.5.3','./manifest.webmanifest','./icons/icon.svg','./icons/icon-maskable.svg',
-  './build-info.json','./assets/world-ground-v05.png.base64','./assets/tree-raster.png','./assets/rock-raster.png','./assets/grass-raster.png',
-  './assets/player/player_ranger_walk_v052.png?v=0.5.3','./assets/player/player_ranger_walk_v052.json','./assets/player-raster.png?v=0.5.3',
-  './src/game-v03.js?v=0.5.3','./src/art.js?v=0.5.3','./src/config.js','./src/input.js','./src/inventory.js','./src/resources.js','./src/crafting.js','./src/pwa.js?v=0.5.3'
-];
+const scriptUrl=new URL(self.location.href);
+const RELEASE_ID=scriptUrl.searchParams.get('r');
+if(!RELEASE_ID)throw new Error('Service worker requires a release id.');
+const CACHE_NAME=`the-villager-${RELEASE_ID}`;
 
-self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)));
-  self.skipWaiting();
+function versioned(path){const url=new URL(path,self.registration.scope);url.searchParams.set('r',RELEASE_ID);return url.href;}
+
+async function getManifest(){
+  const url=new URL('release-manifest.json',self.registration.scope);
+  url.searchParams.set('_',Date.now().toString());
+  const response=await fetch(url,{cache:'no-store'});
+  if(!response.ok)throw new Error(`release-manifest ${response.status}`);
+  const manifest=await response.json();
+  if(manifest.releaseId!==RELEASE_ID)throw new Error(`Release mismatch: worker=${RELEASE_ID}, manifest=${manifest.releaseId}`);
+  return manifest;
+}
+
+self.addEventListener('install',event=>{
+  event.waitUntil((async()=>{
+    const manifest=await getManifest();
+    const cache=await caches.open(CACHE_NAME);
+    const shell=['index.html','release-manifest.json',...manifest.shell,...Object.values(manifest.assets)];
+    const unique=[...new Set(shell)];
+    await cache.addAll(unique.map(versioned));
+    await self.skipWaiting();
+  })());
 });
 
-self.addEventListener('activate', event => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys
-      .filter(key => key.startsWith('the-villager-') && key !== CACHE_NAME)
-      .map(key => caches.delete(key)));
+self.addEventListener('activate',event=>{
+  event.waitUntil((async()=>{
+    const keys=await caches.keys();
+    await Promise.all(keys.filter(key=>key.startsWith('the-villager-')&&key!==CACHE_NAME).map(key=>caches.delete(key)));
     await self.clients.claim();
   })());
 });
 
-async function networkFirst(request) {
-  try {
-    const response = await fetch(request, { cache: 'no-store' });
-    if (response && response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, response.clone());
-    }
+async function networkFirst(request){
+  try{
+    const response=await fetch(request,{cache:'no-store'});
+    if(response&&response.ok){const cache=await caches.open(CACHE_NAME);cache.put(request,response.clone());}
     return response;
-  } catch (error) {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    if (request.mode === 'navigate') return caches.match('./index.html');
+  }catch(error){
+    const cached=await caches.match(request);
+    if(cached)return cached;
+    if(request.mode==='navigate')return caches.match(versioned('index.html'));
     throw error;
   }
 }
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-  const response = await fetch(request, { cache: 'no-store' });
-  if (response && response.ok) {
-    const cache = await caches.open(CACHE_NAME);
-    cache.put(request, response.clone());
-  }
+async function immutableCacheFirst(request){
+  const cached=await caches.match(request);
+  if(cached)return cached;
+  const response=await fetch(request,{cache:'no-store'});
+  if(response&&response.ok){const cache=await caches.open(CACHE_NAME);cache.put(request,response.clone());}
   return response;
 }
 
-self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') return;
-  const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return;
-
-  const fresh = event.request.mode === 'navigate' ||
-    url.pathname.endsWith('.html') ||
-    url.pathname.endsWith('.js') ||
-    url.pathname.endsWith('.css') ||
-    url.pathname.endsWith('.webmanifest') ||
-    url.pathname.endsWith('.base64') ||
-    url.pathname.endsWith('.json') ||
-    url.pathname.includes('/assets/player/');
-
-  event.respondWith(fresh ? networkFirst(event.request) : cacheFirst(event.request));
+self.addEventListener('fetch',event=>{
+  if(event.request.method!=='GET')return;
+  const url=new URL(event.request.url);
+  if(url.origin!==self.location.origin)return;
+  const isCurrentRelease=url.searchParams.get('r')===RELEASE_ID;
+  const alwaysFresh=event.request.mode==='navigate'||url.pathname.endsWith('/release-manifest.json')||url.pathname.endsWith('/index.html');
+  event.respondWith(alwaysFresh||!isCurrentRelease?networkFirst(event.request):immutableCacheFirst(event.request));
 });

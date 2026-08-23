@@ -1,0 +1,54 @@
+name: Release Guard
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate authoritative release
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const manifest = JSON.parse(fs.readFileSync('release-manifest.json', 'utf8'));
+          const buildInfo = JSON.parse(fs.readFileSync('build-info.json', 'utf8'));
+          const fail = msg => { console.error(`::error::${msg}`); process.exitCode = 1; };
+
+          if (!manifest.version || !manifest.releaseId) fail('release-manifest.json must define version and releaseId');
+          if (buildInfo.version !== manifest.version) fail('build-info.json must mirror release-manifest.json version');
+          if (!manifest.entry || !manifest.pwa) fail('release manifest must define entry and pwa modules');
+
+          const required = [manifest.entry, manifest.pwa, ...manifest.shell, ...Object.values(manifest.assets)];
+          for (const file of new Set(required)) {
+            if (!fs.existsSync(file)) fail(`Manifest references missing file: ${file}`);
+          }
+
+          const runtimeFiles = ['index.html','sw.js','src/bootstrap.js','src/pwa.js','src/game-v03.js','src/art.js'];
+          for (const file of runtimeFiles) {
+            const text = fs.readFileSync(file, 'utf8');
+            for (const deprecated of manifest.deprecatedAssets || []) {
+              if (text.includes(deprecated)) fail(`${file} references deprecated asset ${deprecated}`);
+            }
+          }
+
+          const index = fs.readFileSync('index.html','utf8');
+          if ((index.match(/<script[^>]+src=/g) || []).length !== 1 || !index.includes('src/bootstrap.js')) {
+            fail('index.html must have exactly one runtime entry: src/bootstrap.js');
+          }
+
+          const pwa = fs.readFileSync('src/pwa.js','utf8');
+          const sw = fs.readFileSync('sw.js','utf8');
+          if (/FALLBACK_BUILD_VERSION|0\.5\.[0-9]+/.test(pwa)) fail('src/pwa.js must not hard-code a build version');
+          if (/the-villager-v0\.5\.|0\.5\.[0-9]+/.test(sw)) fail('sw.js must not hard-code a build version');
+
+          if (process.exitCode) process.exit(process.exitCode);
+          console.log(`Release ${manifest.releaseId} validated.`);
+          NODE
