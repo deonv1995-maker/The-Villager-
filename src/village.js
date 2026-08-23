@@ -1,12 +1,112 @@
-export const VILLAGE_CONFIG=Object.freeze({centerX:900,centerY:600,width:720,height:500,spawn:{x:900,y:760}});
-export const VILLAGE_BUILDINGS=Object.freeze([{id:'hall',name:'Village Hall',asset:'village-hall',x:900,y:410,drawWidth:300,drawHeight:229,bodyWidth:176,bodyHeight:66},{id:'home-west',name:'West Cottage',asset:'village-cottage',x:650,y:565,drawWidth:250,drawHeight:195,bodyWidth:148,bodyHeight:58},{id:'home-east',name:'East Cottage',asset:'village-cottage',x:1150,y:565,drawWidth:250,drawHeight:195,bodyWidth:148,bodyHeight:58},{id:'workshop',name:'Workshop',asset:'village-workshop',x:700,y:790,drawWidth:250,drawHeight:191,bodyWidth:154,bodyHeight:58},{id:'storehouse',name:'Storehouse',asset:'village-workshop',x:1100,y:790,drawWidth:250,drawHeight:191,bodyWidth:154,bodyHeight:58}]);
-const FLOWERS=[0xf1d86a,0xe56f68,0xe6e0b4,0xc6a4e4,0xf59a57];
-function addBlocker(s,g,x,y,w,h){const b=s.add.rectangle(x,y,w,h,0,0);s.physics.add.existing(b,true);g.add(b);}
-function addFlowerPatch(s,x,y,n,sx,sy,seed=1){for(let i=0;i<n;i++){const a=i*2.173+seed,px=x+Math.sin(a)*sx*(.35+i%5*.1),py=y+Math.cos(a*1.31)*sy*(.35+i%4*.12);s.add.rectangle(px,py+4,1.5,8,0x28552c).setDepth(py);s.add.circle(px,py,3,FLOWERS[(i+seed)%FLOWERS.length]).setDepth(py+.1);}}
-function addDirtPath(s,x,y,w,h,d){s.add.ellipse(x+3,y+4,w+8,h+6,0x514b38,.2).setDepth(d-.1);const p=s.add.ellipse(x,y,w,h,0xb5905e,.72).setDepth(d);p.setStrokeStyle(2,0x92744e,.35);}
-function addFence(s,x,y,w,d){s.add.rectangle(x,y-7,w,6,0x744b2f).setDepth(d);s.add.rectangle(x,y+8,w,6,0x5f3e29).setDepth(d);const n=Math.max(3,Math.round(w/44));for(let i=0;i<=n;i++){const px=x-w/2+w/n*i,p=s.add.rectangle(px,y,9,34,0x865a39).setDepth(d+.1);p.setStrokeStyle(1,0x4d3425,1);}}
-function fallbackBuilding(s,b){s.add.ellipse(b.x,b.y+68,b.bodyWidth+35,26,0x17341b,.22).setDepth(b.y-1);const wall=s.add.rectangle(b.x,b.y+28,b.bodyWidth+34,92,0xc8a46f).setDepth(b.y);wall.setStrokeStyle(5,0x553b2c,1);const roof=s.add.triangle(b.x,b.y-48,-(b.bodyWidth+58)/2,54,0,-42,(b.bodyWidth+58)/2,54,0x82432f).setDepth(b.y+.2);roof.setStrokeStyle(5,0x4a2d26,1);s.add.rectangle(b.x,b.y+44,34,76,0x5a3828).setDepth(b.y+.4);s.add.rectangle(b.x-58,b.y+20,34,30,0x9dd4d6).setDepth(b.y+.4);s.add.rectangle(b.x+58,b.y+20,34,30,0x9dd4d6).setDepth(b.y+.4);}
-function placeBuilding(s,b){if(s.textures.exists(b.asset)){const sp=s.add.image(b.x,b.y,b.asset);sp.setDisplaySize(b.drawWidth,b.drawHeight);sp.setOrigin(.5,.84);sp.setDepth(b.y+1);}else fallbackBuilding(s,b);}
-function addWell(s){if(s.textures.exists('village-well')){const w=s.add.image(900,610,'village-well');w.setDisplaySize(126,126);w.setOrigin(.5,.74);w.setDepth(628);}else{const rim=s.add.ellipse(900,620,88,46,0x8d887c).setDepth(628);rim.setStrokeStyle(7,0x4d4a43,1);s.add.ellipse(900,616,55,24,0x4b9cb4).setDepth(629);s.add.rectangle(866,575,8,82,0x65452e).setDepth(630);s.add.rectangle(934,575,8,82,0x65452e).setDepth(630);s.add.rectangle(900,540,78,9,0x65452e).setDepth(630);}}
-function addProps(s){addFence(s,610,420,190,426);addFence(s,1190,420,190,426);addFence(s,600,885,180,890);addFence(s,1200,885,180,890);[[720,510,2],[1080,510,3],[790,690,4],[1010,690,5],[655,735,6],[1145,735,7]].forEach(([x,y,z])=>addFlowerPatch(s,x,y,14,70,32,z));const bench=s.add.rectangle(1010,690,68,9,0x795034).setDepth(702);bench.setStrokeStyle(2,0x4d3222,1);s.add.rectangle(990,704,6,27,0x4d3222).setDepth(703);s.add.rectangle(1030,704,6,27,0x4d3222).setDepth(703);}
-export function createVillage(s){const blockers=s.physics.add.staticGroup();addDirtPath(s,900,610,710,118,-460);addDirtPath(s,900,640,125,690,-459.8);addDirtPath(s,775,690,260,86,-459.6);addDirtPath(s,1025,690,260,86,-459.6);const green=s.add.ellipse(900,612,245,170,0x5d873f,.32).setDepth(-455);green.setStrokeStyle(3,0x416b34,.32);addWell(s);addBlocker(s,blockers,900,624,62,34);for(const b of VILLAGE_BUILDINGS){placeBuilding(s,b);addBlocker(s,blockers,b.x,b.y+b.drawHeight*.22,b.bodyWidth,b.bodyHeight);}addProps(s);return{blockers};}
+export const VILLAGE_CONFIG = Object.freeze({
+  centerX: 900,
+  centerY: 600,
+  width: 640,
+  height: 430,
+  spawn: { x: 900, y: 710 },
+});
+
+export const VILLAGE_BUILDINGS = Object.freeze([
+  { id: 'hall', name: 'Village Hall', x: 900, y: 470, width: 158, height: 116, wall: 0xd1b27d, wallShade: 0xb68f5d, timber: 0x5b3e2d, roof: 0x6b3829, roofLight: 0x8d5139 },
+  { id: 'home-west', name: 'West Cottage', x: 690, y: 545, width: 122, height: 92, wall: 0xd9bd88, wallShade: 0xbe9a68, timber: 0x62432f, roof: 0x754534, roofLight: 0x98644a },
+  { id: 'home-east', name: 'East Cottage', x: 1110, y: 545, width: 122, height: 92, wall: 0xd9bd88, wallShade: 0xbe9a68, timber: 0x62432f, roof: 0x754534, roofLight: 0x98644a },
+  { id: 'workshop', name: 'Workshop', x: 735, y: 700, width: 144, height: 100, wall: 0xbf9a65, wallShade: 0x9f784c, timber: 0x4f392b, roof: 0x54392f, roofLight: 0x765243 },
+  { id: 'storehouse', name: 'Storehouse', x: 1065, y: 700, width: 144, height: 100, wall: 0xbf9a65, wallShade: 0x9f784c, timber: 0x4f392b, roof: 0x54392f, roofLight: 0x765243 },
+]);
+
+const FLOWER_COLORS = [0xe9c35b, 0xd86f72, 0xbba5e4, 0xf2df8a];
+
+function addFlowerPatch(scene, x, y, count, spreadX, spreadY, depth) {
+  for (let i = 0; i < count; i += 1) {
+    const px = x + Math.sin(i * 2.17) * spreadX * 0.5 + ((i % 3) - 1) * 7;
+    const py = y + Math.cos(i * 1.71) * spreadY * 0.5 + ((i % 2) ? 4 : -3);
+    scene.add.rectangle(px, py + 4, 2, 8, 0x4f7f3d, 1).setDepth(depth);
+    const bloom = scene.add.circle(px, py, 3.5, FLOWER_COLORS[i % FLOWER_COLORS.length], 1).setDepth(depth + 0.1);
+    bloom.setStrokeStyle(1, 0x6e5b35, 0.4);
+  }
+}
+
+function drawPathStones(scene, x, y, horizontal, length, depth) {
+  const step = 32;
+  for (let offset = -length / 2 + 18, i = 0; offset < length / 2; offset += step, i += 1) {
+    const px = horizontal ? x + offset : x + (i % 2 ? 22 : -22);
+    const py = horizontal ? y + (i % 2 ? 19 : -19) : y + offset;
+    scene.add.ellipse(px, py, 13 + (i % 3) * 2, 7 + (i % 2) * 2, 0x9c8767, 0.42).setDepth(depth);
+  }
+}
+
+function drawFence(scene, x, y, width, depth) {
+  const railTop = scene.add.rectangle(x, y - 7, width, 5, 0x7d5a3e, 1).setDepth(depth);
+  const railBottom = scene.add.rectangle(x, y + 8, width, 5, 0x684832, 1).setDepth(depth);
+  railTop.setStrokeStyle(1, 0x4d3526, 0.8);
+  railBottom.setStrokeStyle(1, 0x4d3526, 0.8);
+  const postCount = Math.max(3, Math.floor(width / 46));
+  for (let i = 0; i <= postCount; i += 1) {
+    const px = x - width / 2 + (width / postCount) * i;
+    const post = scene.add.rectangle(px, y, 8, 32, 0x876044, 1).setDepth(depth + 0.1);
+    post.setStrokeStyle(1, 0x4d3526, 1);
+  }
+}
+
+function drawBuilding(scene, building) {
+  const baseY = building.y + building.height * 0.5;
+  const container = scene.add.container(building.x, building.y);
+  container.setDepth(baseY);
+  const shadow = scene.add.ellipse(0, building.height * 0.44, building.width * 1.05, building.height * 0.32, 0x20301d, 0.25);
+  const foundation = scene.add.rectangle(0, building.height * 0.31, building.width * 0.94, 15, 0x77654f, 1);
+  foundation.setStrokeStyle(2, 0x514537, 1);
+  const wall = scene.add.rectangle(0, 12, building.width, building.height * 0.67, building.wall);
+  wall.setStrokeStyle(3, 0x6b563c, 1);
+  const wallShade = scene.add.rectangle(0, building.height * 0.18, building.width - 7, building.height * 0.18, building.wallShade, 0.85);
+  const timberLeft = scene.add.rectangle(-building.width * 0.33, 9, 7, building.height * 0.61, building.timber, 1);
+  const timberRight = scene.add.rectangle(building.width * 0.33, 9, 7, building.height * 0.61, building.timber, 1);
+  const timberCross = scene.add.rectangle(0, -3, building.width * 0.94, 6, building.timber, 1);
+  const roof = scene.add.graphics();
+  roof.fillStyle(building.roof, 1); roof.lineStyle(3, 0x493124, 1); roof.beginPath();
+  roof.moveTo(-building.width * 0.61, -building.height * 0.12); roof.lineTo(0, -building.height * 0.64); roof.lineTo(building.width * 0.61, -building.height * 0.12); roof.lineTo(building.width * 0.48, building.height * 0.03); roof.lineTo(-building.width * 0.48, building.height * 0.03); roof.closePath(); roof.fillPath(); roof.strokePath();
+  const roofHighlight = scene.add.graphics(); roofHighlight.lineStyle(5, building.roofLight, 0.7); roofHighlight.beginPath(); roofHighlight.moveTo(-building.width * 0.47, -building.height * 0.13); roofHighlight.lineTo(0, -building.height * 0.55); roofHighlight.strokePath();
+  const chimney = scene.add.rectangle(building.width * 0.27, -building.height * 0.45, 14, 30, 0x79604c, 1); chimney.setStrokeStyle(2, 0x4d3b30, 1);
+  const chimneyCap = scene.add.rectangle(building.width * 0.27, -building.height * 0.61, 19, 5, 0x4d3b30, 1);
+  const door = scene.add.rectangle(0, building.height * 0.21, 25, building.height * 0.37, 0x5a3826); door.setStrokeStyle(2, 0x3d281d, 1);
+  const doorInset = scene.add.rectangle(-5, building.height * 0.21, 2, building.height * 0.29, 0x79513a, 0.85);
+  const handle = scene.add.circle(7, building.height * 0.22, 2.5, 0xd5b46a, 1);
+  const windowY = building.height * 0.08;
+  const leftWindow = scene.add.rectangle(-building.width * 0.27, windowY, 23, 20, 0x9fcbd0); const rightWindow = scene.add.rectangle(building.width * 0.27, windowY, 23, 20, 0x9fcbd0);
+  leftWindow.setStrokeStyle(3, building.timber, 1); rightWindow.setStrokeStyle(3, building.timber, 1);
+  const leftGlint = scene.add.rectangle(-building.width * 0.27 - 4, windowY - 4, 5, 8, 0xd9f0e7, 0.75); const rightGlint = scene.add.rectangle(building.width * 0.27 - 4, windowY - 4, 5, 8, 0xd9f0e7, 0.75);
+  container.add([shadow,foundation,wall,wallShade,timberLeft,timberRight,timberCross,roof,roofHighlight,chimney,chimneyCap,door,doorInset,handle,leftWindow,rightWindow,leftGlint,rightGlint]);
+}
+
+function addStaticBlocker(scene, group, building) {
+  const blocker = scene.add.rectangle(building.x, building.y + building.height * 0.18, building.width * 0.82, building.height * 0.42, 0x000000, 0);
+  scene.physics.add.existing(blocker, true); group.add(blocker);
+}
+
+function drawVillageProps(scene) {
+  const depth = VILLAGE_CONFIG.centerY - VILLAGE_CONFIG.height + 5;
+  drawFence(scene, 694, 421, 176, depth); drawFence(scene, 1106, 421, 176, depth); drawFence(scene, 642, 756, 120, 756); drawFence(scene, 1158, 756, 120, 756);
+  addFlowerPatch(scene, 682, 472, 12, 90, 38, 476); addFlowerPatch(scene, 1118, 472, 12, 90, 38, 476); addFlowerPatch(scene, 820, 628, 9, 70, 30, 632); addFlowerPatch(scene, 980, 628, 9, 70, 30, 632);
+  const crate1 = scene.add.rectangle(650, 711, 26, 24, 0x9a6d43, 1).setDepth(724); const crate2 = scene.add.rectangle(675, 718, 23, 21, 0x845b39, 1).setDepth(725); crate1.setStrokeStyle(2, 0x563b28, 1); crate2.setStrokeStyle(2, 0x563b28, 1);
+  const barrel = scene.add.ellipse(1130, 714, 25, 31, 0x765239, 1).setDepth(728); barrel.setStrokeStyle(3, 0x4a3528, 1);
+  const signPost = scene.add.rectangle(820, 554, 7, 42, 0x765139, 1).setDepth(575); const sign = scene.add.rectangle(832, 538, 42, 19, 0x9c754f, 1).setDepth(576); sign.setStrokeStyle(2, 0x4f392a, 1); signPost.setStrokeStyle(1, 0x4f392a, 1);
+  const benchSeat = scene.add.rectangle(974, 670, 56, 8, 0x805638, 1).setDepth(680); const benchBack = scene.add.rectangle(974, 659, 56, 7, 0x906445, 1).setDepth(679); benchSeat.setStrokeStyle(1, 0x4c3526, 1); benchBack.setStrokeStyle(1, 0x4c3526, 1);
+  scene.add.rectangle(957, 679, 5, 18, 0x4c3526, 1).setDepth(681); scene.add.rectangle(991, 679, 5, 18, 0x4c3526, 1).setDepth(681);
+}
+
+export function createVillage(scene) {
+  const blockers = scene.physics.add.staticGroup();
+  const backDepth = VILLAGE_CONFIG.centerY - VILLAGE_CONFIG.height;
+  scene.add.ellipse(VILLAGE_CONFIG.centerX,VILLAGE_CONFIG.centerY+30,VILLAGE_CONFIG.width+22,VILLAGE_CONFIG.height+28,0x20351f,0.16).setDepth(backDepth-2);
+  const boundary = scene.add.rectangle(VILLAGE_CONFIG.centerX,VILLAGE_CONFIG.centerY,VILLAGE_CONFIG.width,VILLAGE_CONFIG.height,0x76975c,0.74); boundary.setStrokeStyle(5,0x526f42,0.82); boundary.setDepth(backDepth-1);
+  const villageInner=scene.add.rectangle(VILLAGE_CONFIG.centerX,VILLAGE_CONFIG.centerY,VILLAGE_CONFIG.width-24,VILLAGE_CONFIG.height-24,0x84a765,0.18); villageInner.setStrokeStyle(2,0x9abc77,0.22); villageInner.setDepth(backDepth);
+  scene.add.rectangle(VILLAGE_CONFIG.centerX+3,603,82,394,0x655744,0.28).setDepth(backDepth+0.5); scene.add.rectangle(VILLAGE_CONFIG.centerX+3,613,526,73,0x655744,0.28).setDepth(backDepth+0.5);
+  const mainPath=scene.add.rectangle(VILLAGE_CONFIG.centerX,600,72,390,0xbca478,0.97); const crossPath=scene.add.rectangle(VILLAGE_CONFIG.centerX,610,520,64,0xbca478,0.97); mainPath.setStrokeStyle(2,0x9b825e,0.8); crossPath.setStrokeStyle(2,0x9b825e,0.8); mainPath.setDepth(backDepth+1); crossPath.setDepth(backDepth+1);
+  drawPathStones(scene,900,600,false,370,backDepth+2); drawPathStones(scene,900,610,true,495,backDepth+2);
+  scene.add.ellipse(VILLAGE_CONFIG.centerX+3,614,204,140,0x3f6237,0.33).setDepth(backDepth+2.4); const green=scene.add.ellipse(VILLAGE_CONFIG.centerX,610,194,132,0x75a75c,1); green.setStrokeStyle(5,0x527941,1); green.setDepth(backDepth+2.5);
+  scene.add.ellipse(VILLAGE_CONFIG.centerX+2,617,66,39,0x32402f,0.35).setDepth(612); const wellBase=scene.add.ellipse(VILLAGE_CONFIG.centerX,610,60,37,0x857d70,1); wellBase.setStrokeStyle(5,0x524c44,1); wellBase.setDepth(614); const wellLip=scene.add.ellipse(VILLAGE_CONFIG.centerX,606,48,28,0xa9a094,1); wellLip.setStrokeStyle(3,0x625d55,1); wellLip.setDepth(615); scene.add.ellipse(VILLAGE_CONFIG.centerX,604,34,16,0x5b9ab3,1).setDepth(616); scene.add.ellipse(VILLAGE_CONFIG.centerX-7,601,10,4,0xb7dde3,0.5).setDepth(617);
+  const wellPostLeft=scene.add.rectangle(875,583,6,44,0x65472f,1).setDepth(616); const wellPostRight=scene.add.rectangle(925,583,6,44,0x65472f,1).setDepth(616); const wellBeam=scene.add.rectangle(900,562,58,7,0x65472f,1).setDepth(617); wellPostLeft.setStrokeStyle(1,0x3f2e22,1); wellPostRight.setStrokeStyle(1,0x3f2e22,1); wellBeam.setStrokeStyle(1,0x3f2e22,1);
+  drawVillageProps(scene);
+  for (const building of VILLAGE_BUILDINGS) { drawBuilding(scene, building); addStaticBlocker(scene, blockers, building); }
+  const wellBlocker=scene.add.ellipse(VILLAGE_CONFIG.centerX,610,52,31,0x000000,0); scene.physics.add.existing(wellBlocker,true); blockers.add(wellBlocker);
+  return { blockers };
+}
