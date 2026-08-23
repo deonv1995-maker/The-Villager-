@@ -127,6 +127,10 @@ class VillagerScene extends Phaser.Scene {
     this.load.image('tree', assetUrl('tree'));
     this.load.image('rock', assetUrl('rock'));
     this.load.image('grass', assetUrl('grass'));
+    this.load.image('village-cottage', assetUrl('villageCottage'));
+    this.load.image('village-hall', assetUrl('villageHall'));
+    this.load.image('village-workshop', assetUrl('villageWorkshop'));
+    this.load.image('village-well', assetUrl('villageWell'));
     this.load.spritesheet('player', assetUrl('playerSheet'), {
       frameWidth: release.playerAtlas.frameWidth,
       frameHeight: release.playerAtlas.frameHeight,
@@ -168,8 +172,8 @@ class VillagerScene extends Phaser.Scene {
       sprite.setOrigin(0.5, 0.88);
       sprite.setDepth(node.y);
 
-      if (node.type === 'tree') sprite.setDisplaySize(175, 252);
-      else if (node.type === 'rock') sprite.setDisplaySize(124, 100);
+      if (node.type === 'tree') sprite.setDisplaySize(160, 218);
+      else if (node.type === 'rock') sprite.setDisplaySize(132, 92);
       else sprite.setDisplaySize(64, 76);
 
       this.resourceSprites.set(node, sprite);
