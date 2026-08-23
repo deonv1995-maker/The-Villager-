@@ -3,10 +3,10 @@ const ASSETS = {
   tree: image('../assets/tree-raster.png'),
   rock: image('../assets/rock-raster.png'),
   grass: image('../assets/grass-raster.png'),
-  playerSheet: textImage('../assets/ranger-walk-sheet-v051.png.base64'),
+  playerSheet: image('../assets/player/player_ranger_walk_v052.png'),
 };
 
-const PLAYER_SHEET = { frameWidth: 32, frameHeight: 44, drawWidth: 64, drawHeight: 88, walkFps: 8 };
+const PLAYER_SHEET = { frameWidth: 32, frameHeight: 32, drawWidth: 88, drawHeight: 88, walkFps: 8 };
 const TOOL = { leather:'#8d5c35',leatherDark:'#4a2d20',skin:'#d99363',metal:'#aeb7bd',metalHi:'#d5dcdf',stone:'#929aa0' };
 
 function image(path){const img=new Image();img.decoding='async';img.src=new URL(path,import.meta.url).href;return img;}
@@ -24,9 +24,9 @@ function drawRock(ctx,node){ellipse(ctx,node.x,node.y+13,43,12,'#0e1210',.28);if
 function drawGrass(ctx,node){ellipse(ctx,node.x,node.y+8,27,8,'#0d140d',.18);if(!ready(ASSETS.grass))return;const scale=.95+hash(node.x,node.y,10)*.34,w=64*scale,h=76*scale,flip=hash(node.x,node.y,11)>.5;ctx.save();ctx.translate(node.x,node.y);if(flip)ctx.scale(-1,1);ctx.drawImage(ASSETS.grass,-w/2,-h+15,w,h);ctx.restore();}
 
 function direction(player){const x=player.facingX,y=player.facingY;if(Math.abs(x)>Math.abs(y))return x<0?'left':'right';return y<0?'up':'down';}
-function frameFor(player,t){const dir=direction(player);if(player.state==='walk'){const row={down:1,left:2,right:3,up:4}[dir];return{col:Math.floor(t*PLAYER_SHEET.walkFps)%6,row};}if(dir==='up')return{col:4+(Math.floor(t*2)%2),row:0};if(dir==='left')return{col:0,row:2};if(dir==='right')return{col:0,row:3};return{col:Math.floor(t*2)%4,row:0};}
+function frameFor(player,t){const dir=direction(player);const row={down:0,left:1,right:2,up:3}[dir];if(player.state==='walk')return{col:Math.floor(t*PLAYER_SHEET.walkFps)%6,row};return{col:0,row};}
 
-export function drawPlayer(ctx,player,gameTime,crafting){const harvesting=player.state.startsWith('harvest-'),x=Math.round(player.x),y=Math.round(player.y);ellipse(ctx,x,y+12,19,7,'#0b100c',.34);if(ready(ASSETS.playerSheet)){const f=frameFor(player,gameTime),sx=f.col*PLAYER_SHEET.frameWidth,sy=f.row*PLAYER_SHEET.frameHeight;ctx.drawImage(ASSETS.playerSheet,sx,sy,PLAYER_SHEET.frameWidth,PLAYER_SHEET.frameHeight,x-PLAYER_SHEET.drawWidth/2,y-PLAYER_SHEET.drawHeight+16,PLAYER_SHEET.drawWidth,PLAYER_SHEET.drawHeight);}if(harvesting)drawTool(ctx,player,gameTime,crafting);}
+export function drawPlayer(ctx,player,gameTime,crafting){const harvesting=player.state.startsWith('harvest-'),x=Math.round(player.x),y=Math.round(player.y);ellipse(ctx,x,y+15,23,8,'#0b100c',.38);if(ready(ASSETS.playerSheet)){const f=frameFor(player,gameTime),sx=f.col*PLAYER_SHEET.frameWidth,sy=f.row*PLAYER_SHEET.frameHeight;ctx.save();ctx.globalAlpha=1;ctx.globalCompositeOperation='source-over';ctx.imageSmoothingEnabled=false;ctx.drawImage(ASSETS.playerSheet,sx,sy,PLAYER_SHEET.frameWidth,PLAYER_SHEET.frameHeight,x-PLAYER_SHEET.drawWidth/2,y-PLAYER_SHEET.drawHeight+20,PLAYER_SHEET.drawWidth,PLAYER_SHEET.drawHeight);ctx.restore();}if(harvesting)drawTool(ctx,player,gameTime,crafting);}
 function drawTool(ctx,player,t,crafting){const cls=player.state==='harvest-tree'?'axe':player.state==='harvest-rock'?'pickaxe':'sickle',equipped=crafting.getEquipped(cls),dir=player.facingX<-.2?-1:1,swing=Math.sin(t*10)*.72*dir;ctx.save();ctx.translate(player.x+dir*20,player.y-38);ctx.rotate(swing);rect(ctx,-2,-1,5,7,TOOL.skin);rect(ctx,0,3,4,32,TOOL.leather);rect(ctx,1,5,2,27,TOOL.leatherDark);if(!equipped)rect(ctx,-1,29,6,6,TOOL.skin);else if(cls==='axe'){const head=equipped.id==='stone_axe'?TOOL.stone:TOOL.metal;poly(ctx,[[-12,26],[3,23],[12,26],[4,36],[-11,33]],head);rect(ctx,-8,27,9,3,TOOL.metalHi);}else if(cls==='pickaxe'){const head=equipped.id==='stone_pickaxe'?TOOL.stone:TOOL.metal;poly(ctx,[[-13,25],[0,22],[13,25],[9,29],[0,26],[-10,29]],head);rect(ctx,-6,25,12,2,TOOL.metalHi);}else{ctx.strokeStyle=TOOL.metalHi;ctx.lineWidth=4;ctx.beginPath();ctx.arc(8,27,10,-1.25,.6);ctx.stroke();}ctx.restore();}
 export function drawTargetRing(ctx,node){if(!node?.active)return;ellipse(ctx,node.x,node.y+8,node.config.radius+13,12,'#e8cf67',.10);ctx.strokeStyle='rgba(246,226,133,.9)';ctx.lineWidth=2;ctx.setLineDash([5,4]);ctx.beginPath();ctx.ellipse(node.x,node.y+8,node.config.radius+12,11,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);}
 export function drawWorldBorder(ctx,world){ctx.strokeStyle='#172418';ctx.lineWidth=12;ctx.strokeRect(0,0,world.width,world.height);ctx.strokeStyle='#8aa45b';ctx.lineWidth=2;ctx.strokeRect(6,6,world.width-12,world.height-12);}
