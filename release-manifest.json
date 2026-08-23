@@ -1,7 +1,7 @@
 {
   "schemaVersion":4,
   "version":"0.7.9-vp1",
-  "releaseId":"visual-pack-1-003",
+  "releaseId":"visual-pack-1-004",
   "runtime":"phaser4",
   "entry":"src/phaser-game.js",
   "pwa":"src/pwa.js",
@@ -13,12 +13,12 @@
     "grass":"assets/grass-raster.png",
     "vp1Cottage":"assets/visual-pack-1/vp1-cottage.png",
     "vp1Well":"assets/visual-pack-1/vp1-well.png",
-    "vp1Path":"assets/visual-pack-1/vp1-path.svg",
-    "vp1Vegetation":"assets/visual-pack-1/vp1-vegetation.svg",
+    "vp1Path":"assets/visual-pack-1/vp1-path.png",
+    "vp1Vegetation":"assets/visual-pack-1/vp1-vegetation.png",
     "playerSheet":"assets/player/player_ranger_walk_v058.png",
     "playerAnimations":"assets/player/player_ranger_walk_v058.json"
   },
   "playerAtlas":{"width":384,"height":64,"frameWidth":64,"frameHeight":64,"columns":6,"rows":1,"walkFps":8,"drawWidth":104,"drawHeight":104,"sha256":"f1acc7561e7bc8e0150991bfb6cf894bd5de365b09425c2d6b23ea0346d1b621"},
-  "shell":["index.html","styles.css","manifest.webmanifest","icons/icon.svg","icons/icon-maskable.svg","src/bootstrap.js","src/phaser-game.js","src/config.js","src/input.js","src/inventory.js","src/resources.js","src/crafting.js","src/village.js","src/environment-art.js","src/pwa.js"],
-  "staging":{"branch":"visual-pack-1","live":false,"pack":"Visual Pack 1","pngValidated":["cottage","tree","rock","well"]}
+  "shell":["index.html","styles.css","manifest.webmanifest","icons/icon.svg","icons/icon-maskable.svg","src/bootstrap.js","src/phaser-game.js","src/config.js","src/input.js","src/inventory.js","src/resources.js","src/crafting.js","src/village.js","src/environment-art.js","src/visual-pack-validation.js","src/pwa.js"],
+  "staging":{"branch":"visual-pack-1","live":false,"pack":"Visual Pack 1","pngValidated":["cottage","tree","rock","well","path","vegetation"]}
 }
