@@ -1,13 +1,24 @@
 {
-  "schemaVersion": 4,
-  "version": "0.7.9",
-  "releaseId": "v0.7.9",
-  "runtime": "phaser4",
-  "entry": "src/phaser-game.js",
-  "pwa": "src/pwa.js",
-  "engine": {"name":"Phaser","version":"4.2.1","global":"Phaser","url":"https://cdnjs.cloudflare.com/ajax/libs/phaser/4.2.1/phaser.min.js"},
-  "assets":{"ground":"assets/world-ground-v05.png.base64","tree":"assets/tree-raster.png","rock":"assets/rock-raster.png","grass":"assets/grass-raster.png","playerSheet":"assets/player/player_ranger_walk_v058.png","playerAnimations":"assets/player/player_ranger_walk_v058.json"},
+  "schemaVersion":4,
+  "version":"0.7.9-vp1-svg",
+  "releaseId":"visual-pack-1-svg-002",
+  "runtime":"phaser4",
+  "entry":"src/phaser-game-vp1-svg.js",
+  "pwa":"src/pwa.js",
+  "engine":{"name":"Phaser","version":"4.2.1","global":"Phaser","url":"https://cdnjs.cloudflare.com/ajax/libs/phaser/4.2.1/phaser.min.js"},
+  "assets":{
+    "ground":"assets/world-ground-v05.png.base64",
+    "tree":"assets/visual-pack-1/source/vp1-tree.svg",
+    "rock":"assets/visual-pack-1/source/vp1-rock.svg",
+    "grass":"assets/grass-raster.png",
+    "vp1Cottage":"assets/visual-pack-1/source/vp1-cottage.svg",
+    "vp1Well":"assets/visual-pack-1/source/vp1-well.svg",
+    "vp1Path":"assets/visual-pack-1/source/vp1-path.svg",
+    "vp1Vegetation":"assets/visual-pack-1/source/vp1-vegetation.svg",
+    "playerSheet":"assets/player/player_ranger_walk_v058.png",
+    "playerAnimations":"assets/player/player_ranger_walk_v058.json"
+  },
   "playerAtlas":{"width":384,"height":64,"frameWidth":64,"frameHeight":64,"columns":6,"rows":1,"walkFps":8,"drawWidth":104,"drawHeight":104,"sha256":"f1acc7561e7bc8e0150991bfb6cf894bd5de365b09425c2d6b23ea0346d1b621"},
-  "shell":["index.html","styles.css","manifest.webmanifest","icons/icon.svg","icons/icon-maskable.svg","src/bootstrap.js","src/phaser-game.js","src/config.js","src/input.js","src/inventory.js","src/resources.js","src/crafting.js","src/village.js","src/environment-art.js","src/pwa.js"],
-  "deprecatedRuntime":["src/game-v03.js","src/art.js"],"deprecatedAssets":["assets/environment_atlas_v072.png","assets/village/tree-v075.svg","assets/village/rock-v075.svg","assets/village/cottage-v075.svg","assets/village/hall-v075.svg","assets/village/workshop-v075.svg","assets/village/well-v075.svg"]
+  "shell":["index.html","styles.css","manifest.webmanifest","icons/icon.svg","icons/icon-maskable.svg","src/bootstrap.js","src/phaser-game-vp1-svg.js","src/config.js","src/input.js","src/village.js","src/environment-art.js","src/pwa.js"],
+  "staging":{"branch":"visual-pack-1","live":false,"pack":"Visual Pack 1","renderPath":"isolated-phaser-svg-loader","phoneRenderRequired":true}
 }

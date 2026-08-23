@@ -28,6 +28,7 @@ const [
   craftingModule,
   villageModule,
   environmentArtModule,
+  validationModule,
 ] = await Promise.all([
   import(moduleUrl('./config.js')),
   import(moduleUrl('./inventory.js')),
@@ -36,6 +37,7 @@ const [
   import(moduleUrl('./crafting.js')),
   import(moduleUrl('./village.js')),
   import(moduleUrl('./environment-art.js')),
+  import(moduleUrl('./visual-pack-validation.js')),
 ]);
 
 const { GAME_CONFIG } = configModule;
@@ -45,6 +47,7 @@ const { createStarterResources } = resourcesModule;
 const { CraftingSystem, renderCrafting } = craftingModule;
 const { VILLAGE_CONFIG, createVillage } = villageModule;
 const { createWorldArt } = environmentArtModule;
+const { VISUAL_PACK_1, validateVisualPack1 } = validationModule;
 
 const root = document.getElementById('phaser-root');
 const joystick = new VirtualJoystick(
@@ -121,24 +124,46 @@ class VillagerScene extends Phaser.Scene {
     this.facingY = 1;
     this.village = null;
     this.worldArt = null;
+    this.visualLoadErrors = [];
   }
 
   preload() {
-    this.load.image('tree', assetUrl('tree'));
-    this.load.image('rock', assetUrl('rock'));
-    this.load.image('grass', assetUrl('grass'));
+    const visualImages = [
+      ['tree', 'tree'],
+      ['rock', 'rock'],
+      ['grass', 'grass'],
+      ['vp1-cottage', 'vp1Cottage'],
+      ['vp1-well', 'vp1Well'],
+      ['vp1-path', 'vp1Path'],
+      ['vp1-vegetation', 'vp1Vegetation'],
+    ];
+
+    visualImages.forEach(([textureKey, assetKey]) => {
+      this.load.image(textureKey, assetUrl(assetKey));
+    });
+
     this.load.spritesheet('player', assetUrl('playerSheet'), {
       frameWidth: release.playerAtlas.frameWidth,
       frameHeight: release.playerAtlas.frameHeight,
     });
 
     this.load.on('loaderror', (file) => {
-      console.error('Phaser asset load failed:', file?.key, file?.src);
+      const failedKey = file?.key || file?.src || 'unknown';
+      this.visualLoadErrors.push(failedKey);
+      console.error('Phaser asset load failed:', failedKey, file?.src);
     });
   }
 
   create() {
     window.__THE_VILLAGER_SCENE__ = this;
+
+    const validation = validateVisualPack1(this, this.visualLoadErrors);
+    if (!validation.valid) {
+      this.cameras.main.setBackgroundColor('#251d1d');
+      console.error('Staging visual pack failed validation; scene creation aborted safely.');
+      return;
+    }
+
     this.cameras.main.setBackgroundColor('#315f2f');
     this.cameras.main.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
     this.physics.world.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
@@ -158,13 +183,24 @@ class VillagerScene extends Phaser.Scene {
   }
 
   createResources() {
+    const treeArt = VISUAL_PACK_1.presentation.tree;
+    const rockArt = VISUAL_PACK_1.presentation.rock;
+
     for (const node of this.resources) {
       const sprite = this.add.image(node.x, node.y, node.type);
-      sprite.setOrigin(0.5, 0.88);
       sprite.setDepth(node.y);
-      if (node.type === 'tree') sprite.setDisplaySize(175, 252);
-      else if (node.type === 'rock') sprite.setDisplaySize(124, 100);
-      else sprite.setDisplaySize(64, 76);
+
+      if (node.type === 'tree') {
+        sprite.setDisplaySize(treeArt.width, treeArt.height);
+        sprite.setOrigin(treeArt.originX, treeArt.originY);
+      } else if (node.type === 'rock') {
+        sprite.setDisplaySize(rockArt.width, rockArt.height);
+        sprite.setOrigin(rockArt.originX, rockArt.originY);
+      } else {
+        sprite.setDisplaySize(64, 76);
+        sprite.setOrigin(0.5, 0.88);
+      }
+
       this.resourceSprites.set(node, sprite);
     }
   }
@@ -186,10 +222,16 @@ class VillagerScene extends Phaser.Scene {
   createPlayerAnimation() {
     const frameCount = release.playerAtlas.columns;
     if (frameCount < 2) return;
-    this.anims.create({key:'player-walk',frames:this.anims.generateFrameNumbers('player',{start:0,end:frameCount-1}),frameRate:release.playerAtlas.walkFps||8,repeat:-1});
+    this.anims.create({
+      key: 'player-walk',
+      frames: this.anims.generateFrameNumbers('player', { start: 0, end: frameCount - 1 }),
+      frameRate: release.playerAtlas.walkFps || 8,
+      repeat: -1,
+    });
   }
 
   update(_time, deltaMs) {
+    if (!this.player) return;
     const dt = Math.min(deltaMs / 1000, 0.05);
     if (anyPanelOpen()) {
       this.player.setVelocity(0, 0);
@@ -211,10 +253,14 @@ class VillagerScene extends Phaser.Scene {
     if (keyboard.has('w') || keyboard.has('arrowup')) y -= 1;
     if (keyboard.has('s') || keyboard.has('arrowdown')) y += 1;
     const len = Math.hypot(x, y);
-    if (len > 1) { x /= len; y /= len; }
+    if (len > 1) {
+      x /= len;
+      y /= len;
+    }
     this.movementMagnitude = Math.hypot(x, y);
     if (this.movementMagnitude > 0.05) {
-      this.facingX = x; this.facingY = y;
+      this.facingX = x;
+      this.facingY = y;
       this.player.setVelocity(x * GAME_CONFIG.player.speed, y * GAME_CONFIG.player.speed);
       this.player.setFlipX(x < -0.08);
       if (!this.currentTarget) this.playWalking();
@@ -224,17 +270,28 @@ class VillagerScene extends Phaser.Scene {
     }
   }
 
-  playWalking() { if (this.anims.exists('player-walk')) this.player.play('player-walk', true); }
-  stopWalking() { if (this.player.anims?.isPlaying) this.player.stop(); this.player.setFrame(0); }
+  playWalking() {
+    if (this.anims.exists('player-walk')) this.player.play('player-walk', true);
+  }
+
+  stopWalking() {
+    if (this.player?.anims?.isPlaying) this.player.stop();
+    if (this.player) this.player.setFrame(0);
+  }
 
   updateHarvest(dt) {
     const nearest = this.findNearestHarvestable();
-    if (nearest !== this.currentTarget) { this.currentTarget = nearest; this.harvestElapsed = 0; }
+    if (nearest !== this.currentTarget) {
+      this.currentTarget = nearest;
+      this.harvestElapsed = 0;
+    }
     if (!this.currentTarget) {
-      targetPanel.classList.add('hidden'); harvestProgress.style.width = '0%';
+      targetPanel.classList.add('hidden');
+      harvestProgress.style.width = '0%';
       if (this.movementMagnitude <= 0.05) this.stopWalking();
       return;
     }
+
     const modifiers = crafting.getHarvestModifiers(this.currentTarget.config);
     const duration = this.currentTarget.config.harvestSeconds / modifiers.speedMultiplier;
     this.harvestElapsed += dt;
@@ -244,33 +301,48 @@ class VillagerScene extends Phaser.Scene {
     this.stopWalking();
     targetPanel.classList.remove('hidden');
     targetName.textContent = `Harvesting ${this.currentTarget.config.name}`;
-    toolName.textContent = modifiers.tool ? `${modifiers.tool.name} · ${modifiers.speedMultiplier.toFixed(2)}× speed` : 'Bare hands';
+    toolName.textContent = modifiers.tool
+      ? `${modifiers.tool.name} · ${modifiers.speedMultiplier.toFixed(2)}× speed`
+      : 'Bare hands';
     harvestProgress.style.width = `${progress * 100}%`;
+
     if (this.harvestElapsed >= duration) {
       const sprite = this.resourceSprites.get(this.currentTarget);
       const drop = this.currentTarget.harvest();
       if (sprite) sprite.setVisible(false);
       if (drop) inventory.add(drop.itemId, Math.max(1, Math.round(drop.amount * modifiers.yieldMultiplier)));
-      this.currentTarget = null; this.harvestElapsed = 0;
+      this.currentTarget = null;
+      this.harvestElapsed = 0;
     }
   }
 
   faceTarget(target) {
-    const dx = target.x - this.player.x, dy = target.y - this.player.y;
+    const dx = target.x - this.player.x;
+    const dy = target.y - this.player.y;
     const len = Math.hypot(dx, dy) || 1;
-    this.facingX = dx / len; this.facingY = dy / len;
+    this.facingX = dx / len;
+    this.facingY = dy / len;
     this.player.setFlipX(this.facingX < -0.08);
   }
 
-  clearHarvestTarget() { this.currentTarget=null; this.harvestElapsed=0; targetPanel.classList.add('hidden'); harvestProgress.style.width='0%'; }
+  clearHarvestTarget() {
+    this.currentTarget = null;
+    this.harvestElapsed = 0;
+    targetPanel.classList.add('hidden');
+    harvestProgress.style.width = '0%';
+  }
 
   findNearestHarvestable() {
-    let nearest = null, best = Infinity;
+    let nearest = null;
+    let best = Infinity;
     for (const node of this.resources) {
       if (!node.active) continue;
       const distance = Math.hypot(node.x - this.player.x, node.y - this.player.y);
       const allowed = GAME_CONFIG.player.harvestRange + node.config.radius;
-      if (distance <= allowed && distance < best) { nearest = node; best = distance; }
+      if (distance <= allowed && distance < best) {
+        nearest = node;
+        best = distance;
+      }
     }
     return nearest;
   }
@@ -287,5 +359,23 @@ class VillagerScene extends Phaser.Scene {
   }
 }
 
-const game = new Phaser.Game({type:Phaser.AUTO,parent:root,width:window.innerWidth,height:window.innerHeight,backgroundColor:'#315f2f',transparent:false,antialias:false,pixelArt:true,roundPixels:true,physics:{default:'arcade',arcade:{gravity:{x:0,y:0},debug:false}},scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH,width:window.innerWidth,height:window.innerHeight},scene:VillagerScene});
+const game = new Phaser.Game({
+  type: Phaser.AUTO,
+  parent: root,
+  width: window.innerWidth,
+  height: window.innerHeight,
+  backgroundColor: '#315f2f',
+  transparent: false,
+  antialias: false,
+  pixelArt: true,
+  roundPixels: true,
+  physics: { default: 'arcade', arcade: { gravity: { x: 0, y: 0 }, debug: false } },
+  scale: {
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    width: window.innerWidth,
+    height: window.innerHeight,
+  },
+  scene: VillagerScene,
+});
 window.__THE_VILLAGER_GAME__ = game;

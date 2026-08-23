@@ -1,0 +1,20 @@
+{
+  "pack": "Visual Pack 1",
+  "branch": "visual-pack-1",
+  "status": "staging-validation",
+  "live": false,
+  "assets": [
+    {"key":"vp1Cottage","path":"../assets/visual-pack-1/vp1-cottage.svg","viewBox":"360x300","transparentCanvas":true,"role":"building","anchor":"bottom-center"},
+    {"key":"tree","path":"../assets/visual-pack-1/vp1-tree.svg","viewBox":"260x360","transparentCanvas":true,"role":"resource","anchor":"bottom-center"},
+    {"key":"rock","path":"../assets/visual-pack-1/vp1-rock.svg","viewBox":"250x190","transparentCanvas":true,"role":"resource","anchor":"bottom-center"},
+    {"key":"vp1Well","path":"../assets/visual-pack-1/vp1-well.svg","viewBox":"250x250","transparentCanvas":true,"role":"village-prop","anchor":"bottom-center"},
+    {"key":"vp1Path","path":"../assets/visual-pack-1/vp1-path.svg","viewBox":"260x180","transparentCanvas":true,"role":"ground","anchor":"center"},
+    {"key":"vp1Vegetation","path":"../assets/visual-pack-1/vp1-vegetation.svg","viewBox":"240x170","transparentCanvas":true,"role":"decoration","anchor":"bottom-center"}
+  ],
+  "checks": {
+    "noFullFrameBackground": true,
+    "consistentTransparentCanvas": true,
+    "mobileRendererRisk": "SVG rendering must be proven on staging before merge",
+    "mergeAllowed": false
+  }
+}
