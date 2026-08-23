@@ -17,6 +17,7 @@ jobs:
         run: |
           node <<'NODE'
           const fs = require('fs');
+          const zlib = require('zlib');
           const manifest = JSON.parse(fs.readFileSync('release-manifest.json', 'utf8'));
           const buildInfo = JSON.parse(fs.readFileSync('build-info.json', 'utf8'));
           const fail = msg => { console.error(`::error::${msg}`); process.exitCode = 1; };
@@ -26,44 +27,45 @@ jobs:
           if (!manifest.entry || !manifest.pwa) fail('release manifest must define entry and pwa modules');
 
           const required = [manifest.entry, manifest.pwa, ...manifest.shell, ...Object.values(manifest.assets)];
-          for (const file of new Set(required)) {
-            if (!fs.existsSync(file)) fail(`Manifest references missing file: ${file}`);
-          }
+          for (const file of new Set(required)) if (!fs.existsSync(file)) fail(`Manifest references missing file: ${file}`);
 
           const runtimeFiles = ['index.html','sw.js','src/bootstrap.js','src/pwa.js','src/game-v03.js','src/art.js'];
           for (const file of runtimeFiles) {
             const text = fs.readFileSync(file, 'utf8');
-            for (const deprecated of manifest.deprecatedAssets || []) {
-              if (text.includes(deprecated)) fail(`${file} references deprecated asset ${deprecated}`);
-            }
+            for (const deprecated of manifest.deprecatedAssets || []) if (text.includes(deprecated)) fail(`${file} references deprecated asset ${deprecated}`);
           }
 
           const index = fs.readFileSync('index.html','utf8');
-          if ((index.match(/<script[^>]+src=/g) || []).length !== 1 || !index.includes('src/bootstrap.js')) {
-            fail('index.html must have exactly one runtime entry: src/bootstrap.js');
-          }
+          if ((index.match(/<script[^>]+src=/g) || []).length !== 1 || !index.includes('src/bootstrap.js')) fail('index.html must have exactly one runtime entry: src/bootstrap.js');
 
           const pwa = fs.readFileSync('src/pwa.js','utf8');
           const sw = fs.readFileSync('sw.js','utf8');
           if (/FALLBACK_BUILD_VERSION|0\.5\.[0-9]+/.test(pwa)) fail('src/pwa.js must not hard-code a build version');
           if (/the-villager-v0\.5\.|0\.5\.[0-9]+/.test(sw)) fail('sw.js must not hard-code a build version');
 
-          const playerPath = manifest.assets.playerSheet;
-          if (!playerPath.endsWith('.base64')) {
-            fail('playerSheet must use a release-specific verified base64 payload');
-          } else {
-            try {
-              const payload = fs.readFileSync(playerPath, 'utf8').trim();
-              const png = Buffer.from(payload, 'base64');
-              const signature = png.subarray(0, 8).toString('hex');
-              if (signature !== '89504e470d0a1a0a') fail('playerSheet payload is not a valid PNG');
-              if (png.length < 24) fail('playerSheet PNG is truncated');
-              const width = png.readUInt32BE(16);
-              const height = png.readUInt32BE(20);
-              if (width !== 192 || height !== 128) fail(`playerSheet must be 192x128, got ${width}x${height}`);
-            } catch (error) {
-              fail(`playerSheet validation failed: ${error.message}`);
+          try {
+            const playerPath = manifest.assets.playerSheet;
+            if (!playerPath.endsWith('.png')) fail('playerSheet must be a real PNG file, not a text/base64 transport');
+            const png = fs.readFileSync(playerPath);
+            if (png.subarray(0,8).toString('hex') !== '89504e470d0a1a0a') fail('playerSheet is not a PNG');
+            if (png.length < 33) fail('playerSheet PNG is truncated');
+            const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
+            if (width !== 192 || height !== 128) fail(`playerSheet must be 192x128, got ${width}x${height}`);
+            // Ensure the full PNG is parseable enough to reach IEND and that all IDAT data inflates.
+            let offset = 8, idat = [], sawIEND = false;
+            while (offset + 12 <= png.length) {
+              const len = png.readUInt32BE(offset); const type = png.toString('ascii', offset+4, offset+8);
+              const dataStart = offset + 8, dataEnd = dataStart + len;
+              if (dataEnd + 4 > png.length) throw new Error(`truncated ${type} chunk`);
+              if (type === 'IDAT') idat.push(png.subarray(dataStart, dataEnd));
+              if (type === 'IEND') { sawIEND = true; break; }
+              offset = dataEnd + 4;
             }
+            if (!sawIEND) throw new Error('missing IEND chunk');
+            if (!idat.length) throw new Error('missing IDAT data');
+            zlib.inflateSync(Buffer.concat(idat));
+          } catch (error) {
+            fail(`playerSheet validation failed: ${error.message}`);
           }
 
           if (process.exitCode) process.exit(process.exitCode);
