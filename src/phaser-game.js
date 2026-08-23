@@ -20,12 +20,13 @@ function assetUrl(key) {
   return url.href;
 }
 
-const [configModule, inventoryModule, inputModule, resourcesModule, craftingModule] = await Promise.all([
+const [configModule, inventoryModule, inputModule, resourcesModule, craftingModule, villageModule] = await Promise.all([
   import(moduleUrl('./config.js')),
   import(moduleUrl('./inventory.js')),
   import(moduleUrl('./input.js')),
   import(moduleUrl('./resources.js')),
   import(moduleUrl('./crafting.js')),
+  import(moduleUrl('./village.js')),
 ]);
 
 const { GAME_CONFIG } = configModule;
@@ -33,6 +34,7 @@ const { Inventory, renderInventory } = inventoryModule;
 const { VirtualJoystick } = inputModule;
 const { createStarterResources } = resourcesModule;
 const { CraftingSystem, renderCrafting } = craftingModule;
+const { VILLAGE_CONFIG, createVillage } = villageModule;
 
 const root = document.getElementById('phaser-root');
 const joystick = new VirtualJoystick(
@@ -107,6 +109,7 @@ class VillagerScene extends Phaser.Scene {
     this.movementMagnitude = 0;
     this.facingX = 0;
     this.facingY = 1;
+    this.village = null;
   }
 
   preload() {
@@ -130,9 +133,12 @@ class VillagerScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
     this.physics.world.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
 
+    this.village = createVillage(this);
     this.createResources();
     this.createPlayer();
     this.createPlayerAnimation();
+
+    this.physics.add.collider(this.player, this.village.blockers);
 
     this.cameras.main.startFollow(this.player, true, GAME_CONFIG.camera.followLerp, GAME_CONFIG.camera.followLerp);
     this.cameras.main.setRoundPixels(false);
@@ -158,8 +164,8 @@ class VillagerScene extends Phaser.Scene {
 
   createPlayer() {
     const atlas = release.playerAtlas;
-    const x = GAME_CONFIG.world.width / 2;
-    const y = GAME_CONFIG.world.height / 2;
+    const x = VILLAGE_CONFIG.spawn.x;
+    const y = VILLAGE_CONFIG.spawn.y;
 
     this.player = this.physics.add.sprite(x, y, 'player', 0);
     this.player.setDisplaySize(atlas.drawWidth, atlas.drawHeight);
