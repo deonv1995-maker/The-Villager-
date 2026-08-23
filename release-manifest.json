@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "0.5.7",
-  "releaseId": "v0.5.7",
+  "version": "0.5.8",
+  "releaseId": "v0.5.8",
   "entry": "src/game-v03.js",
   "pwa": "src/pwa.js",
   "assets": {
@@ -9,8 +9,8 @@
     "tree": "assets/tree-raster.png",
     "rock": "assets/rock-raster.png",
     "grass": "assets/grass-raster.png",
-    "playerSheet": "assets/player/player_ranger_walk_v057.png",
-    "playerAnimations": "assets/player/player_ranger_walk_v052.json"
+    "playerSheet": "assets/player/player_ranger_walk_v058.png",
+    "playerAnimations": "assets/player/player_ranger_walk_v058.json"
   },
   "shell": [
     "index.html",
@@ -35,6 +35,7 @@
     "assets/ranger-walk-sheet-v051.png.base64",
     "assets/player/player_ranger_walk_v052.png",
     "assets/player/player_ranger_walk_v055.png.base64",
-    "assets/player/player_ranger_walk_v056.png"
+    "assets/player/player_ranger_walk_v056.png",
+    "assets/player/player_ranger_walk_v057.png"
   ]
 }
