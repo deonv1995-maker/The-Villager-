@@ -1,9 +1,16 @@
 {
-  "schemaVersion": 2,
-  "version": "0.5.8",
-  "releaseId": "v0.5.8",
-  "entry": "src/game-v03.js",
+  "schemaVersion": 4,
+  "version": "0.6.0",
+  "releaseId": "v0.6.0",
+  "runtime": "phaser4",
+  "entry": "src/phaser-game.js",
   "pwa": "src/pwa.js",
+  "engine": {
+    "name": "Phaser",
+    "version": "4.2.1",
+    "global": "Phaser",
+    "url": "https://cdnjs.cloudflare.com/ajax/libs/phaser/4.2.1/phaser.min.js"
+  },
   "assets": {
     "ground": "assets/world-ground-v05.png.base64",
     "tree": "assets/tree-raster.png",
@@ -31,14 +38,17 @@
     "icons/icon.svg",
     "icons/icon-maskable.svg",
     "src/bootstrap.js",
-    "src/game-v03.js",
-    "src/art.js",
+    "src/phaser-game.js",
     "src/config.js",
     "src/input.js",
     "src/inventory.js",
     "src/resources.js",
     "src/crafting.js",
     "src/pwa.js"
+  ],
+  "deprecatedRuntime": [
+    "src/game-v03.js",
+    "src/art.js"
   ],
   "deprecatedAssets": [
     "assets/player-raster.png",
