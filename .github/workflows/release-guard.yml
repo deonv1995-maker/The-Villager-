@@ -13,6 +13,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Check JavaScript syntax
+        run: |
+          node --check src/bootstrap.js
+          node --check src/phaser-game.js
+          node --check src/config.js
+          node --check src/input.js
+          node --check src/inventory.js
+          node --check src/resources.js
+          node --check src/crafting.js
+          node --check src/pwa.js
+          node --check sw.js
       - name: Validate authoritative release
         run: |
           node <<'NODE'
