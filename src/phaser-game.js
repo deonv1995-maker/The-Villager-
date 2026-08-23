@@ -124,8 +124,7 @@ class VillagerScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image('tree', assetUrl('tree'));
-    this.load.image('rock', assetUrl('rock'));
+    this.load.image('environment-atlas', assetUrl('environmentAtlas'));
     this.load.image('grass', assetUrl('grass'));
     this.load.spritesheet('player', assetUrl('playerSheet'), {
       frameWidth: release.playerAtlas.frameWidth,
@@ -137,6 +136,19 @@ class VillagerScene extends Phaser.Scene {
     });
   }
 
+  registerEnvironmentAtlasFrames() {
+    const texture = this.textures.get('environment-atlas');
+    if (!texture || texture.has('cottage')) return;
+
+    texture.add('cottage', 0, 0, 0, 240, 200);
+    texture.add('hall', 0, 240, 0, 240, 200);
+    texture.add('workshop', 0, 480, 0, 240, 200);
+    texture.add('tree', 0, 0, 200, 160, 208);
+    texture.add('rock', 0, 160, 200, 144, 104);
+    texture.add('well', 0, 304, 200, 96, 112);
+    texture.add('path', 0, 400, 200, 96, 96);
+  }
+
   create() {
     window.__THE_VILLAGER_SCENE__ = this;
 
@@ -144,6 +156,7 @@ class VillagerScene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
     this.physics.world.setBounds(0, 0, GAME_CONFIG.world.width, GAME_CONFIG.world.height);
 
+    this.registerEnvironmentAtlasFrames();
     this.worldArt = createWorldArt(this, GAME_CONFIG);
     this.village = createVillage(this);
     this.createResources();
@@ -164,14 +177,22 @@ class VillagerScene extends Phaser.Scene {
 
   createResources() {
     for (const node of this.resources) {
-      const sprite = this.add.image(node.x, node.y, node.type);
-      sprite.setOrigin(0.5, 0.88);
+      let sprite;
+      if (node.type === 'tree') {
+        sprite = this.add.image(node.x, node.y, 'environment-atlas', 'tree');
+        sprite.setDisplaySize(160, 208);
+        sprite.setOrigin(0.5, 0.90);
+      } else if (node.type === 'rock') {
+        sprite = this.add.image(node.x, node.y, 'environment-atlas', 'rock');
+        sprite.setDisplaySize(144, 104);
+        sprite.setOrigin(0.5, 0.82);
+      } else {
+        sprite = this.add.image(node.x, node.y, 'grass');
+        sprite.setDisplaySize(64, 76);
+        sprite.setOrigin(0.5, 0.88);
+      }
+
       sprite.setDepth(node.y);
-
-      if (node.type === 'tree') sprite.setDisplaySize(175, 252);
-      else if (node.type === 'rock') sprite.setDisplaySize(124, 100);
-      else sprite.setDisplaySize(64, 76);
-
       this.resourceSprites.set(node, sprite);
     }
   }
