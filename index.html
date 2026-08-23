@@ -12,9 +12,14 @@
     <canvas id="game" aria-label="The Villager game world"></canvas>
 
     <section id="hud" aria-label="Game HUD">
-      <button id="inventory-button" type="button">🎒 <span>Inventory</span></button>
+      <div id="hud-actions">
+        <button id="inventory-button" type="button">🎒 <span>Inventory</span></button>
+        <button id="crafting-button" type="button">🛠️ <span>Crafting</span></button>
+      </div>
+
       <div id="target-panel" class="hidden">
         <div id="target-name">Harvesting</div>
+        <div id="tool-name">Bare hands</div>
         <div class="progress-track"><div id="harvest-progress"></div></div>
       </div>
     </section>
@@ -22,16 +27,28 @@
     <section id="inventory-panel" class="panel hidden" aria-label="Inventory">
       <header>
         <h1>Inventory</h1>
-        <button id="inventory-close" type="button" aria-label="Close inventory">×</button>
+        <button id="inventory-close" class="panel-close" type="button" aria-label="Close inventory">×</button>
       </header>
       <div id="inventory-grid"></div>
+    </section>
+
+    <section id="crafting-panel" class="panel hidden" aria-label="Crafting">
+      <header>
+        <div>
+          <h1>Crafting</h1>
+          <p class="panel-subtitle">Crafting a tool equips it automatically.</p>
+        </div>
+        <button id="crafting-close" class="panel-close" type="button" aria-label="Close crafting">×</button>
+      </header>
+      <div id="equipped-tools"></div>
+      <div id="crafting-list"></div>
     </section>
 
     <div id="joystick" aria-label="Movement joystick">
       <div id="joystick-knob"></div>
     </div>
 
-    <div id="hint">Move close to a resource to harvest automatically</div>
+    <div id="hint">Move close to a resource. Harvesting starts automatically.</div>
   </main>
 
   <script type="module" src="src/game.js"></script>
