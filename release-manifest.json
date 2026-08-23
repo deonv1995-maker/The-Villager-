@@ -1,25 +1,21 @@
 {
   "schemaVersion": 4,
-  "version": "0.7.5",
-  "releaseId": "v0.7.5",
+  "version": "0.7.6",
+  "releaseId": "v0.7.6",
   "runtime": "phaser4",
   "entry": "src/phaser-game.js",
   "pwa": "src/pwa.js",
   "engine": {"name":"Phaser","version":"4.2.1","global":"Phaser","url":"https://cdnjs.cloudflare.com/ajax/libs/phaser/4.2.1/phaser.min.js"},
   "assets": {
     "ground":"assets/world-ground-v05.png.base64",
-    "tree":"assets/village/tree-v075.svg",
-    "rock":"assets/village/rock-v075.svg",
+    "tree":"assets/tree-raster.png",
+    "rock":"assets/rock-raster.png",
     "grass":"assets/grass-raster.png",
-    "villageCottage":"assets/village/cottage-v075.svg",
-    "villageHall":"assets/village/hall-v075.svg",
-    "villageWorkshop":"assets/village/workshop-v075.svg",
-    "villageWell":"assets/village/well-v075.svg",
     "playerSheet":"assets/player/player_ranger_walk_v058.png",
     "playerAnimations":"assets/player/player_ranger_walk_v058.json"
   },
   "playerAtlas":{"width":384,"height":64,"frameWidth":64,"frameHeight":64,"columns":6,"rows":1,"walkFps":8,"drawWidth":104,"drawHeight":104,"sha256":"f1acc7561e7bc8e0150991bfb6cf894bd5de365b09425c2d6b23ea0346d1b621"},
   "shell":["index.html","styles.css","manifest.webmanifest","icons/icon.svg","icons/icon-maskable.svg","src/bootstrap.js","src/phaser-game.js","src/config.js","src/input.js","src/inventory.js","src/resources.js","src/crafting.js","src/village.js","src/environment-art.js","src/pwa.js"],
   "deprecatedRuntime":["src/game-v03.js","src/art.js"],
-  "deprecatedAssets":["assets/environment_atlas_v072.png","assets/tree-raster.png","assets/rock-raster.png","assets/player-raster.png","assets/player-sheet-v05.txt","assets/player-sheet.svg","assets/ranger-walk-sheet-v051.png.base64","assets/player/player_ranger_walk_v052.png","assets/player/player_ranger_walk_v055.png.base64","assets/player/player_ranger_walk_v056.png","assets/player/player_ranger_walk_v057.png"]
+  "deprecatedAssets":["assets/environment_atlas_v072.png","assets/village/tree-v075.svg","assets/village/rock-v075.svg","assets/village/cottage-v075.svg","assets/village/hall-v075.svg","assets/village/workshop-v075.svg","assets/village/well-v075.svg","assets/player-raster.png","assets/player-sheet-v05.txt","assets/player-sheet.svg","assets/ranger-walk-sheet-v051.png.base64","assets/player/player_ranger_walk_v052.png","assets/player/player_ranger_walk_v055.png.base64","assets/player/player_ranger_walk_v056.png","assets/player/player_ranger_walk_v057.png"]
 }
