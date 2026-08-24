@@ -8,6 +8,7 @@ import { installBuildingPlacement } from './building-placement.js?v=057';
 import { installBuildingOcclusion } from './building-occlusion.js?v=062';
 import { installTreeOcclusion } from './tree-occlusion.js?v=063';
 import { installWorldTextures } from './world-textures.js?v=064';
+import { installExpandedResources } from './resource-expansion.js?v=065';
 
 await import('./game-v014.js?v=057-runtime');
 
@@ -16,17 +17,18 @@ const version=document.getElementById('version');
 const harvestPanel=document.getElementById('harvest');
 const harvestLabel=document.getElementById('harvest-label');
 const playerRoot=globalThis.__villagerPlayerRoot||null;
-if(version)version.textContent='3D-0.6.4';
+if(version)version.textContent='3D-0.6.5';
 function currentResourceType(){const text=(harvestLabel?.textContent||'').toLowerCase();if(text.includes('rock')||text.includes('stone'))return 'stone';if(text.includes('tree')||text.includes('wood'))return 'wood';return null;}
 function findBone(root,names){let found=null;root.traverse(o=>{if(!found&&names.includes(o.name))found=o;});return found;}
 if(!playerRoot){if(badge)badge.textContent='ROOT?';console.warn('[The Villager] Player root hook unavailable; gameplay fallback remains active.');}
 else{
  const world=playerRoot.parent;
- installEnvironmentVisuals({world});
+ const environment=installEnvironmentVisuals({world});
  installWorldTextures({world});
  const pathNetwork=installVillagePathNetwork({world});globalThis.__villagePathNetwork=pathNetwork;
  const collision=installWorldCollision({playerRoot,world});
  installBuildingPlacement({world,playerRoot,pathNetwork,collision});installBuildingOcclusion({world,playerRoot});installTreeOcclusion({world,playerRoot});
+ installExpandedResources({playerRoot,environment});
  const fallbackObjects=[...playerRoot.children];for(const object of fallbackObjects)object.visible=false;
  const modelUrl=new URL('./assets/characters/villager-male.gltf',import.meta.url).href;
  const visual=new GlbPlayerVisual({playerRoot,fallbackObjects,modelUrl,targetHeight:PLAYER_GLB_CONTRACT.targetHeight,localGroundOffset:-0.53});
