@@ -24,22 +24,22 @@ export function installFoliageSystem({chunkManager}){
  const cleared=[];
  const provider={
   createChunk({cx,cz,root,chunkSize}){
-   const rnd=seeded(hash(cx,cz));const minX=cx*chunkSize-chunkSize*.5,minZ=cz*chunkSize-chunkSize*.5;
-   const centerX=cx*chunkSize,centerZ=cz*chunkSize,distFromVillage=Math.hypot(centerX,centerZ);
+   const rnd=seeded(hash(cx,cz));const centerX=cx*chunkSize,centerZ=cz*chunkSize;
+   const distFromVillage=Math.hypot(centerX,centerZ);
    const density=distFromVillage<15?.22:distFromVillage<32?.55:.82;
    const counts={grass:Math.floor(36*density),fern:Math.floor(11*density),bush:Math.floor(6*density),flower:Math.floor(7*density),mushroom:Math.floor(5*density)};
    const state={meshes:[]};
    for(const [type,count] of Object.entries(counts)){
-    if(count<=0)continue;const mesh=new THREE.InstancedMesh(geo[type],mats[type],count);mesh.name=`Foliage:${type}`;mesh.castShadow=type==='bush';mesh.receiveShadow=true;mesh.frustumCulled=true;
+    if(count<=0)continue;const inst=new THREE.InstancedMesh(geo[type],mats[type],count);inst.name=`Foliage:${type}`;inst.castShadow=type==='bush';inst.receiveShadow=true;inst.frustumCulled=true;
     const matrix=new THREE.Matrix4(),q=new THREE.Quaternion(),scale=new THREE.Vector3(),pos=new THREE.Vector3();let used=0;
     for(let i=0;i<count;i++){
-     const x=minX+rnd()*chunkSize,z=minZ+rnd()*chunkSize;
-     if(Math.hypot(x,z)<11){i--;if(i<-10)break;continue;}
-     if(cleared.some(r=>insideRect(x,z,r))){i--;if(i<-10)break;continue;}
+     const localX=(rnd()-.5)*chunkSize,localZ=(rnd()-.5)*chunkSize,worldX=centerX+localX,worldZ=centerZ+localZ;
+     if(Math.hypot(worldX,worldZ)<11)continue;
+     if(cleared.some(r=>insideRect(worldX,worldZ,r)))continue;
      const s=type==='grass'?.55+rnd()*.7:type==='fern'?.65+rnd()*.55:type==='bush'?.65+rnd()*.65:.7+rnd()*.5;
-     pos.set(x,0,z);q.setFromAxisAngle(new THREE.Vector3(0,1,0),rnd()*Math.PI*2);scale.setScalar(s);matrix.compose(pos,q,scale);mesh.setMatrixAt(used++,matrix);
+     pos.set(localX,0,localZ);q.setFromAxisAngle(new THREE.Vector3(0,1,0),rnd()*Math.PI*2);scale.setScalar(s);matrix.compose(pos,q,scale);inst.setMatrixAt(used++,matrix);
     }
-    mesh.count=used;mesh.instanceMatrix.needsUpdate=true;root.add(mesh);state.meshes.push(mesh);
+    inst.count=used;inst.instanceMatrix.needsUpdate=true;root.add(inst);state.meshes.push(inst);
    }
    return state;
   },
