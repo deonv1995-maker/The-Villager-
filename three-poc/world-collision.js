@@ -15,7 +15,7 @@ function boxOverlapsSegment(b,s,pad=.18){const samples=8;for(let i=0;i<=samples;
 export function installWorldCollision({playerRoot,world}){
  if(!playerRoot||!world)return null;
  const boxes=[{id:'cottage',x:0,z:-7.4,hx:4.05,hz:2.85}];
- const circles=[{id:'well',x:0,z:-1.8,r:1.28}];
+ const circles=[{id:'well',x:-3.3,z:-1.5,r:1.28}];
  const treeDefs=[[-6.6,2.7,.78],[-11,-4,.68],[-13,7,.78],[12,-5,.64],[14,8,.74]],rockDefs=[[6.3,3,.98],[-10,10,.95],[10,11,.95]];
  for(const [x,z,r] of treeDefs){const owner=findGroupAt(world,x,z);circles.push({x,z,r,dynamicVisible:()=>owner?.visible!==false});}
  for(const [x,z,r] of rockDefs){const owner=findGroupAt(world,x,z);circles.push({x,z,r,dynamicVisible:()=>owner?.visible!==false});}
