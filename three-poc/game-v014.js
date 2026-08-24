@@ -1,14 +1,14 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 
-// v0.1.4 presentation compatibility layer. Capture the gameplay camera and player
-// without replacing Three.js constructors; ES module namespace exports are read-only.
+// Compatibility layer: capture the actual gameplay player and camera without changing
+// the legacy movement/controller loop.
 let playerRoot = null;
 const originalGroupAdd = THREE.Group.prototype.add;
+const originalSceneAdd = THREE.Scene.prototype.add;
 
 THREE.Group.prototype.add = function (...objects) {
   const result = originalGroupAdd.apply(this, objects);
   for (const object of objects) {
-    if (object instanceof THREE.PerspectiveCamera) globalThis.__villagerCamera = object;
     if (!(object instanceof THREE.Group)) continue;
     const scaleLooksLikePlayer = Math.abs(object.scale.x - 1.05) < 0.001 && Math.abs(object.scale.y - 1.05) < 0.001;
     const hasRigRootShape = object.children.length === 1 && object.children[0] instanceof THREE.Group;
@@ -16,9 +16,15 @@ THREE.Group.prototype.add = function (...objects) {
   }
   return result;
 };
+THREE.Scene.prototype.add = function (...objects) {
+  const result = originalSceneAdd.apply(this, objects);
+  for (const object of objects) if (object?.isPerspectiveCamera) globalThis.__villagerCamera = object;
+  return result;
+};
 
-await import('./game-v013.js?v=079-runtime');
+await import('./game-v013.js?v=086-runtime');
 THREE.Group.prototype.add = originalGroupAdd;
+THREE.Scene.prototype.add = originalSceneAdd;
 
 if (playerRoot) {
   const GROUND_OFFSET = 0.53;
