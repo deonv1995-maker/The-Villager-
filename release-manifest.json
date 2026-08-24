@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.6.9",
-  "releaseId": "3d-v0.6.9-streamed-resources",
+  "version": "3D-0.6.11",
+  "releaseId": "3d-v0.6.11-chunk-transform-fix",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
