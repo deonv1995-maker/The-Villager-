@@ -4,7 +4,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 // the legacy movement/controller loop.
 let playerRoot = null;
 const originalGroupAdd = THREE.Group.prototype.add;
-const originalSceneAdd = THREE.Scene.prototype.add;
+const originalUpdateProjectionMatrix = THREE.PerspectiveCamera.prototype.updateProjectionMatrix;
 
 THREE.Group.prototype.add = function (...objects) {
   const result = originalGroupAdd.apply(this, objects);
@@ -16,15 +16,17 @@ THREE.Group.prototype.add = function (...objects) {
   }
   return result;
 };
-THREE.Scene.prototype.add = function (...objects) {
-  const result = originalSceneAdd.apply(this, objects);
-  for (const object of objects) if (object?.isPerspectiveCamera) globalThis.__villagerCamera = object;
-  return result;
+
+// PerspectiveCamera's constructor calls updateProjectionMatrix(). Capture that instance
+// directly because the legacy camera is not added to the scene graph.
+THREE.PerspectiveCamera.prototype.updateProjectionMatrix = function (...args) {
+  globalThis.__villagerCamera = this;
+  return originalUpdateProjectionMatrix.apply(this, args);
 };
 
-await import('./game-v013.js?v=086-runtime');
+await import('./game-v013.js?v=087-runtime');
 THREE.Group.prototype.add = originalGroupAdd;
-THREE.Scene.prototype.add = originalSceneAdd;
+THREE.PerspectiveCamera.prototype.updateProjectionMatrix = originalUpdateProjectionMatrix;
 
 if (playerRoot) {
   const GROUND_OFFSET = 0.53;
