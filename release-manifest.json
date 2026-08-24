@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.5.9",
-  "releaseId": "3d-v0.5.9-natural-walk-bounce",
+  "version": "3D-0.6.0",
+  "releaseId": "3d-v0.6.0-natural-weight-shift-gait",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
