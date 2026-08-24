@@ -1,7 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 import { createVillageMaterials } from './material-library.js?v=064';
 
-export const WORLD_LIMIT=44;
+export const WORLD_LIMIT=90;
 const LEGACY_LIMIT=19;
 
 // Compatibility bridge for the old runtime's hardcoded movement clamp. Keeping the
@@ -41,30 +41,39 @@ function createStateAnchor(x,z){const g=new THREE.Group();g.name='ExpandedResour
 
 export function installExpandedWorld({world}){
  if(!world)return {sync:[]};
- const root=new THREE.Group();root.name='ExpandedWorld066';world.add(root);
- const sync=[],rnd=seeded(66021),occupied=[];
+ const root=new THREE.Group();root.name='ExpandedWorld067';world.add(root);
+ const sync=[],rnd=seeded(67021),occupied=[];
  const clear=(x,z,r=3.1)=>occupied.every(p=>Math.hypot(x-p.x,z-p.z)>r+p.r);
  const reserve=(x,z,r)=>occupied.push({x,z,r});
+
+ // Grow the existing ground instead of layering another coplanar plane over it.
+ // This keeps the central village visually stable while making the full 180x180 area walkable.
+ const ground=world.children.find(o=>o.isMesh&&o.geometry?.type==='PlaneGeometry'&&Math.abs((o.geometry.parameters?.width||0)-100)<.01&&Math.abs((o.geometry.parameters?.height||0)-100)<.01);
+ if(ground){ground.scale.x=Math.max(ground.scale.x,2);ground.scale.y=Math.max(ground.scale.y,2);ground.updateMatrixWorld(true);}
+ const scene=world.parent;if(scene?.fog){scene.fog.near=42;scene.fog.far=155;}
+
  // Keep the original village as a quieter central clearing; expansion begins outside it.
- reserve(0,0,15);
+ reserve(0,0,17);
  const addResource=(type,x,z,scale)=>{
   const state=createStateAnchor(x,z);world.add(state);
   const visual=type==='tree'?makeTree(scale):makeRock(scale);visual.position.set(x,0,z);root.add(visual);
   sync.push({old:state,repl:visual});reserve(x,z,type==='tree'?2.2:1.7);
  };
+
+ // Wider world, but still intentionally sparse enough for mobile performance.
  let trees=0,rocks=0,attempts=0;
- while((trees<34||rocks<14)&&attempts++<900){
-  const angle=rnd()*Math.PI*2,radius=17+rnd()*25,x=Math.cos(angle)*radius,z=Math.sin(angle)*radius;
-  if(Math.abs(x)>WORLD_LIMIT-2||Math.abs(z)>WORLD_LIMIT-2||!clear(x,z))continue;
+ while((trees<78||rocks<30)&&attempts++<2600){
+  const angle=rnd()*Math.PI*2,radius=18+rnd()*(WORLD_LIMIT-22),x=Math.cos(angle)*radius,z=Math.sin(angle)*radius;
+  if(Math.abs(x)>WORLD_LIMIT-3||Math.abs(z)>WORLD_LIMIT-3||!clear(x,z))continue;
   const treeChance=rnd();
-  if(trees<34&&(treeChance<.72||rocks>=14)){addResource('tree',x,z,.78+rnd()*.42);trees++;}
-  else if(rocks<14){addResource('rock',x,z,.78+rnd()*.38);rocks++;}
+  if(trees<78&&(treeChance<.73||rocks>=30)){addResource('tree',x,z,.72+rnd()*.5);trees++;}
+  else if(rocks<30){addResource('rock',x,z,.72+rnd()*.42);rocks++;}
  }
- // Sparse low-cost ground detail gives the expanded area visual continuity without
- // turning it into a dense performance-heavy forest.
+
  const grassMat=new THREE.MeshStandardMaterial({color:0x517f3d,roughness:1,flatShading:true});
- for(let i=0;i<115;i++){
-  const angle=rnd()*Math.PI*2,radius=15+rnd()*29,x=Math.cos(angle)*radius,z=Math.sin(angle)*radius;if(Math.abs(x)>WORLD_LIMIT||Math.abs(z)>WORLD_LIMIT)continue;
+ for(let i=0;i<260;i++){
+  const angle=rnd()*Math.PI*2,radius=16+rnd()*(WORLD_LIMIT-18),x=Math.cos(angle)*radius,z=Math.sin(angle)*radius;
+  if(Math.abs(x)>WORLD_LIMIT||Math.abs(z)>WORLD_LIMIT)continue;
   const tuft=new THREE.Group();tuft.position.set(x,0,z);for(let b=0;b<3;b++)mesh(tuft,new THREE.ConeGeometry(.055,.35+rnd()*.28,4),grassMat,[(b-1)*.09,.2,(b%2)*.07],[0,rnd()*Math.PI,0]);root.add(tuft);
  }
  return {root,sync,limit:WORLD_LIMIT};
