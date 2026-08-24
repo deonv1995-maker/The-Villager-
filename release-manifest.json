@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.5.8",
-  "releaseId": "3d-v0.5.8-speed-matched-walk",
+  "version": "3D-0.5.9",
+  "releaseId": "3d-v0.5.9-natural-walk-bounce",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
