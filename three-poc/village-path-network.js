@@ -18,7 +18,6 @@ function makeRibbon(group,a,c,b,width=.95,segments=22){
   if(i<segments){const k=i*2;indices.push(k,k+1,k+2,k+1,k+3,k+2);}
  }
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setIndex(indices);g.computeVertexNormals();mesh(group,g,dirt);
- // sparse worn patches, never a regular stone border
  for(let i=3;i<segments;i+=4){const t=(i+.35)/segments,p=bezier(a,c,b,t);mesh(group,new THREE.CircleGeometry(.16+(i%3)*.035,7),worn,[p.x,.031,p.y],[-Math.PI/2,0,t*2.1]);}
 }
 
@@ -33,16 +32,26 @@ export class VillagePathNetwork{
  }
 }
 
-function hideLegacyPaths(world){
- // Runtime v0.1.3 creates exactly three large horizontal PlaneGeometry path meshes.
- // Hide only those geometry signatures; ground and all gameplay objects remain untouched.
- world.children.forEach(o=>{if(!o.isMesh||o.geometry?.type!=='PlaneGeometry')return;const p=o.geometry.parameters||{};const w=p.width||0,h=p.height||0;if((Math.abs(w-4.4)<.01&&Math.abs(h-24)<.01)||(Math.abs(w-21)<.01&&Math.abs(h-3.6)<.01)||(Math.abs(w-15)<.01&&Math.abs(h-3.1)<.01))o.visible=false;});
+function hideLegacyPathVisuals(world){
+ world.children.forEach(o=>{
+  if(!o.isMesh)return;
+  const g=o.geometry,p=g?.parameters||{};
+  if(g?.type==='PlaneGeometry'){
+   const w=p.width||0,h=p.height||0;
+   const legacy=(Math.abs(w-4.4)<.01&&Math.abs(h-24)<.01)||(Math.abs(w-21)<.01&&Math.abs(h-3.6)<.01)||(Math.abs(w-15)<.01&&Math.abs(h-3.1)<.01);
+   const oldEdge=(Math.abs(w-.28)<.01&&Math.abs(h-24)<.01)||(Math.abs(w-21)<.01&&Math.abs(h-.28)<.01)||(Math.abs(w-15)<.01&&Math.abs(h-.28)<.01);
+   if(legacy||oldEdge)o.visible=false;
+  }
+  // Remove the previous path-detail dots and regimented border stones. These were
+  // presentation-only and must not survive once the settlement network owns paths.
+  if(g?.type==='CircleGeometry'&&o.position.y>.045&&o.position.y<.07)o.visible=false;
+  if(g?.type==='DodecahedronGeometry'&&o.position.y>.08&&o.position.y<.16&&Math.max(o.scale.x,o.scale.z)<1.5)o.visible=false;
+ });
 }
 
 export function installVillagePathNetwork({world}){
- if(!world)return null;hideLegacyPaths(world);
+ if(!world)return null;hideLegacyPathVisuals(world);
  const network=new VillagePathNetwork(world);
- // These are settlement anchors, not arbitrary roads. Future constructed buildings register here.
  network.registerBuilding({id:'cottage',role:'home',entrance:{x:1.12,z:-3.95}})
         .registerBuilding({id:'well',role:'utility',entrance:{x:.9,z:-1.05}})
         .registerBuilding({id:'village-spine',role:'junction',entrance:{x:-.35,z:2.15}})
