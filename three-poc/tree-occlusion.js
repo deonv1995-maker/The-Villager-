@@ -13,18 +13,7 @@ function distancePointToSegment(px,pz,ax,az,bx,bz){const dx=bx-ax,dz=bz-az,len2=
 export function installTreeOcclusion({world,playerRoot}){
  if(!world||!playerRoot)return null;
  const entries=new Map(),playerPos=new THREE.Vector2(),cameraPos=new THREE.Vector2();let lastScan=0,lastTime=performance.now();
- function scan(){
-  for(const [group] of entries)if(!group.parent)entries.delete(group);
-  world.traverse(o=>{if(!isTreeGroup(o)||entries.has(o))return;cloneFadeMaterials(o);entries.set(o,{group:o,opacity:1,body:getTreeScreenBody(o)});});
- }
- function tick(now){
-  requestAnimationFrame(tick);const dt=Math.min((now-lastTime)/1000,.05);lastTime=now;if(now-lastScan>700){lastScan=now;scan();}
-  playerPos.set(playerRoot.position.x,playerRoot.position.z);cameraPos.copy(playerPos).add(CAMERA_OFFSET_XZ);
-  for(const entry of entries.values()){
-   if(!entry.group.parent)continue;if(now-lastScan<40)entry.body=getTreeScreenBody(entry.group);const b=entry.body;if(!b)continue;
-   const dist=distancePointToSegment(b.x,b.z,cameraPos.x,cameraPos.y,playerPos.x,playerPos.y),treeToPlayer=Math.hypot(b.x-playerPos.x,b.z-playerPos.y),treeToCamera=Math.hypot(b.x-cameraPos.x,b.z-cameraPos.y),cameraToPlayer=Math.hypot(cameraPos.x-playerPos.x,cameraPos.y-playerPos.y),between=treeToPlayer<cameraToPlayer&&treeToCamera<cameraToPlayer,occluding=between&&dist<b.radius,target=occluding?FADE_OPACITY:1;
-   entry.opacity=THREE.MathUtils.lerp(entry.opacity,target,1-Math.exp(-dt*FADE_SPEED));setOpacity(entry.group,entry.opacity);
-  }
- }
+ function scan(){for(const [group] of entries)if(!group.parent)entries.delete(group);world.traverse(o=>{if(!isTreeGroup(o)||entries.has(o))return;cloneFadeMaterials(o);entries.set(o,{group:o,opacity:1,body:getTreeScreenBody(o)});});}
+ function tick(now){requestAnimationFrame(tick);const dt=Math.min((now-lastTime)/1000,.05);lastTime=now;if(now-lastScan>700){lastScan=now;scan();}playerPos.set(playerRoot.position.x,playerRoot.position.z);const live=globalThis.__villagerCameraPosition;if(live)cameraPos.set(live.x,live.z);else cameraPos.copy(playerPos).add(CAMERA_OFFSET_XZ);for(const entry of entries.values()){if(!entry.group.parent)continue;if(now-lastScan<40)entry.body=getTreeScreenBody(entry.group);const b=entry.body;if(!b)continue;const dist=distancePointToSegment(b.x,b.z,cameraPos.x,cameraPos.y,playerPos.x,playerPos.y),treeToPlayer=Math.hypot(b.x-playerPos.x,b.z-playerPos.y),treeToCamera=Math.hypot(b.x-cameraPos.x,b.z-cameraPos.y),cameraToPlayer=Math.hypot(cameraPos.x-playerPos.x,cameraPos.y-playerPos.y),between=treeToPlayer<cameraToPlayer&&treeToCamera<cameraToPlayer,occluding=between&&dist<b.radius,target=occluding?FADE_OPACITY:1;entry.opacity=THREE.MathUtils.lerp(entry.opacity,target,1-Math.exp(-dt*FADE_SPEED));setOpacity(entry.group,entry.opacity);}}
  scan();requestAnimationFrame(tick);return{refresh:scan,get trackedCount(){return entries.size;}};
 }
