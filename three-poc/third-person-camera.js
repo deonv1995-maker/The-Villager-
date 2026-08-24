@@ -1,48 +1,59 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 
-function ensureLookStick(){
-  let look=document.getElementById('look-stick');
-  let knob=document.getElementById('look-stick-knob');
-  if(!look){look=document.createElement('div');look.id='look-stick';document.getElementById('hud')?.appendChild(look)??document.body.appendChild(look)}
-  if(!knob){knob=document.createElement('div');knob.id='look-stick-knob';look.appendChild(knob)}
-  look.classList.remove('hidden');look.removeAttribute('aria-hidden');look.setAttribute('aria-label','Look around');
-  look.style.setProperty('display','block','important');look.style.setProperty('visibility','visible','important');look.style.setProperty('pointer-events','auto','important');look.style.setProperty('touch-action','none','important');look.style.setProperty('z-index','10000','important');
-  return {look,knob};
-}
-
 export function installThirdPersonCamera({playerRoot,camera=null}){
   if(!playerRoot)return null;
-  const {look,knob}=ensureLookStick();
-  let yaw=0,pitch=.05,activeTouch=null,activePointer=null,lastX=0,lastY=0,appliedFrames=0;
+  let look=document.getElementById('look-stick');
+  let knob=document.getElementById('look-stick-knob');
+  if(!look){look=document.createElement('div');look.id='look-stick';document.body.appendChild(look)}
+  if(!knob){knob=document.createElement('div');knob.id='look-stick-knob';look.appendChild(knob)}
+  look.classList.remove('hidden');
+  Object.assign(look.style,{display:'block',visibility:'visible',pointerEvents:'auto',touchAction:'none',zIndex:'10000'});
+
+  let yaw=0,pitch=.08,activeId=null;
   const target=new THREE.Vector3(),desired=new THREE.Vector3();
   const distance=5.15,targetHeight=1.45,cameraLift=.62,shoulder=.28;
+  let ownedCamera=camera;
 
-  function liveCamera(fallback=null){return fallback||camera||globalThis.__villagerCamera||null}
-  function apply(cam=liveCamera()){
-    if(!cam?.isPerspectiveCamera)return;
+  function getCamera(fallback=null){
+    if(fallback?.isPerspectiveCamera)ownedCamera=fallback;
+    else if(!ownedCamera?.isPerspectiveCamera&&globalThis.__villagerCamera?.isPerspectiveCamera)ownedCamera=globalThis.__villagerCamera;
+    return ownedCamera;
+  }
+  function apply(fallback=null){
+    const cam=getCamera(fallback);if(!cam)return;
     target.set(playerRoot.position.x,playerRoot.position.y+targetHeight,playerRoot.position.z);
-    const horizontal=Math.cos(pitch)*distance,sideX=Math.cos(yaw)*shoulder,sideZ=-Math.sin(yaw)*shoulder;
-    desired.set(target.x+Math.sin(yaw)*horizontal+sideX,target.y+cameraLift+Math.sin(pitch)*distance,target.z+Math.cos(yaw)*horizontal+sideZ);
+    const horizontal=Math.cos(pitch)*distance;
+    desired.set(target.x+Math.sin(yaw)*horizontal+Math.cos(yaw)*shoulder,target.y+cameraLift+Math.sin(pitch)*distance,target.z+Math.cos(yaw)*horizontal-Math.sin(yaw)*shoulder);
     cam.position.copy(desired);cam.lookAt(target);
     if(Math.abs(cam.fov-52)>.01){cam.fov=52;cam.updateProjectionMatrix()}
-    globalThis.__villagerCameraAppliedFrames=++appliedFrames;
+    globalThis.__villagerCameraPosition={x:cam.position.x,y:cam.position.y,z:cam.position.z};
   }
-  function knobAt(x,y){const r=look.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,max=r.width*.30;let dx=x-cx,dy=y-cy,l=Math.hypot(dx,dy)||1;if(l>max){dx=dx/l*max;dy=dy/l*max}knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`}
-  function rotate(x,y){const dx=THREE.MathUtils.clamp(x-lastX,-100,100),dy=THREE.MathUtils.clamp(y-lastY,-100,100);lastX=x;lastY=y;yaw-=dx*.014;pitch=THREE.MathUtils.clamp(pitch-dy*.011,-.34,.48);knobAt(x,y);apply()}
-  function reset(){activeTouch=null;activePointer=null;knob.style.transform='translate(-50%,-50%)'}
+  function updateKnob(x,y){
+    const r=look.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,max=r.width*.31;
+    let dx=x-cx,dy=y-cy,l=Math.hypot(dx,dy)||1;if(l>max){dx=dx/l*max;dy=dy/l*max}
+    knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
+    return {x:dx/max,y:dy/max};
+  }
+  function inside(x,y){const r=look.getBoundingClientRect();return x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom}
+  function begin(id,x,y,e){if(activeId!==null||!inside(x,y))return false;activeId=id;updateKnob(x,y);e?.preventDefault?.();e?.stopPropagation?.();return true}
+  function move(id,x,y,e){if(id!==activeId)return false;const v=updateKnob(x,y);yaw-=v.x*.055;pitch=THREE.MathUtils.clamp(pitch-v.y*.04,-.34,.48);apply();e?.preventDefault?.();e?.stopPropagation?.();return true}
+  function end(id,e){if(id!==activeId)return false;activeId=null;knob.style.transform='translate(-50%,-50%)';e?.preventDefault?.();e?.stopPropagation?.();return true}
 
-  // Android/WebView path. Touch events are isolated to this control and tracked on
-  // document capture so the legacy left-stick pointer listeners cannot steal the drag.
-  look.addEventListener('touchstart',e=>{if(activeTouch!==null)return;const t=e.changedTouches[0];if(!t)return;activeTouch=t.identifier;lastX=t.clientX;lastY=t.clientY;knobAt(lastX,lastY);e.preventDefault();e.stopImmediatePropagation()},{passive:false,capture:true});
-  document.addEventListener('touchmove',e=>{if(activeTouch===null)return;const t=[...e.changedTouches].find(v=>v.identifier===activeTouch)||[...e.touches].find(v=>v.identifier===activeTouch);if(!t)return;rotate(t.clientX,t.clientY);e.preventDefault();e.stopImmediatePropagation()},{passive:false,capture:true});
-  document.addEventListener('touchend',e=>{if(activeTouch===null)return;if([...e.changedTouches].some(v=>v.identifier===activeTouch)){reset();e.preventDefault();e.stopImmediatePropagation()}},{passive:false,capture:true});
-  document.addEventListener('touchcancel',e=>{if(activeTouch!==null)reset()},{passive:false,capture:true});
+  // Pointer Events are the primary mobile path. Capture on window means the legacy
+  // movement joystick cannot steal the second pointer, while the pointer id keeps both
+  // thumbsticks independent during simultaneous movement + camera use.
+  window.addEventListener('pointerdown',e=>begin(e.pointerId,e.clientX,e.clientY,e),{capture:true,passive:false});
+  window.addEventListener('pointermove',e=>move(e.pointerId,e.clientX,e.clientY,e),{capture:true,passive:false});
+  window.addEventListener('pointerup',e=>end(e.pointerId,e),{capture:true,passive:false});
+  window.addEventListener('pointercancel',e=>end(e.pointerId,e),{capture:true,passive:false});
 
-  // Mouse/pen fallback. Ignore touch pointers because Android is handled above.
-  look.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'||activePointer!==null)return;activePointer=e.pointerId;lastX=e.clientX;lastY=e.clientY;knobAt(lastX,lastY);try{look.setPointerCapture(e.pointerId)}catch{}e.preventDefault();e.stopImmediatePropagation()},{passive:false,capture:true});
-  look.addEventListener('pointermove',e=>{if(e.pointerType==='touch'||e.pointerId!==activePointer)return;rotate(e.clientX,e.clientY);e.preventDefault();e.stopImmediatePropagation()},{passive:false,capture:true});
-  look.addEventListener('pointerup',e=>{if(e.pointerId===activePointer)reset()},{passive:false,capture:true});
-  look.addEventListener('pointercancel',e=>{if(e.pointerId===activePointer)reset()},{passive:false,capture:true});
+  // Fallback only for WebViews that expose touch but no PointerEvent implementation.
+  if(!('PointerEvent' in window)){
+    window.addEventListener('touchstart',e=>{for(const t of e.changedTouches)if(begin(`t${t.identifier}`,t.clientX,t.clientY,e))break},{capture:true,passive:false});
+    window.addEventListener('touchmove',e=>{for(const t of e.changedTouches)if(move(`t${t.identifier}`,t.clientX,t.clientY,e))break},{capture:true,passive:false});
+    window.addEventListener('touchend',e=>{for(const t of e.changedTouches)if(end(`t${t.identifier}`,e))break},{capture:true,passive:false});
+    window.addEventListener('touchcancel',e=>{for(const t of e.changedTouches)if(end(`t${t.identifier}`,e))break},{capture:true,passive:false});
+  }
 
   const api={active:true,apply,get yaw(){return yaw},get pitch(){return pitch},lookStick:look};
   globalThis.__villagerThirdPersonCamera=api;
