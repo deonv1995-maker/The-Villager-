@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.6.0",
-  "releaseId": "3d-v0.6.0-natural-weight-shift-gait",
+  "version": "3D-0.6.2",
+  "releaseId": "3d-v0.6.2-building-occlusion",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
@@ -19,9 +19,11 @@
     "three-poc/game-v014.js",
     "three-poc/game-v013.js",
     "three-poc/player-visual-glb.js",
+    "three-poc/player-anatomy.js",
     "three-poc/environment-visuals.js",
     "three-poc/world-collision.js",
     "three-poc/village-path-network.js",
-    "three-poc/building-placement.js"
+    "three-poc/building-placement.js",
+    "three-poc/building-occlusion.js"
   ]
 }
