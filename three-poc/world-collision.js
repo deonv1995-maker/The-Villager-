@@ -24,7 +24,9 @@ export function installWorldCollision({playerRoot,world}){
   boxes,circles,fenceSegments,playerRadius:PLAYER_RADIUS,
   isPointBlocked(x,z,r=PLAYER_RADIUS){return boxes.some(b=>boxBlocked(x,z,b,r))||circles.some(c=>circleBlocked(x,z,c,r))||fenceSegments.some(s=>segmentBlocked(x,z,s,r));},
   isFootprintBlocked(box){if(Math.abs(box.x)>15-box.hx||Math.abs(box.z)>14-box.hz)return true;if(boxes.some(b=>boxOverlapsBox(box,b)))return true;if(circles.some(c=>(!c.dynamicVisible||c.dynamicVisible()!==false)&&boxOverlapsCircle(box,c)))return true;if(fenceSegments.some(s=>boxOverlapsSegment(box,s)))return true;return false;},
-  registerBox(def){const box={...def};boxes.push(box);return box;}
+  registerBox(def){const box={...def};boxes.push(box);return box;},
+  registerCircle(def){const circle={...def};circles.push(circle);return circle;},
+  removeCollider(collider){let i=circles.indexOf(collider);if(i>=0){circles.splice(i,1);return true;}i=boxes.indexOf(collider);if(i>=0){boxes.splice(i,1);return true;}return false;}
  };
  const previousSet=playerRoot.position.set.bind(playerRoot.position);
  playerRoot.position.set=(x,y,z)=>{if(service.isPointBlocked(x,z))return playerRoot.position;return previousSet(x,y,z);};
