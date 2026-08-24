@@ -1,10 +1,10 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.6.7",
-  "releaseId": "3d-v0.6.7-larger-world",
+  "version": "3D-0.6.8",
+  "releaseId": "3d-v0.6.8-chunked-foliage",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
   "assets": {"playerModel":"three-poc/assets/characters/villager-male.gltf"},
-  "shell": ["index.html","manifest.webmanifest","icons/icon.svg","icons/icon-maskable.svg","src/pwa-3d.js","three-poc/styles.css","three-poc/game-v020.js","three-poc/game-v014.js","three-poc/game-v013.js","three-poc/player-visual-glb.js","three-poc/player-anatomy.js","three-poc/environment-visuals.js","three-poc/world-collision.js","three-poc/village-path-network.js","three-poc/building-placement.js","three-poc/building-occlusion.js","three-poc/tree-occlusion.js","three-poc/material-library.js","three-poc/world-textures.js","three-poc/resource-expansion.js","three-poc/world-expansion.js"]
+  "shell": ["index.html","manifest.webmanifest","icons/icon.svg","icons/icon-maskable.svg","src/pwa-3d.js","three-poc/styles.css","three-poc/game-v020.js","three-poc/game-v014.js","three-poc/game-v013.js","three-poc/player-visual-glb.js","three-poc/player-anatomy.js","three-poc/environment-visuals.js","three-poc/world-collision.js","three-poc/village-path-network.js","three-poc/building-placement.js","three-poc/building-occlusion.js","three-poc/tree-occlusion.js","three-poc/material-library.js","three-poc/world-textures.js","three-poc/resource-expansion.js","three-poc/world-expansion.js","three-poc/world-chunk-manager.js","three-poc/foliage-system.js"]
 }
