@@ -11,10 +11,12 @@ async function register3dPwa(){
  try{
   const release=await getRelease();
   if(!release?.releaseId)throw new Error('Missing releaseId');
+  const previous=localStorage.getItem('the-villager-release-id');
   const scriptUrl=new URL('./sw.js',window.location.href);scriptUrl.searchParams.set('r',release.releaseId);
   const registration=await navigator.serviceWorker.register(scriptUrl.href,{scope:'./',updateViaCache:'none'});
   await registration.update();
   localStorage.setItem('the-villager-release-id',release.releaseId);
+  if(previous&&previous!==release.releaseId&&registration.waiting){registration.waiting.postMessage?.({type:'SKIP_WAITING'});}
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
    const key=`the-villager-3d-controller-${release.releaseId}`;
    if(sessionStorage.getItem(key))return;sessionStorage.setItem(key,'1');window.location.reload();
