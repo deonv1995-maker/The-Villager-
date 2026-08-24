@@ -16,7 +16,7 @@ export function installWorldChunkManager({world,playerRoot}){
  function ensureChunk(cx,cz){
   const k=key(cx,cz);let chunk=chunks.get(k);
   if(chunk)return chunk;
-  const root=new THREE.Group();root.name=`WorldChunk:${k}`;root.userData.chunk={cx,cz,key:k};world.add(root);
+  const root=new THREE.Group();root.name=`WorldChunk:${k}`;root.position.set(cx*CHUNK_SIZE,0,cz*CHUNK_SIZE);root.userData.chunk={cx,cz,key:k};world.add(root);
   chunk={key:k,cx,cz,root,providerState:new Map()};chunks.set(k,chunk);
   for(const p of providers){const state=p.createChunk?.({cx,cz,root,chunkSize:CHUNK_SIZE})??null;chunk.providerState.set(p,state);}
   return chunk;
