@@ -5,11 +5,14 @@ const EPS=.12;
 const near=(a,b,e=EPS)=>Math.abs(a-b)<=e;
 const findGroupAt=(world,x,z)=>world.children.find(o=>o instanceof THREE.Group&&near(o.position.x,x)&&near(o.position.z,z));
 
-function circleBlocked(x,z,c,r=PLAYER_RADIUS){if(c.dynamicVisible&&c.dynamicVisible()===false)return false;return Math.hypot(x-c.x,z-c.z)<c.r+r;}
-function boxBlocked(x,z,b,r=PLAYER_RADIUS){const dx=Math.max(Math.abs(x-b.x)-b.hx,0),dz=Math.max(Math.abs(z-b.z)-b.hz,0);return dx*dx+dz*dz<r*r;}
+function circlePenalty(x,z,c,r=PLAYER_RADIUS){if(c.dynamicVisible&&c.dynamicVisible()===false)return 0;return Math.max(0,c.r+r-Math.hypot(x-c.x,z-c.z));}
+function circleBlocked(x,z,c,r=PLAYER_RADIUS){return circlePenalty(x,z,c,r)>0;}
+function boxPenalty(x,z,b,r=PLAYER_RADIUS){const dx=Math.max(Math.abs(x-b.x)-b.hx,0),dz=Math.max(Math.abs(z-b.z)-b.hz,0),d=Math.hypot(dx,dz);if(dx===0&&dz===0)return r+.01;return Math.max(0,r-d);}
+function boxBlocked(x,z,b,r=PLAYER_RADIUS){return boxPenalty(x,z,b,r)>0;}
 function boxOverlapsBox(a,b,pad=.18){return Math.abs(a.x-b.x)<a.hx+b.hx+pad&&Math.abs(a.z-b.z)<a.hz+b.hz+pad;}
 function boxOverlapsCircle(b,c,pad=.18){const dx=Math.max(Math.abs(c.x-b.x)-b.hx,0),dz=Math.max(Math.abs(c.z-b.z)-b.hz,0);return dx*dx+dz*dz<(c.r+pad)*(c.r+pad);}
-function segmentBlocked(x,z,s,r=PLAYER_RADIUS){const abx=s.bx-s.ax,abz=s.bz-s.az,len2=abx*abx+abz*abz||1,t=THREE.MathUtils.clamp(((x-s.ax)*abx+(z-s.az)*abz)/len2,0,1),px=s.ax+abx*t,pz=s.az+abz*t;return Math.hypot(x-px,z-pz)<r+s.r;}
+function segmentPenalty(x,z,s,r=PLAYER_RADIUS){const abx=s.bx-s.ax,abz=s.bz-s.az,len2=abx*abx+abz*abz||1,t=THREE.MathUtils.clamp(((x-s.ax)*abx+(z-s.az)*abz)/len2,0,1),px=s.ax+abx*t,pz=s.az+abz*t;return Math.max(0,r+s.r-Math.hypot(x-px,z-pz));}
+function segmentBlocked(x,z,s,r=PLAYER_RADIUS){return segmentPenalty(x,z,s,r)>0;}
 function boxOverlapsSegment(b,s,pad=.18){const samples=8;for(let i=0;i<=samples;i++){const t=i/samples,x=s.ax+(s.bx-s.ax)*t,z=s.az+(s.bz-s.az)*t;if(Math.abs(x-b.x)<=b.hx+pad+s.r&&Math.abs(z-b.z)<=b.hz+pad+s.r)return true;}return false;}
 
 export function installWorldCollision({playerRoot,world}){
@@ -22,6 +25,7 @@ export function installWorldCollision({playerRoot,world}){
  const fenceSegments=[{ax:-9,az:-9.8,bx:-4.2,bz:-9.8,r:.12},{ax:4.2,az:-9.8,bx:9,bz:-9.8,r:.12},{ax:-9.9,az:8,bx:-5.1,bz:8,r:.12},{ax:5.1,az:8,bx:9.9,bz:8,r:.12}];
  const service={
   boxes,circles,fenceSegments,playerRadius:PLAYER_RADIUS,
+  overlapPenalty(x,z,r=PLAYER_RADIUS){let p=0;for(const b of boxes)p+=boxPenalty(x,z,b,r);for(const c of circles)p+=circlePenalty(x,z,c,r);for(const s of fenceSegments)p+=segmentPenalty(x,z,s,r);return p;},
   isPointBlocked(x,z,r=PLAYER_RADIUS){return boxes.some(b=>boxBlocked(x,z,b,r))||circles.some(c=>circleBlocked(x,z,c,r))||fenceSegments.some(s=>segmentBlocked(x,z,s,r));},
   isFootprintBlocked(box){if(Math.abs(box.x)>15-box.hx||Math.abs(box.z)>14-box.hz)return true;if(boxes.some(b=>boxOverlapsBox(box,b)))return true;if(circles.some(c=>(!c.dynamicVisible||c.dynamicVisible()!==false)&&boxOverlapsCircle(box,c)))return true;if(fenceSegments.some(s=>boxOverlapsSegment(box,s)))return true;return false;},
   registerBox(def){const box={...def};boxes.push(box);return box;},
@@ -29,6 +33,10 @@ export function installWorldCollision({playerRoot,world}){
   removeCollider(collider){let i=circles.indexOf(collider);if(i>=0){circles.splice(i,1);return true;}i=boxes.indexOf(collider);if(i>=0){boxes.splice(i,1);return true;}return false;}
  };
  const previousSet=playerRoot.position.set.bind(playerRoot.position);
- playerRoot.position.set=(x,y,z)=>{if(service.isPointBlocked(x,z))return playerRoot.position;return previousSet(x,y,z);};
+ playerRoot.position.set=(x,y,z)=>{
+  const nextPenalty=service.overlapPenalty(x,z),currentPenalty=service.overlapPenalty(playerRoot.position.x,playerRoot.position.z);
+  if(nextPenalty>0&&!(currentPenalty>0&&nextPenalty<currentPenalty-.0001))return playerRoot.position;
+  return previousSet(x,y,z);
+ };
  globalThis.__villagerWorldCollision=service;return service;
 }
