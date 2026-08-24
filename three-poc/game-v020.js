@@ -9,17 +9,17 @@ import { installBuildingOcclusion } from './building-occlusion.js?v=062';
 import { installTreeOcclusion } from './tree-occlusion.js?v=063';
 import { installWorldTextures } from './world-textures.js?v=064';
 import { installExpandedResources } from './resource-expansion.js?v=065';
-import { installExpandedWorldBounds, installExpandedWorld } from './world-expansion.js?v=066';
+import { installExpandedWorldBounds, installExpandedWorld } from './world-expansion.js?v=067';
 
 installExpandedWorldBounds();
-await import('./game-v014.js?v=066-runtime');
+await import('./game-v014.js?v=067-runtime');
 
 const badge=document.querySelector('.badge');
 const version=document.getElementById('version');
 const harvestPanel=document.getElementById('harvest');
 const harvestLabel=document.getElementById('harvest-label');
 const playerRoot=globalThis.__villagerPlayerRoot||null;
-if(version)version.textContent='3D-0.6.6';
+if(version)version.textContent='3D-0.6.7';
 function currentResourceType(){const text=(harvestLabel?.textContent||'').toLowerCase();if(text.includes('rock')||text.includes('stone'))return 'stone';if(text.includes('tree')||text.includes('wood'))return 'wood';return null;}
 function findBone(root,names){let found=null;root.traverse(o=>{if(!found&&names.includes(o.name))found=o;});return found;}
 if(!playerRoot){if(badge)badge.textContent='ROOT?';console.warn('[The Villager] Player root hook unavailable; gameplay fallback remains active.');}
