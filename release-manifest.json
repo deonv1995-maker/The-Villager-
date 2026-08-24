@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.5.6",
-  "releaseId": "3d-v0.5.6-woodcutter-hut",
+  "version": "3D-0.5.7",
+  "releaseId": "3d-v0.5.7-path-well-fix",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
