@@ -23,15 +23,13 @@ function buildFallbackClips(model){
   {
     const t=[0,.25,.5,.75,1],tracks=[];
     const legL=[.72,0,-.72,0,.72],legR=legL.map(v=>-v);
-    // True alternating gait: each arm has its own opposite-phase forward/back curve.
-    // Left arm opposes the left leg; right arm opposes the right leg.
-    const armL=[-.66,0,.66,0,-.66];
-    const armR=[.66,0,-.66,0,.66];
-    addQuatTrack(tracks,uaL,t,armL.map(v=>[0,v,-1.43]));
-    addQuatTrack(tracks,uaR,t,armR.map(v=>[0,v,1.43]));
-    // Elbows also vary independently so the arms do not read like mirrored rods.
+    // The right shoulder's local basis is mirrored. Using the SAME local-Y curve
+    // on both shoulders produces opposite forward/back motion in world space.
+    const arm=[-.66,0,.66,0,-.66];
+    addQuatTrack(tracks,uaL,t,arm.map(v=>[0,v,-1.43]));
+    addQuatTrack(tracks,uaR,t,arm.map(v=>[0,v,1.43]));
     addQuatTrack(tracks,laL,t,[[0,-.18,0],[0,-.10,0],[0,-.24,0],[0,-.12,0],[0,-.18,0]]);
-    addQuatTrack(tracks,laR,t,[[0,.24,0],[0,.12,0],[0,.18,0],[0,.10,0],[0,.24,0]]);
+    addQuatTrack(tracks,laR,t,[[0,.18,0],[0,.10,0],[0,.24,0],[0,.12,0],[0,.18,0]]);
     addQuatTrack(tracks,thL,t,legL.map(v=>[v*.70,0,0]));addQuatTrack(tracks,thR,t,legR.map(v=>[v*.70,0,0]));
     addQuatTrack(tracks,caL,t,[[0,0,0],[.18,0,0],[.30,0,0],[0,0,0],[0,0,0]]);addQuatTrack(tracks,caR,t,[[.30,0,0],[0,0,0],[0,0,0],[.18,0,0],[.30,0,0]]);
     addQuatTrack(tracks,sp1,t,[[.025,.08,0],[.02,.02,0],[.025,-.08,0],[.02,-.02,0],[.025,.08,0]]);
