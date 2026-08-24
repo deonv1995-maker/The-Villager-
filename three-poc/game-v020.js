@@ -4,12 +4,14 @@ import { refineVillagerAnatomy } from './player-anatomy.js?v=061';
 import { installEnvironmentVisuals } from './environment-visuals.js?v=057';
 import { installWorldCollision } from './world-collision.js?v=057';
 import { installVillagePathNetwork } from './village-path-network.js?v=057';
-import { installBuildingPlacement } from './building-placement.js?v=057';
+import { installBuildingPlacement } from './building-placement.js?v=068';
 import { installBuildingOcclusion } from './building-occlusion.js?v=062';
 import { installTreeOcclusion } from './tree-occlusion.js?v=063';
 import { installWorldTextures } from './world-textures.js?v=064';
 import { installExpandedResources } from './resource-expansion.js?v=065';
 import { installExpandedWorldBounds, installExpandedWorld } from './world-expansion.js?v=067';
+import { installWorldChunkManager } from './world-chunk-manager.js?v=068';
+import { installFoliageSystem } from './foliage-system.js?v=068';
 
 installExpandedWorldBounds();
 await import('./game-v014.js?v=067-runtime');
@@ -19,7 +21,7 @@ const version=document.getElementById('version');
 const harvestPanel=document.getElementById('harvest');
 const harvestLabel=document.getElementById('harvest-label');
 const playerRoot=globalThis.__villagerPlayerRoot||null;
-if(version)version.textContent='3D-0.6.7';
+if(version)version.textContent='3D-0.6.8';
 function currentResourceType(){const text=(harvestLabel?.textContent||'').toLowerCase();if(text.includes('rock')||text.includes('stone'))return 'stone';if(text.includes('tree')||text.includes('wood'))return 'wood';return null;}
 function findBone(root,names){let found=null;root.traverse(o=>{if(!found&&names.includes(o.name))found=o;});return found;}
 if(!playerRoot){if(badge)badge.textContent='ROOT?';console.warn('[The Villager] Player root hook unavailable; gameplay fallback remains active.');}
@@ -29,9 +31,11 @@ else{
  const expandedWorld=installExpandedWorld({world});
  if(environment?.sync&&expandedWorld?.sync)environment.sync.push(...expandedWorld.sync);
  installWorldTextures({world});
+ const chunkManager=installWorldChunkManager({world,playerRoot});
+ const foliage=installFoliageSystem({chunkManager});
  const pathNetwork=installVillagePathNetwork({world});globalThis.__villagePathNetwork=pathNetwork;
  const collision=installWorldCollision({playerRoot,world});
- installBuildingPlacement({world,playerRoot,pathNetwork,collision});installBuildingOcclusion({world,playerRoot});installTreeOcclusion({world,playerRoot});
+ installBuildingPlacement({world,playerRoot,pathNetwork,collision,foliage});installBuildingOcclusion({world,playerRoot});installTreeOcclusion({world,playerRoot});
  installExpandedResources({playerRoot,environment});
  const fallbackObjects=[...playerRoot.children];for(const object of fallbackObjects)object.visible=false;
  const modelUrl=new URL('./assets/characters/villager-male.gltf',import.meta.url).href;
