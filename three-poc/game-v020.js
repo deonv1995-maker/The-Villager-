@@ -5,6 +5,7 @@ import { installEnvironmentVisuals } from './environment-visuals.js?v=057';
 import { installWorldCollision } from './world-collision.js?v=057';
 import { installVillagePathNetwork } from './village-path-network.js?v=057';
 import { installBuildingPlacement } from './building-placement.js?v=057';
+import { installBuildingOcclusion } from './building-occlusion.js?v=062';
 
 await import('./game-v014.js?v=057-runtime');
 
@@ -13,7 +14,7 @@ const version=document.getElementById('version');
 const harvestPanel=document.getElementById('harvest');
 const harvestLabel=document.getElementById('harvest-label');
 const playerRoot=globalThis.__villagerPlayerRoot||null;
-if(version)version.textContent='3D-0.6.1';
+if(version)version.textContent='3D-0.6.2';
 function currentResourceType(){const text=(harvestLabel?.textContent||'').toLowerCase();if(text.includes('rock')||text.includes('stone'))return 'stone';if(text.includes('tree')||text.includes('wood'))return 'wood';return null;}
 function findBone(root,names){let found=null;root.traverse(o=>{if(!found&&names.includes(o.name))found=o;});return found;}
 if(!playerRoot){if(badge)badge.textContent='ROOT?';console.warn('[The Villager] Player root hook unavailable; gameplay fallback remains active.');}
@@ -24,6 +25,7 @@ else{
  globalThis.__villagePathNetwork=pathNetwork;
  const collision=installWorldCollision({playerRoot,world});
  installBuildingPlacement({world,playerRoot,pathNetwork,collision});
+ installBuildingOcclusion({world,playerRoot});
  const fallbackObjects=[...playerRoot.children];for(const object of fallbackObjects)object.visible=false;
  const modelUrl=new URL('./assets/characters/villager-male.gltf',import.meta.url).href;
  const visual=new GlbPlayerVisual({playerRoot,fallbackObjects,modelUrl,targetHeight:PLAYER_GLB_CONTRACT.targetHeight,localGroundOffset:-0.53});
