@@ -8,16 +8,16 @@ function makeRockCluster(s=1){const g=new THREE.Group();g.scale.setScalar(s);for
 function beam(g,x,y,z,sx,sy,sz,rz=0){return add(g,new THREE.BoxGeometry(1,1,1),M.timber,[x,y,z],[0,0,rz],[sx,sy,sz]);}
 function frontWindow(g,x,y,z){add(g,new THREE.BoxGeometry(.72,.82,.08),M.glass,[x,y,z]);beam(g,x,y,z+.06,.07,.9,.07);beam(g,x,y,z+.06,.8,.07,.07);beam(g,x,y-.5,z+.05,.98,.11,.12);beam(g,x,y+.5,z+.05,.98,.11,.12);beam(g,x-.5,y,z+.05,.11,1.12,.12);beam(g,x+.5,y,z+.05,.11,1.12,.12);}
 function sideWindow(g,x,y,z){add(g,new THREE.BoxGeometry(.08,.82,.72),M.glass,[x,y,z]);beam(g,x+.06,y,z,.07,.9,.07);beam(g,x+.06,y,z,.07,.07,.8);}
-function makeCottage(){const g=new THREE.Group();g.name='VillageCottage044';const W=5.7,D=4.15,lower=2.05,upper=2.15,eave=lower+upper;
- add(g,new THREE.BoxGeometry(W,lower,D),M.stoneLight,[0,lower/2,0]);for(let row=0;row<4;row++)for(let i=0;i<7;i++){const x=-2.45+i*.82+(row%2)*.22;if(Math.abs(x)<.78&&row<3)continue;add(g,new THREE.BoxGeometry(.55,.28,.07),row%2?M.stone:M.stoneDark,[x,.38+row*.46,D/2+.055],[0,0,(i%3-1)*.035]);}
+function makeCottage(){const g=new THREE.Group();g.name='VillageCottage045';const W=5.7,D=4.15,lower=2.05,upper=2.15,eave=lower+upper;
+ add(g,new THREE.BoxGeometry(W,lower,D),M.stoneLight,[0,lower/2,0]);for(let row=0;row<4;row++)for(let i=0;i<7;i++){const x=-2.45+i*.82+(row%2)*.22;if(Math.abs(x)<.82&&row<4)continue;add(g,new THREE.BoxGeometry(.55,.28,.07),row%2?M.stone:M.stoneDark,[x,.38+row*.46,D/2+.055],[0,0,(i%3-1)*.035]);}
  add(g,new THREE.BoxGeometry(W+.35,upper,D+.28),M.plaster,[0,lower+upper/2,0]);const front=D/2+.18;beam(g,0,lower+.06,front,W+.55,.16,.18);beam(g,0,eave-.05,front,W+.55,.16,.18);for(const x of [-2.72,-1.38,0,1.38,2.72])beam(g,x,lower+upper/2,front,.15,upper,.18);for(const [x,rz] of [[-2.05,-.66],[-.7,.66],[.7,-.66],[2.05,.66]])beam(g,x,lower+upper*.48,front,.13,1.38,.16,rz);
  const back=-D/2-.18;beam(g,0,lower+.06,back,W+.55,.16,.18);beam(g,0,eave-.05,back,W+.55,.16,.18);for(const x of [-2.72,0,2.72])beam(g,x,lower+upper/2,back,.15,upper,.18);for(const sx of [-1,1]){const x=sx*(W/2+.2);beam(g,x,lower+.06,0,.18,.16,D+.45);beam(g,x,eave-.05,0,.18,.16,D+.45);for(const z of [-1.55,0,1.55])beam(g,x,lower+upper/2,z,.18,upper,.15);}
- // Human-scale entrance: sized from the player rather than treated as decoration.
- const doorX=.72,doorH=1.82,doorW=1.08,doorZ=D/2+.09;
+ // Final doorway proportion pass: comfortably taller and wider than the player silhouette.
+ const doorX=.72,doorH=2.08,doorW=1.18,doorZ=D/2+.09;
  add(g,new THREE.BoxGeometry(doorW,doorH,.12),M.door,[doorX,doorH/2,doorZ]);
- beam(g,doorX-doorW*.62,doorH/2,D/2+.15,.14,doorH+.18,.18);
- beam(g,doorX+doorW*.62,doorH/2,D/2+.15,.14,doorH+.18,.18);
- beam(g,doorX,doorH+.09,D/2+.15,doorW*1.45,.14,.18);
+ beam(g,doorX-doorW*.61,doorH/2,D/2+.15,.14,doorH+.16,.18);
+ beam(g,doorX+doorW*.61,doorH/2,D/2+.15,.14,doorH+.16,.18);
+ beam(g,doorX,doorH+.08,D/2+.15,doorW*1.42,.14,.18);
  add(g,new THREE.BoxGeometry(1.25,.72,.08),M.glass,[-1.45,1.0,D/2+.08]);frontWindow(g,-1.45,lower+1.10,front+.05);frontWindow(g,1.35,lower+1.10,front+.05);sideWindow(g,W/2+.23,lower+1.07,.2);
  const overhang=.62,half=W/2+overhang,roofDepth=D+overhang*2,rise=2.05,angle=Math.atan2(rise,half),slope=Math.hypot(half,rise),thick=.16;
  add(g,new THREE.BoxGeometry(slope,thick,roofDepth),M.roof,[-half/2,eave+rise/2,0],[0,0, angle]);add(g,new THREE.BoxGeometry(slope,thick,roofDepth),M.roof,[ half/2,eave+rise/2,0],[0,0,-angle]);add(g,new THREE.BoxGeometry(.28,.20,roofDepth+.10),M.roofDark,[0,eave+rise+.02,0]);beam(g,-half,eave-.02,0,.16,.18,roofDepth+.08);beam(g,half,eave-.02,0,.16,.18,roofDepth+.08);
