@@ -9,21 +9,25 @@ import { installBuildingOcclusion } from './building-occlusion.js?v=062';
 import { installTreeOcclusion } from './tree-occlusion.js?v=063';
 import { installWorldTextures } from './world-textures.js?v=064';
 import { installExpandedResources } from './resource-expansion.js?v=065';
+import { installExpandedWorldBounds, installExpandedWorld } from './world-expansion.js?v=066';
 
-await import('./game-v014.js?v=057-runtime');
+installExpandedWorldBounds();
+await import('./game-v014.js?v=066-runtime');
 
 const badge=document.querySelector('.badge');
 const version=document.getElementById('version');
 const harvestPanel=document.getElementById('harvest');
 const harvestLabel=document.getElementById('harvest-label');
 const playerRoot=globalThis.__villagerPlayerRoot||null;
-if(version)version.textContent='3D-0.6.5';
+if(version)version.textContent='3D-0.6.6';
 function currentResourceType(){const text=(harvestLabel?.textContent||'').toLowerCase();if(text.includes('rock')||text.includes('stone'))return 'stone';if(text.includes('tree')||text.includes('wood'))return 'wood';return null;}
 function findBone(root,names){let found=null;root.traverse(o=>{if(!found&&names.includes(o.name))found=o;});return found;}
 if(!playerRoot){if(badge)badge.textContent='ROOT?';console.warn('[The Villager] Player root hook unavailable; gameplay fallback remains active.');}
 else{
  const world=playerRoot.parent;
  const environment=installEnvironmentVisuals({world});
+ const expandedWorld=installExpandedWorld({world});
+ if(environment?.sync&&expandedWorld?.sync)environment.sync.push(...expandedWorld.sync);
  installWorldTextures({world});
  const pathNetwork=installVillagePathNetwork({world});globalThis.__villagePathNetwork=pathNetwork;
  const collision=installWorldCollision({playerRoot,world});
