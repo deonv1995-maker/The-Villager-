@@ -29,15 +29,15 @@ function buildFallbackClips(model){
  const b=n=>byName(model,n),uaL=b('upperarm_l'),uaR=b('upperarm_r'),laL=b('lowerarm_l'),laR=b('lowerarm_r'),thL=b('thigh_l'),thR=b('thigh_r'),caL=b('calf_l'),caR=b('calf_r'),sp1=b('spine_01'),sp2=b('spine_02'),head=b('Head');
  const clips=[];
  {const t=[0,1,2],tracks=[];addQuatTrack(tracks,uaL,t,[[0,0,-1.48],[.015,0,-1.49],[0,0,-1.48]]);addQuatTrack(tracks,uaR,t,[[0,0,1.48],[-.015,0,1.49],[0,0,1.48]]);addQuatTrack(tracks,laL,t,[[0,-.10,0],[0,-.12,0],[0,-.10,0]]);addQuatTrack(tracks,laR,t,[[0,.10,0],[0,.12,0],[0,.10,0]]);addQuatTrack(tracks,sp1,t,[[0,0,0],[.015,0,0],[0,0,0]]);addQuatTrack(tracks,sp2,t,[[0,0,0],[-.010,0,0],[0,0,0]]);clips.push(new THREE.AnimationClip('Idle',2,tracks));}
- // WALK — articulated gait with clear knee/elbow flexion, opposing limbs and subtle torso counter-rotation.
+ // WALK — articulated gait. Shoulder bones have mirrored local axes, so opposite world-space arm swing uses the same signed local Y phase.
  {const t=[0,.125,.25,.375,.5,.625,.75,.875,1],tracks=[];
-  const legL=[.62,.36,0,-.42,-.62,-.36,0,.42,.62],legR=legL.map(v=>-v),armL=legL.map(v=>-v*.72),armR=armL.map(v=>-v);
+  const legL=[.62,.36,0,-.42,-.62,-.36,0,.42,.62],legR=legL.map(v=>-v),armPhase=legL.map(v=>-v*.72);
   addQuatTrack(tracks,thL,t,legL.map(v=>[v,0,0]));addQuatTrack(tracks,thR,t,legR.map(v=>[v,0,0]));
   addQuatTrack(tracks,caL,t,[[.10,0,0],[.20,0,0],[.46,0,0],[.70,0,0],[.34,0,0],[.12,0,0],[.08,0,0],[.10,0,0],[.10,0,0]]);
   addQuatTrack(tracks,caR,t,[[.34,0,0],[.12,0,0],[.08,0,0],[.10,0,0],[.10,0,0],[.20,0,0],[.46,0,0],[.70,0,0],[.34,0,0]]);
-  addQuatTrack(tracks,uaL,t,armL.map(v=>[v*.10,v,-1.40]));addQuatTrack(tracks,uaR,t,armR.map(v=>[v*.10,v,1.40]));
+  addQuatTrack(tracks,uaL,t,armPhase.map(v=>[v*.10,v,-1.40]));addQuatTrack(tracks,uaR,t,armPhase.map(v=>[-v*.10,v,1.40]));
   addQuatTrack(tracks,laL,t,[[0,-.42,0],[0,-.50,0],[0,-.58,0],[0,-.48,0],[0,-.32,0],[0,-.28,0],[0,-.34,0],[0,-.40,0],[0,-.42,0]]);
-  addQuatTrack(tracks,laR,t,[[0,.32,0],[0,.28,0],[0,.34,0],[0,.40,0],[0,.42,0],[0,.50,0],[0,.58,0],[0,.48,0],[0,.32,0]]);
+  addQuatTrack(tracks,laR,t,[[0,.42,0],[0,.50,0],[0,.58,0],[0,.48,0],[0,.32,0],[0,.28,0],[0,.34,0],[0,.40,0],[0,.42,0]]);
   addQuatTrack(tracks,sp1,t,[[.035,.09,.018],[.045,.055,.010],[.05,0,0],[.045,-.055,-.010],[.035,-.09,-.018],[.045,-.055,-.010],[.05,0,0],[.045,.055,.010],[.035,.09,.018]]);
   addQuatTrack(tracks,sp2,t,[[0,-.055,-.012],[0,-.03,-.006],[0,0,0],[0,.03,.006],[0,.055,.012],[0,.03,.006],[0,0,0],[0,-.03,-.006],[0,-.055,-.012]]);
   addQuatTrack(tracks,head,t,[[0,.025,0],[0,.015,0],[0,0,0],[0,-.015,0],[0,-.025,0],[0,-.015,0],[0,0,0],[0,.015,0],[0,.025,0]]);
