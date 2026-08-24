@@ -1,0 +1,54 @@
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
+
+function seeded(seed){let s=seed>>>0;return()=>((s=(s*1664525+1013904223)>>>0)/4294967296);}
+function hash(cx,cz){return ((cx*73856093)^(cz*19349663)^0x51f15e)>>>0;}
+function insideRect(x,z,r){return x>=r.minX&&x<=r.maxX&&z>=r.minZ&&z<=r.maxZ;}
+
+const mats={
+ grass:new THREE.MeshStandardMaterial({color:0x5f8f42,roughness:1,flatShading:true}),
+ fern:new THREE.MeshStandardMaterial({color:0x3f7638,roughness:1,flatShading:true,side:THREE.DoubleSide}),
+ bush:new THREE.MeshStandardMaterial({color:0x4b7f3c,roughness:1,flatShading:true}),
+ flower:new THREE.MeshStandardMaterial({color:0xd7b5dd,roughness:.95,flatShading:true}),
+ mushroom:new THREE.MeshStandardMaterial({color:0xb97854,roughness:.95,flatShading:true})
+};
+
+function grassGeometry(){const g=new THREE.ConeGeometry(.08,.52,4);g.translate(0,.26,0);return g;}
+function fernGeometry(){const shape=new THREE.BufferGeometry();const p=new Float32Array([0,0,0,-.18,.36,0,0,.18,0,.18,.36,0,0,0,0,0,.24,.15,.16,.38,.18]);shape.setAttribute('position',new THREE.BufferAttribute(p,3));shape.computeVertexNormals();return shape;}
+function bushGeometry(){return new THREE.IcosahedronGeometry(.46,0);}
+function flowerGeometry(){return new THREE.OctahedronGeometry(.12,0);}
+function mushroomGeometry(){return new THREE.SphereGeometry(.15,6,3,0,Math.PI*2,0,Math.PI/2);}
+const geo={grass:grassGeometry(),fern:fernGeometry(),bush:bushGeometry(),flower:flowerGeometry(),mushroom:mushroomGeometry()};
+
+export function installFoliageSystem({chunkManager}){
+ if(!chunkManager)return null;
+ const cleared=[];
+ const provider={
+  createChunk({cx,cz,root,chunkSize}){
+   const rnd=seeded(hash(cx,cz));const minX=cx*chunkSize-chunkSize*.5,minZ=cz*chunkSize-chunkSize*.5;
+   const centerX=cx*chunkSize,centerZ=cz*chunkSize,distFromVillage=Math.hypot(centerX,centerZ);
+   const density=distFromVillage<15?.22:distFromVillage<32?.55:.82;
+   const counts={grass:Math.floor(36*density),fern:Math.floor(11*density),bush:Math.floor(6*density),flower:Math.floor(7*density),mushroom:Math.floor(5*density)};
+   const state={meshes:[]};
+   for(const [type,count] of Object.entries(counts)){
+    if(count<=0)continue;const mesh=new THREE.InstancedMesh(geo[type],mats[type],count);mesh.name=`Foliage:${type}`;mesh.castShadow=type==='bush';mesh.receiveShadow=true;mesh.frustumCulled=true;
+    const matrix=new THREE.Matrix4(),q=new THREE.Quaternion(),scale=new THREE.Vector3(),pos=new THREE.Vector3();let used=0;
+    for(let i=0;i<count;i++){
+     const x=minX+rnd()*chunkSize,z=minZ+rnd()*chunkSize;
+     if(Math.hypot(x,z)<11){i--;if(i<-10)break;continue;}
+     if(cleared.some(r=>insideRect(x,z,r))){i--;if(i<-10)break;continue;}
+     const s=type==='grass'?.55+rnd()*.7:type==='fern'?.65+rnd()*.55:type==='bush'?.65+rnd()*.65:.7+rnd()*.5;
+     pos.set(x,0,z);q.setFromAxisAngle(new THREE.Vector3(0,1,0),rnd()*Math.PI*2);scale.setScalar(s);matrix.compose(pos,q,scale);mesh.setMatrixAt(used++,matrix);
+    }
+    mesh.count=used;mesh.instanceMatrix.needsUpdate=true;root.add(mesh);state.meshes.push(mesh);
+   }
+   return state;
+  },
+  disposeChunk({state}){for(const mesh of state?.meshes||[])mesh.removeFromParent();}
+ };
+ chunkManager.registerProvider(provider);
+ function clearFootprint({x,z,hx,hz,margin=.8}){
+  const rect={minX:x-hx-margin,maxX:x+hx+margin,minZ:z-hz-margin,maxZ:z+hz+margin};cleared.push(rect);
+  for(const c of chunkManager.chunksForBounds(rect.minX,rect.maxX,rect.minZ,rect.maxZ))chunkManager.rebuildChunk(c.cx,c.cz,provider);
+ }
+ const api={clearFootprint,cleared};globalThis.__villagerFoliage=api;return api;
+}
