@@ -2,16 +2,34 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 
 const mossBed=new THREE.MeshStandardMaterial({color:0x68844c,roughness:.98,metalness:0,flatShading:true});
 const stoneMat=new THREE.MeshStandardMaterial({color:0x928d7c,roughness:.96,metalness:0,flatShading:true});
-const stoneGeo=new THREE.DodecahedronGeometry(.34,0);
+const stoneGeo=new THREE.DodecahedronGeometry(.26,0);
 const tempMatrix=new THREE.Matrix4(),tempQuat=new THREE.Quaternion(),tempScale=new THREE.Vector3(),tempPos=new THREE.Vector3();
 const stoneColors=[new THREE.Color(0xaaa28c),new THREE.Color(0x8f8b7d),new THREE.Color(0xb7ad91),new THREE.Color(0x7d8176)];
 
 function mesh(parent,geometry,material,pos=[0,0,0],rot=[0,0,0]){const o=new THREE.Mesh(geometry,material);o.position.set(...pos);o.rotation.set(...rot);o.receiveShadow=true;parent.add(o);return o;}
 function point(x,z){return new THREE.Vector2(x,z);}
 function bezier(a,c,b,t){const u=1-t;return point(u*u*a.x+2*u*t*c.x+t*t*b.x,u*u*a.y+2*u*t*c.y+t*t*b.y);}
+function approxLength(a,c,b,samples=24){let len=0,prev=bezier(a,c,b,0);for(let i=1;i<=samples;i++){const p=bezier(a,c,b,i/samples);len+=p.distanceTo(prev);prev=p;}return len;}
 function ribbon(group,a,c,b,width,segments=28){const verts=[],indices=[];for(let i=0;i<=segments;i++){const t=i/segments,p=bezier(a,c,b,t),p0=bezier(a,c,b,Math.max(0,t-.015)),p1=bezier(a,c,b,Math.min(1,t+.015)),dx=p1.x-p0.x,dz=p1.y-p0.y,len=Math.hypot(dx,dz)||1,nx=-dz/len,nz=dx/len,breathe=1+Math.sin(t*Math.PI*3.1)*.08;verts.push(p.x+nx*width*.5*breathe,.018,p.y+nz*width*.5*breathe,p.x-nx*width*.5*breathe,.018,p.y-nz*width*.5*breathe);if(i<segments){const k=i*2;indices.push(k,k+1,k+2,k+1,k+3,k+2);}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setIndex(indices);g.computeVertexNormals();mesh(group,g,mossBed);}
-function stonePath(group,a,c,b,width=1.7,segments=25){ribbon(group,a,c,b,width,segments+3);const lanes=width>=1.55?3:2,instances=[];let seed=Math.floor((a.x*31+a.y*47+b.x*59+b.y*71)*1000)||7193;const rand=()=>((seed=(seed*1664525+1013904223)>>>0)/4294967296);for(let i=1;i<segments;i++){const t=i/segments,p=bezier(a,c,b,t),p0=bezier(a,c,b,Math.max(0,t-.02)),p1=bezier(a,c,b,Math.min(1,t+.02)),dx=p1.x-p0.x,dz=p1.y-p0.y,len=Math.hypot(dx,dz)||1,nx=-dz/len,nz=dx/len;for(let lane=0;lane<lanes;lane++){if(rand()<.12)continue;const base=(lane-(lanes-1)/2)*(width/(lanes+.25)),offset=base+(rand()-.5)*.16,along=(rand()-.5)*.22,px=p.x+nx*offset+(dx/len)*along,pz=p.y+nz*offset+(dz/len)*along;instances.push({x:px,z:pz,ry:rand()*Math.PI,sx:.72+rand()*.38,sy:.16+rand()*.08,sz:.65+rand()*.42,color:stoneColors[Math.floor(rand()*stoneColors.length)]});}}
- const instanced=new THREE.InstancedMesh(stoneGeo,stoneMat,instances.length);instanced.name='VillageStonePath';instanced.receiveShadow=true;instanced.castShadow=false;instances.forEach((s,i)=>{tempPos.set(s.x,.10,s.z);tempQuat.setFromEuler(new THREE.Euler(0,s.ry,0));tempScale.set(s.sx,s.sy,s.sz);tempMatrix.compose(tempPos,tempQuat,tempScale);instanced.setMatrixAt(i,tempMatrix);instanced.setColorAt(i,s.color);});instanced.instanceMatrix.needsUpdate=true;if(instanced.instanceColor)instanced.instanceColor.needsUpdate=true;group.add(instanced);}
+function stonePath(group,a,c,b,width=1.7){
+ const length=approxLength(a,c,b),segments=Math.max(18,Math.ceil(length*7));
+ ribbon(group,a,c,b,width,segments);
+ const lanes=width>=1.7?3:2,rowSpacing=.62,rows=Math.max(2,Math.floor(length/rowSpacing)),instances=[];
+ let seed=Math.floor((a.x*31+a.y*47+b.x*59+b.y*71)*1000)||7193;const rand=()=>((seed=(seed*1664525+1013904223)>>>0)/4294967296);
+ for(let row=0;row<rows;row++){
+  const t=(row+.5)/rows,p=bezier(a,c,b,t),p0=bezier(a,c,b,Math.max(0,t-.025)),p1=bezier(a,c,b,Math.min(1,t+.025)),dx=p1.x-p0.x,dz=p1.y-p0.y,len=Math.hypot(dx,dz)||1,nx=-dz/len,nz=dx/len,tx=dx/len,tz=dz/len;
+  for(let lane=0;lane<lanes;lane++){
+   if(rand()<.16)continue;
+   const laneSpacing=width/(lanes+.35),base=(lane-(lanes-1)/2)*laneSpacing;
+   const stagger=((row+lane)%2?1:-1)*.07,offset=base+(rand()-.5)*.10,along=stagger+(rand()-.5)*.10;
+   const px=p.x+nx*offset+tx*along,pz=p.y+nz*offset+tz*along;
+   instances.push({x:px,z:pz,ry:rand()*Math.PI,sx:.72+rand()*.28,sy:.13+rand()*.05,sz:.62+rand()*.25,color:stoneColors[Math.floor(rand()*stoneColors.length)]});
+  }
+ }
+ const instanced=new THREE.InstancedMesh(stoneGeo,stoneMat,instances.length);instanced.name='VillageStonePath';instanced.receiveShadow=true;instanced.castShadow=false;
+ instances.forEach((s,i)=>{tempPos.set(s.x,.085,s.z);tempQuat.setFromEuler(new THREE.Euler(0,s.ry,0));tempScale.set(s.sx,s.sy,s.sz);tempMatrix.compose(tempPos,tempQuat,tempScale);instanced.setMatrixAt(i,tempMatrix);instanced.setColorAt(i,s.color);});
+ instanced.instanceMatrix.needsUpdate=true;if(instanced.instanceColor)instanced.instanceColor.needsUpdate=true;group.add(instanced);
+}
 
 export class VillagePathNetwork{
  constructor(world){this.world=world;this.root=new THREE.Group();this.root.name='VillagePathNetwork';world.add(this.root);this.nodes=new Map();this.connections=[];}
@@ -22,4 +40,4 @@ export class VillagePathNetwork{
 
 function hideLegacyPathVisuals(world){world.children.forEach(o=>{if(!o.isMesh)return;const g=o.geometry,p=g?.parameters||{};if(g?.type==='PlaneGeometry'){const w=p.width||0,h=p.height||0,legacy=(Math.abs(w-4.4)<.01&&Math.abs(h-24)<.01)||(Math.abs(w-21)<.01&&Math.abs(h-3.6)<.01)||(Math.abs(w-15)<.01&&Math.abs(h-3.1)<.01),oldEdge=(Math.abs(w-.28)<.01&&Math.abs(h-24)<.01)||(Math.abs(w-21)<.01&&Math.abs(h-.28)<.01)||(Math.abs(w-15)<.01&&Math.abs(h-.28)<.01);if(legacy||oldEdge)o.visible=false;}if(g?.type==='CircleGeometry'&&o.position.y>.045&&o.position.y<.07)o.visible=false;if(g?.type==='DodecahedronGeometry'&&o.position.y>.08&&o.position.y<.16&&Math.max(o.scale.x,o.scale.z)<1.5)o.visible=false;});}
 
-export function installVillagePathNetwork({world}){if(!world)return null;hideLegacyPathVisuals(world);const network=new VillagePathNetwork(world);network.registerBuilding({id:'cottage',role:'home',entrance:{x:1.12,z:-3.95}}).registerBuilding({id:'well',role:'utility',entrance:{x:.9,z:-1.05}}).connect('cottage','well',{width:1.9,bend:-.10});return network;}
+export function installVillagePathNetwork({world}){if(!world)return null;hideLegacyPathVisuals(world);const network=new VillagePathNetwork(world);network.registerBuilding({id:'cottage',role:'home',entrance:{x:1.12,z:-3.95}}).registerBuilding({id:'well',role:'utility',entrance:{x:-2.45,z:-1.05}}).connect('cottage','well',{width:1.9,bend:-.08});return network;}
