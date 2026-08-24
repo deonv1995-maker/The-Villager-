@@ -1,5 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 import { GlbPlayerVisual, PLAYER_GLB_CONTRACT } from './player-visual-glb.js?v=060';
+import { refineVillagerAnatomy } from './player-anatomy.js?v=061';
 import { installEnvironmentVisuals } from './environment-visuals.js?v=057';
 import { installWorldCollision } from './world-collision.js?v=057';
 import { installVillagePathNetwork } from './village-path-network.js?v=057';
@@ -12,7 +13,7 @@ const version=document.getElementById('version');
 const harvestPanel=document.getElementById('harvest');
 const harvestLabel=document.getElementById('harvest-label');
 const playerRoot=globalThis.__villagerPlayerRoot||null;
-if(version)version.textContent='3D-0.6.0';
+if(version)version.textContent='3D-0.6.1';
 function currentResourceType(){const text=(harvestLabel?.textContent||'').toLowerCase();if(text.includes('rock')||text.includes('stone'))return 'stone';if(text.includes('tree')||text.includes('wood'))return 'wood';return null;}
 function findBone(root,names){let found=null;root.traverse(o=>{if(!found&&names.includes(o.name))found=o;});return found;}
 if(!playerRoot){if(badge)badge.textContent='ROOT?';console.warn('[The Villager] Player root hook unavailable; gameplay fallback remains active.');}
@@ -26,7 +27,7 @@ else{
  const fallbackObjects=[...playerRoot.children];for(const object of fallbackObjects)object.visible=false;
  const modelUrl=new URL('./assets/characters/villager-male.gltf',import.meta.url).href;
  const visual=new GlbPlayerVisual({playerRoot,fallbackObjects,modelUrl,targetHeight:PLAYER_GLB_CONTRACT.targetHeight,localGroundOffset:-0.53});
- if(badge)badge.textContent='GLB…';const loaded=await visual.load();if(loaded){if(badge)badge.textContent='GLB';}else{for(const object of fallbackObjects)object.visible=true;if(badge)badge.textContent='FALLBACK';}
+ if(badge)badge.textContent='GLB…';const loaded=await visual.load();if(loaded){refineVillagerAnatomy(visual.container);if(badge)badge.textContent='GLB';}else{for(const object of fallbackObjects)object.visible=true;if(badge)badge.textContent='FALLBACK';}
  const baseVisualY=visual.container.position.y;
  const leftFoot=loaded?findBone(visual.container,['foot_l','Foot_L','LeftFoot','foot.L']):null;
  const rightFoot=loaded?findBone(visual.container,['foot_r','Foot_R','RightFoot','foot.R']):null;
