@@ -15,7 +15,7 @@ function createTools(model){
  const hand=byNames(model,['hand_r','Hand_R','RightHand','hand.R']);if(!hand)return null;
  const socket=new THREE.Group();socket.name='HarvestToolSocket';socket.position.set(.008,-.006,.018);socket.rotation.set(.02,0,-.08);hand.add(socket);
  const wood=makeMaterial(0x6b4226),metal=makeMaterial(0x747a7c,.48);
- const axeGrip=new THREE.Group();axeGrip.name='AxeGrip';axeGrip.position.set(-.012,.006,.006);axeGrip.rotation.set(.12,.02,-.28);socket.add(axeGrip);
+ const axeGrip=new THREE.Group();axeGrip.name='AxeGrip';axeGrip.position.set(-.012,.006,.006);axeGrip.rotation.set(.12,Math.PI,-.28);socket.add(axeGrip);
  const axe=new THREE.Group();axeGrip.add(axe);mesh(new THREE.CylinderGeometry(.018,.022,.54,6),wood,axe,[0,.08,0]);mesh(new THREE.BoxGeometry(.24,.11,.05),metal,axe,[.072,.33,0],[0,0,-.10]);
  const pickGrip=new THREE.Group();pickGrip.name='PickaxeGrip';pickGrip.position.set(-.004,.012,.004);pickGrip.rotation.set(.04,-.02,-.15);socket.add(pickGrip);
  const pickaxe=new THREE.Group();pickGrip.add(pickaxe);mesh(new THREE.CylinderGeometry(.018,.022,.58,6),wood,pickaxe,[0,.10,0]);const pickHead=new THREE.Group();pickHead.position.set(0,.38,0);pickaxe.add(pickHead);mesh(new THREE.BoxGeometry(.26,.07,.055),metal,pickHead);mesh(new THREE.ConeGeometry(.042,.20,5),metal,pickHead,[-.20,0,0],[0,0,-Math.PI/2]);mesh(new THREE.ConeGeometry(.042,.20,5),metal,pickHead,[.20,0,0],[0,0,Math.PI/2]);
@@ -30,28 +30,30 @@ function buildFallbackClips(model){
  const clips=[];
  {const t=[0,1,2],tracks=[];addQuatTrack(tracks,uaL,t,[[0,0,-1.48],[.015,0,-1.49],[0,0,-1.48]]);addQuatTrack(tracks,uaR,t,[[0,0,1.48],[-.015,0,1.49],[0,0,1.48]]);addQuatTrack(tracks,laL,t,[[0,-.10,0],[0,-.12,0],[0,-.10,0]]);addQuatTrack(tracks,laR,t,[[0,.10,0],[0,.12,0],[0,.10,0]]);addQuatTrack(tracks,sp1,t,[[0,0,0],[.015,0,0],[0,0,0]]);addQuatTrack(tracks,sp2,t,[[0,0,0],[-.010,0,0],[0,0,0]]);clips.push(new THREE.AnimationClip('Idle',2,tracks));}
  {const t=[0,.25,.5,.75,1],tracks=[],legL=[.72,0,-.72,0,.72],legR=legL.map(v=>-v),arm=[-.66,0,.66,0,-.66];addQuatTrack(tracks,uaL,t,arm.map(v=>[0,v,-1.43]));addQuatTrack(tracks,uaR,t,arm.map(v=>[0,v,1.43]));addQuatTrack(tracks,laL,t,[[0,-.18,0],[0,-.10,0],[0,-.24,0],[0,-.12,0],[0,-.18,0]]);addQuatTrack(tracks,laR,t,[[0,.18,0],[0,.10,0],[0,.24,0],[0,.12,0],[0,.18,0]]);addQuatTrack(tracks,thL,t,legL.map(v=>[v*.70,0,0]));addQuatTrack(tracks,thR,t,legR.map(v=>[v*.70,0,0]));addQuatTrack(tracks,caL,t,[[0,0,0],[.18,0,0],[.30,0,0],[0,0,0],[0,0,0]]);addQuatTrack(tracks,caR,t,[[.30,0,0],[0,0,0],[0,0,0],[.18,0,0],[.30,0,0]]);addQuatTrack(tracks,sp1,t,[[.025,.08,0],[.02,.02,0],[.025,-.08,0],[.02,-.02,0],[.025,.08,0]]);addQuatTrack(tracks,sp2,t,[[0,-.045,0],[0,-.01,0],[0,.045,0],[0,.01,0],[0,-.045,0]]);clips.push(new THREE.AnimationClip('Walk',1,tracks));}
- // Axe: compact, slightly asymmetrical chop with anticipation, quick contact and a weighted recovery.
- {const t=[0,.14,.30,.43,.52,.72,1.0],tracks=[];
-  addQuatTrack(tracks,uaL,t,[[0,0,-1.46],[.02,-.04,-1.44],[.04,-.08,-1.42],[.03,-.05,-1.43],[-.02,.03,-1.46],[0,0,-1.47],[0,0,-1.46]]);
-  addQuatTrack(tracks,laL,t,[[0,-.10,0],[0,-.12,0],[0,-.15,0],[0,-.14,0],[0,-.10,0],[0,-.10,0],[0,-.10,0]]);
-  addQuatTrack(tracks,uaR,t,[[.04,.08,1.34],[-.22,.12,1.18],[-.48,.20,.98],[-.66,.24,.84],[.54,.05,1.10],[.22,.07,1.25],[.04,.08,1.34]]);
-  addQuatTrack(tracks,laR,t,[[0,.18,0],[0,.44,0],[0,.78,0],[0,1.02,0],[0,.48,0],[0,.28,0],[0,.18,0]]);
-  addQuatTrack(tracks,sp1,t,[[.01,0,0],[-.02,-.05,0],[-.05,-.10,0],[-.02,-.12,0],[.16,.08,0],[.06,.02,0],[.01,0,0]]);
-  addQuatTrack(tracks,sp2,t,[[0,0,0],[-.01,-.03,0],[-.03,-.06,0],[-.02,-.07,0],[.10,.05,0],[.03,.01,0],[0,0,0]]);
-  addQuatTrack(tracks,thL,t,[[0,0,0],[.04,0,0],[.08,0,0],[.10,0,0],[-.08,0,0],[-.03,0,0],[0,0,0]]);addQuatTrack(tracks,thR,t,[[0,0,0],[-.03,0,0],[-.06,0,0],[-.08,0,0],[.06,0,0],[.02,0,0],[0,0,0]]);
-  addQuatTrack(tracks,head,t,[[0,0,0],[0,.03,0],[.02,.05,0],[.04,.04,0],[-.03,-.02,0],[0,0,0],[0,0,0]]);
-  clips.push(new THREE.AnimationClip('HarvestWood',1.0,tracks));}
- // Pickaxe: wider two-shoulder wind-up, delayed weight transfer, fast downward strike and recoil.
- {const t=[0,.18,.38,.50,.60,.82,1.12],tracks=[];
-  addQuatTrack(tracks,uaL,t,[[0,0,-1.44],[-.12,-.05,-1.30],[-.28,-.12,-1.10],[-.36,-.14,-1.02],[.16,.02,-1.28],[.06,0,-1.38],[0,0,-1.44]]);
-  addQuatTrack(tracks,laL,t,[[0,-.10,0],[0,-.24,0],[0,-.42,0],[0,-.54,0],[0,-.26,0],[0,-.16,0],[0,-.10,0]]);
-  addQuatTrack(tracks,uaR,t,[[.02,.08,1.34],[-.28,.16,1.12],[-.62,.28,.82],[-.82,.32,.68],[.62,.08,1.02],[.26,.08,1.22],[.02,.08,1.34]]);
-  addQuatTrack(tracks,laR,t,[[0,.18,0],[0,.48,0],[0,.90,0],[0,1.18,0],[0,.52,0],[0,.30,0],[0,.18,0]]);
-  addQuatTrack(tracks,sp1,t,[[.01,0,0],[-.03,-.05,0],[-.08,-.12,0],[-.10,-.15,0],[.22,.10,0],[.08,.02,0],[.01,0,0]]);
-  addQuatTrack(tracks,sp2,t,[[0,0,0],[-.02,-.03,0],[-.05,-.07,0],[-.06,-.09,0],[.13,.06,0],[.04,.01,0],[0,0,0]]);
-  addQuatTrack(tracks,thL,t,[[0,0,0],[.05,0,0],[.12,0,0],[.15,0,0],[-.12,0,0],[-.04,0,0],[0,0,0]]);addQuatTrack(tracks,thR,t,[[0,0,0],[-.04,0,0],[-.10,0,0],[-.13,0,0],[.10,0,0],[.03,0,0],[0,0,0]]);
-  addQuatTrack(tracks,head,t,[[0,0,0],[0,.04,0],[.02,.07,0],[.04,.06,0],[-.05,-.03,0],[-.01,0,0],[0,0,0]]);
-  clips.push(new THREE.AnimationClip('HarvestStone',1.12,tracks));}
+
+ // TREE — planted feet, side chop. Wind back across the right side, rotate the torso,
+ // sweep horizontally through the trunk, then follow through and recover.
+ {const t=[0,.16,.34,.46,.58,.78,1.04],tracks=[];
+  addQuatTrack(tracks,uaL,t,[[0,0,-1.46],[0,-.04,-1.43],[0,-.08,-1.40],[0,-.02,-1.42],[0,.04,-1.45],[0,.02,-1.46],[0,0,-1.46]]);
+  addQuatTrack(tracks,laL,t,[[0,-.10,0],[0,-.12,0],[0,-.14,0],[0,-.12,0],[0,-.10,0],[0,-.10,0],[0,-.10,0]]);
+  addQuatTrack(tracks,uaR,t,[[.02,.08,1.34],[.04,-.18,1.22],[.05,-.46,1.06],[.06,-.60,.98],[.04,.44,1.08],[.02,.20,1.24],[.02,.08,1.34]]);
+  addQuatTrack(tracks,laR,t,[[0,.18,0],[0,.34,0],[0,.58,0],[0,.72,0],[0,.46,0],[0,.28,0],[0,.18,0]]);
+  addQuatTrack(tracks,sp1,t,[[0,0,0],[0,-.10,0],[0,-.22,0],[0,-.28,0],[0,.20,0],[0,.08,0],[0,0,0]]);
+  addQuatTrack(tracks,sp2,t,[[0,0,0],[0,-.06,0],[0,-.13,0],[0,-.17,0],[0,.12,0],[0,.05,0],[0,0,0]]);
+  addQuatTrack(tracks,head,t,[[0,0,0],[0,.05,0],[0,.10,0],[0,.12,0],[0,-.07,0],[0,-.02,0],[0,0,0]]);
+  clips.push(new THREE.AnimationClip('HarvestWood',1.04,tracks));}
+
+ // ROCK — planted feet, overhead pickaxe. Raise both shoulders, load above the head,
+ // snap downward through the rock, then absorb the recoil and reset.
+ {const t=[0,.18,.38,.52,.62,.84,1.16],tracks=[];
+  addQuatTrack(tracks,uaL,t,[[0,0,-1.44],[-.22,0,-1.28],[-.52,0,-1.05],[-.72,0,-.88],[.36,0,-1.20],[.12,0,-1.36],[0,0,-1.44]]);
+  addQuatTrack(tracks,laL,t,[[0,-.10,0],[0,-.26,0],[0,-.48,0],[0,-.62,0],[0,-.34,0],[0,-.18,0],[0,-.10,0]]);
+  addQuatTrack(tracks,uaR,t,[[.02,.08,1.34],[-.28,.04,1.18],[-.64,0,.92],[-.92,0,.72],[.68,.02,1.02],[.28,.05,1.22],[.02,.08,1.34]]);
+  addQuatTrack(tracks,laR,t,[[0,.18,0],[0,.52,0],[0,.92,0],[0,1.16,0],[0,.58,0],[0,.30,0],[0,.18,0]]);
+  addQuatTrack(tracks,sp1,t,[[0,0,0],[-.04,0,0],[-.10,0,0],[-.14,0,0],[.24,0,0],[.08,0,0],[0,0,0]]);
+  addQuatTrack(tracks,sp2,t,[[0,0,0],[-.02,0,0],[-.06,0,0],[-.09,0,0],[.14,0,0],[.04,0,0],[0,0,0]]);
+  addQuatTrack(tracks,head,t,[[0,0,0],[-.02,0,0],[-.04,0,0],[-.05,0,0],[.08,0,0],[.02,0,0],[0,0,0]]);
+  clips.push(new THREE.AnimationClip('HarvestStone',1.16,tracks));}
  return clips;
 }
 
@@ -63,4 +65,4 @@ export class GlbPlayerVisual{
  setHarvestTool(type,active){if(!this.tools)return;this.tools.axe.visible=active&&type==='wood';this.tools.pickaxe.visible=active&&type==='stone';}
  update(dt,{harvesting=false,resourceType=null}={}){if(!this.loaded||!this.mixer)return;const now=new THREE.Vector3();this.playerRoot.getWorldPosition(now);this.velocitySample.copy(now).sub(this.lastPosition);const speed=dt>0?this.velocitySample.length()/dt:0;this.lastPosition.copy(now);this.setHarvestTool(resourceType,harvesting);this.playState(harvesting?'harvest':speed>.08?'walk':'idle',.10,resourceType);this.mixer.update(dt);}
 }
-export const PLAYER_GLB_CONTRACT=Object.freeze({preferredPath:'./assets/characters/villager-male.gltf',targetHeight:3.25,required:[],preferredAnimations:['Idle','Walk','Chop'],notes:'Production clips are preferred automatically. Fallback harvest clips use separate tool grips, anticipation, weight shift, impact and recovery.'});
+export const PLAYER_GLB_CONTRACT=Object.freeze({preferredPath:'./assets/characters/villager-male.gltf',targetHeight:3.25,required:[],preferredAnimations:['Idle','Walk','Chop'],notes:'Production clips are preferred automatically. Tree harvest uses a planted side chop; rock harvest uses a planted overhead strike.'});
