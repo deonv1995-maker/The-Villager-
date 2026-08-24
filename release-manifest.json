@@ -1,29 +1,10 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.6.2",
-  "releaseId": "3d-v0.6.2-building-occlusion",
+  "version": "3D-0.6.4",
+  "releaseId": "3d-v0.6.4-texture-library",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
-  "assets": {
-    "playerModel": "three-poc/assets/characters/villager-male.gltf"
-  },
-  "shell": [
-    "index.html",
-    "manifest.webmanifest",
-    "icons/icon.svg",
-    "icons/icon-maskable.svg",
-    "src/pwa-3d.js",
-    "three-poc/styles.css",
-    "three-poc/game-v020.js",
-    "three-poc/game-v014.js",
-    "three-poc/game-v013.js",
-    "three-poc/player-visual-glb.js",
-    "three-poc/player-anatomy.js",
-    "three-poc/environment-visuals.js",
-    "three-poc/world-collision.js",
-    "three-poc/village-path-network.js",
-    "three-poc/building-placement.js",
-    "three-poc/building-occlusion.js"
-  ]
+  "assets": {"playerModel":"three-poc/assets/characters/villager-male.gltf"},
+  "shell": ["index.html","manifest.webmanifest","icons/icon.svg","icons/icon-maskable.svg","src/pwa-3d.js","three-poc/styles.css","three-poc/game-v020.js","three-poc/game-v014.js","three-poc/game-v013.js","three-poc/player-visual-glb.js","three-poc/player-anatomy.js","three-poc/environment-visuals.js","three-poc/world-collision.js","three-poc/village-path-network.js","three-poc/building-placement.js","three-poc/building-occlusion.js","three-poc/tree-occlusion.js","three-poc/material-library.js","three-poc/world-textures.js"]
 }
