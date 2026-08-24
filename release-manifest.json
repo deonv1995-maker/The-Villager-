@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.5.3",
-  "releaseId": "3d-v0.5.3-pwa1",
+  "version": "3D-0.5.4",
+  "releaseId": "3d-v0.5.4-pwa2",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
