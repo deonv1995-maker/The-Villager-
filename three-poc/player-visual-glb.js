@@ -23,17 +23,19 @@ function buildFallbackClips(model){
   {
     const t=[0,.25,.5,.75,1],tracks=[];
     const legL=[.72,0,-.72,0,.72],legR=legL.map(v=>-v);
-    // The peasant rig's upper-arm local X is the twist axis. Keep the Z offset that
-    // lowers the arms, and swing around local Y so the hands travel forward/back.
-    const armL=[.58,0,-.58,0,.58],armR=armL.map(v=>-v);
-    addQuatTrack(tracks,uaL,t,armL.map(v=>[0,v,-1.43]));addQuatTrack(tracks,uaR,t,armR.map(v=>[0,v,1.43]));
-    // Keep a relaxed elbow bend and vary it slightly through the stride.
-    addQuatTrack(tracks,laL,t,[[0,-.12,0],[0,-.20,0],[0,-.16,0],[0,-.08,0],[0,-.12,0]]);addQuatTrack(tracks,laR,t,[[0,.12,0],[0,.08,0],[0,.16,0],[0,.20,0],[0,.12,0]]);
+    // True alternating gait: each arm has its own opposite-phase forward/back curve.
+    // Left arm opposes the left leg; right arm opposes the right leg.
+    const armL=[-.66,0,.66,0,-.66];
+    const armR=[.66,0,-.66,0,.66];
+    addQuatTrack(tracks,uaL,t,armL.map(v=>[0,v,-1.43]));
+    addQuatTrack(tracks,uaR,t,armR.map(v=>[0,v,1.43]));
+    // Elbows also vary independently so the arms do not read like mirrored rods.
+    addQuatTrack(tracks,laL,t,[[0,-.18,0],[0,-.10,0],[0,-.24,0],[0,-.12,0],[0,-.18,0]]);
+    addQuatTrack(tracks,laR,t,[[0,.24,0],[0,.12,0],[0,.18,0],[0,.10,0],[0,.24,0]]);
     addQuatTrack(tracks,thL,t,legL.map(v=>[v*.70,0,0]));addQuatTrack(tracks,thR,t,legR.map(v=>[v*.70,0,0]));
     addQuatTrack(tracks,caL,t,[[0,0,0],[.18,0,0],[.30,0,0],[0,0,0],[0,0,0]]);addQuatTrack(tracks,caR,t,[[.30,0,0],[0,0,0],[0,0,0],[.18,0,0],[.30,0,0]]);
-    // Counter-rotate the torso around vertical Y so the shoulders follow the stride.
-    addQuatTrack(tracks,sp1,t,[[.025,-.07,0],[.02,-.02,0],[.025,.07,0],[.02,.02,0],[.025,-.07,0]]);
-    addQuatTrack(tracks,sp2,t,[[0,.04,0],[0,.01,0],[0,-.04,0],[0,-.01,0],[0,.04,0]]);
+    addQuatTrack(tracks,sp1,t,[[.025,.08,0],[.02,.02,0],[.025,-.08,0],[.02,-.02,0],[.025,.08,0]]);
+    addQuatTrack(tracks,sp2,t,[[0,-.045,0],[0,-.01,0],[0,.045,0],[0,.01,0],[0,-.045,0]]);
     clips.push(new THREE.AnimationClip('Walk',1,tracks));
   }
   {
