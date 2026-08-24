@@ -1,30 +1,42 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 const mat=(c,r=.88)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:0,flatShading:true});
-const M={bark:mat(0x6a4228),leaf:mat(0x4f8f3e),leafLight:mat(0x73aa4e),leafDark:mat(0x356d34),stone:mat(0x777d78),stoneLight:mat(0x9ba09a),stoneDark:mat(0x5e625e),grassB:mat(0x5b8e43),grassC:mat(0x7fb35a),plaster:mat(0xb99b68),timber:mat(0x4c2d1d),roof:mat(0x8c432c),roofDark:mat(0x683326),door:mat(0x392419),glass:mat(0x79a7a0,.5)};
+const M={bark:mat(0x6a4228),leaf:mat(0x4f8f3e),leafLight:mat(0x73aa4e),leafDark:mat(0x356d34),stone:mat(0x777d78),stoneLight:mat(0x9ba09a),stoneDark:mat(0x5e625e),grassB:mat(0x5b8e43),grassC:mat(0x7fb35a),plaster:mat(0xd8bd83),timber:mat(0x633719),roof:mat(0x9b3f27),roofDark:mat(0x6e2c20),door:mat(0x9b652b),glass:mat(0x202a2a,.5)};
 function add(p,g,m,pos=[0,0,0],r=[0,0,0],s=[1,1,1],shadow=true){const o=new THREE.Mesh(g,m);o.position.set(...pos);o.rotation.set(...r);o.scale.set(...s);o.castShadow=shadow;o.receiveShadow=true;p.add(o);return o;}
 function near(a,b,e=.12){return Math.abs(a-b)<=e;}function findGroupAt(w,x,z){return w.children.find(o=>o instanceof THREE.Group&&near(o.position.x,x)&&near(o.position.z,z));}function hideLegacyMeshes(g){g.traverse(o=>{if(o!==g&&o.isMesh)o.visible=false;});}
 function makeTree(s=1){const g=new THREE.Group();g.scale.setScalar(s);add(g,new THREE.CylinderGeometry(.46,.72,3.7,7),M.bark,[0,1.85,0]);const cl=[[0,4.65,0,1.55,M.leaf],[-.95,4.35,.1,1.15,M.leafDark],[.9,4.45,-.05,1.18,M.leafLight],[-.25,5.45,-.2,1.25,M.leafLight],[.55,5.15,.35,.95,M.leaf]];for(const [x,y,z,sc,m] of cl)add(g,new THREE.IcosahedronGeometry(1.18,1),m,[x,y,z],[0,0,0],[sc,sc*.92,sc]);return g;}
 function makeRockCluster(s=1){const g=new THREE.Group();g.scale.setScalar(s);for(const [x,y,z,sc,m] of [[-.42,.58,.02,1,M.stone],[.48,.42,.24,.72,M.stoneLight],[.08,.3,-.52,.62,M.stoneDark]])add(g,new THREE.DodecahedronGeometry(.8,0),m,[x,y,z],[x,z,0],[sc,sc*.8,sc]);return g;}
-function beam(g,x,y,z,sx,sy,sz){return add(g,new THREE.BoxGeometry(1,1,1),M.timber,[x,y,z],[0,0,0],[sx,sy,sz]);}
-function windowSet(g,x,z,side=false){if(!side){add(g,new THREE.BoxGeometry(.82,.72,.08),M.glass,[x,1.62,z]);beam(g,x,1.62,z+.055,.075,.78,.07);beam(g,x,1.62,z+.055,.88,.075,.07);beam(g,x,1.18,z+.04,1.05,.12,.12);}else{add(g,new THREE.BoxGeometry(.08,.72,.82),M.glass,[x,1.62,z]);beam(g,x+.055,1.62,z,.07,.78,.075);beam(g,x+.055,1.62,z,.07,.075,.88);}}
-function makeCottage(){const g=new THREE.Group();g.name='VillageCottage038';const W=5.8,D=4.35,H=2.75;
- add(g,new THREE.BoxGeometry(W,H,D),M.plaster,[0,H/2,0]);
- // timber frame gives one coherent silhouette instead of overlapping modular pieces
- beam(g,-W/2+.08,H/2,D/2+.04,.16,H,.16);beam(g,W/2-.08,H/2,D/2+.04,.16,H,.16);beam(g,0,H-.08,D/2+.04,W,.16,.16);beam(g,0,.14,D/2+.04,W,.2,.18);
- beam(g,-W/2+.08,H/2,-D/2-.04,.16,H,.16);beam(g,W/2-.08,H/2,-D/2-.04,.16,H,.16);beam(g,0,H-.08,-D/2-.04,W,.16,.16);
- for(const x of [-W/2+.08,W/2-.08]){beam(g,x,H/2,0,.16,H,D);}
- // recessed-looking central door and symmetrical windows
- add(g,new THREE.BoxGeometry(1.05,2.05,.12),M.door,[0,1.03,D/2+.08]);beam(g,-.61,1.08,D/2+.13,.13,2.22,.16);beam(g,.61,1.08,D/2+.13,.13,2.22,.16);beam(g,0,2.18,D/2+.13,1.35,.13,.16);
- windowSet(g,-1.85,D/2+.07);windowSet(g,1.85,D/2+.07);windowSet(g,-W/2-.07,0,true);windowSet(g,W/2+.07,0,true);
- // clean pitched roof made as one roof mass, aligned exactly to footprint
- const roof=add(g,new THREE.ConeGeometry(1,1,4),M.roof,[0,H+1.03,0],[0,Math.PI/4,0],[4.15,2.05,3.12]);roof.geometry.computeVertexNormals();
- // dark fascia visually locks roof to walls
- beam(g,0,H+.08,D/2+.32,W+1,.12,.16);beam(g,0,H+.08,-D/2-.32,W+1,.12,.16);
- add(g,new THREE.BoxGeometry(.48,1.55,.48),M.stone,[1.65,H+1.15,-.55]);add(g,new THREE.BoxGeometry(.58,.16,.58),M.stoneLight,[1.65,H+1.94,-.55]);
- // small front step
- add(g,new THREE.BoxGeometry(1.45,.18,.55),M.stoneLight,[0,.09,D/2+.34]);
+function beam(g,x,y,z,sx,sy,sz,rz=0){return add(g,new THREE.BoxGeometry(1,1,1),M.timber,[x,y,z],[0,0,rz],[sx,sy,sz]);}
+function frontWindow(g,x,y,z){add(g,new THREE.BoxGeometry(.72,.82,.08),M.glass,[x,y,z]);beam(g,x,y,z+.06,.07,.9,.07);beam(g,x,y,z+.06,.8,.07,.07);beam(g,x,y-.5,z+.05,.98,.11,.12);beam(g,x,y+.5,z+.05,.98,.11,.12);beam(g,x-.5,y,z+.05,.11,1.12,.12);beam(g,x+.5,y,z+.05,.11,1.12,.12);}
+function sideWindow(g,x,y,z){add(g,new THREE.BoxGeometry(.08,.82,.72),M.glass,[x,y,z]);beam(g,x+.06,y,z,.07,.9,.07);beam(g,x+.06,y,z,.07,.07,.8);}
+function makeCottage(){const g=new THREE.Group();g.name='VillageCottage039';const W=5.7,D=4.15,lower=1.75,upper=2.15,eave=lower+upper;
+ // stone ground floor
+ add(g,new THREE.BoxGeometry(W,lower,D),M.stoneLight,[0,lower/2,0]);
+ // varied raised stone blocks keep the masonry readable at mobile scale
+ for(let row=0;row<3;row++)for(let i=0;i<7;i++){const x=-2.45+i*.82+(row%2)*.22;if(Math.abs(x)<.7&&row<2)continue;add(g,new THREE.BoxGeometry(.55,.28,.07),row%2?M.stone:M.stoneDark,[x,.42+row*.48,D/2+.055],[0,0,(i%3-1)*.035]);}
+ // timber/plaster upper storey, slightly overhanging the stone base
+ add(g,new THREE.BoxGeometry(W+0.35,upper,D+0.28),M.plaster,[0,lower+upper/2,0]);
+ const front=D/2+.18;beam(g,0,lower+.06,front,W+.55,.16,.18);beam(g,0,eave-.05,front,W+.55,.16,.18);
+ for(const x of [-2.72,-1.38,0,1.38,2.72])beam(g,x,lower+upper/2,front,.15,upper,.18);
+ // diagonal braces create the medieval half-timbered rhythm
+ for(const [x,rz] of [[-2.05,-.66],[-.7,.66],[.7,-.66],[2.05,.66]])beam(g,x,lower+upper*.48,front,.13,1.38,.16,rz);
+ // rear and side structural framing
+ const back=-D/2-.18;beam(g,0,lower+.06,back,W+.55,.16,.18);beam(g,0,eave-.05,back,W+.55,.16,.18);for(const x of [-2.72,0,2.72])beam(g,x,lower+upper/2,back,.15,upper,.18);
+ for(const sx of [-1,1]){const x=sx*(W/2+.2);beam(g,x,lower+.06,0,.18,.16,D+.45);beam(g,x,eave-.05,0,.18,.16,D+.45);for(const z of [-1.55,0,1.55])beam(g,x,lower+upper/2,z,.18,upper,.15);}
+ // arched-looking timber-surrounded entrance on stone floor
+ add(g,new THREE.BoxGeometry(1.0,1.48,.12),M.door,[.72,.74,D/2+.09]);beam(g,.14,.78,D/2+.15,.14,1.62,.18);beam(g,1.3,.78,D/2+.15,.14,1.62,.18);beam(g,.72,1.55,D/2+.15,1.3,.14,.18);
+ // dark lower opening balances the door like the reference house
+ add(g,new THREE.BoxGeometry(1.25,.72,.08),M.glass,[-1.45,.83,D/2+.08]);
+ frontWindow(g,-1.45,2.85,front+.05);frontWindow(g,1.35,2.85,front+.05);sideWindow(g,W/2+.23,2.82,.2);
+ // true steep gable roof: two rectangular roof planes, not a pyramid
+ const roofLen=D+1.05,roofHalf=(W+1.05)/2,roofRise=2.0,ang=Math.atan2(roofRise,roofHalf),slope=Math.hypot(roofHalf,roofRise);
+ add(g,new THREE.BoxGeometry(slope,.16,roofLen),M.roof,[-roofHalf/2,eave+roofRise/2,0],[0,0,-ang]);
+ add(g,new THREE.BoxGeometry(slope,.16,roofLen),M.roof,[ roofHalf/2,eave+roofRise/2,0],[0,0, ang]);
+ // roof tile courses provide depth without expensive textures
+ for(const sx of [-1,1])for(let row=0;row<5;row++){const t=(row+.5)/5,x=sx*(roofHalf*(1-t)),y=eave+roofRise*t;for(let z=-1.75;z<=1.75;z+=.72)add(g,new THREE.BoxGeometry(.54,.10,.48),M.roofDark,[x,y+.07,z],[0,0,sx*ang],[1,1,1],true);}
+ // gable timber on front face
+ const gy=eave+.95;beam(g,0,gy,D/2+.27,.14,1.82,.16);beam(g,-.78,eave+.7,D/2+.27,.14,1.8,.16,-.68);beam(g,.78,eave+.7,D/2+.27,.14,1.8,.16,.68);frontWindow(g,0,eave+.68,D/2+.29);
+ // substantial block chimney
+ add(g,new THREE.BoxGeometry(.62,2.25,.62),M.stone,[1.35,eave+1.25,-.45]);for(let y=eave+.35;y<eave+2.2;y+=.45)add(g,new THREE.BoxGeometry(.68,.08,.68),M.stoneDark,[1.35,y,-.45]);add(g,new THREE.BoxGeometry(.78,.18,.78),M.stoneLight,[1.35,eave+2.42,-.45]);
  return g;}
 function addGroundDetail(w){let seed=90210,r=()=>((seed=(seed*1664525+1013904223)>>>0)/4294967296);for(let i=0;i<70;i++){const x=(r()-.5)*36,z=(r()-.5)*34;if(Math.abs(x)<3.7&&z>-9&&z<10)continue;add(w,new THREE.CircleGeometry(.25+r()*.45,6),i%3?M.grassB:M.grassC,[x,.012,z],[-Math.PI/2,0,r()*Math.PI],[1,.7,1],false);}}
-export function installEnvironmentVisuals({world}){if(!world)return null;const sync=[];const cottage=findGroupAt(world,0,-7.4);if(cottage){const repl=makeCottage();repl.position.copy(cottage.position);world.add(repl);hideLegacyMeshes(cottage);}
- const trees=[[-6.6,2.7,1.05],[-11,-4,.9],[-13,7,1.05],[12,-5,.8],[14,8,1]];for(const [x,z,s] of trees){const old=findGroupAt(world,x,z);if(!old)continue;hideLegacyMeshes(old);const repl=makeTree(s);repl.position.set(x,0,z);world.add(repl);sync.push({old,repl});}
- const rocks=[[6.3,3,1],[-10,10,1],[10,11,1]];for(const [x,z,s] of rocks){const old=findGroupAt(world,x,z);if(!old)continue;hideLegacyMeshes(old);const repl=makeRockCluster(s);repl.position.set(x,0,z);world.add(repl);sync.push({old,repl});}addGroundDetail(world);function tick(){for(const p of sync)p.repl.visible=p.old.visible;requestAnimationFrame(tick);}tick();return{sync};}
+export function installEnvironmentVisuals({world}){if(!world)return null;const sync=[];const cottage=findGroupAt(world,0,-7.4);if(cottage){const repl=makeCottage();repl.position.copy(cottage.position);world.add(repl);hideLegacyMeshes(cottage);}const trees=[[-6.6,2.7,1.05],[-11,-4,.9],[-13,7,1.05],[12,-5,.8],[14,8,1]];for(const [x,z,s] of trees){const old=findGroupAt(world,x,z);if(!old)continue;hideLegacyMeshes(old);const repl=makeTree(s);repl.position.set(x,0,z);world.add(repl);sync.push({old,repl});}const rocks=[[6.3,3,1],[-10,10,1],[10,11,1]];for(const [x,z,s] of rocks){const old=findGroupAt(world,x,z);if(!old)continue;hideLegacyMeshes(old);const repl=makeRockCluster(s);repl.position.set(x,0,z);world.add(repl);sync.push({old,repl});}addGroundDetail(world);function tick(){for(const p of sync)p.repl.visible=p.old.visible;requestAnimationFrame(tick);}tick();return{sync};}
