@@ -1,18 +1,18 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-import { GlbPlayerVisual, PLAYER_GLB_CONTRACT } from './player-visual-glb.js?v=035';
-import { installEnvironmentVisuals } from './environment-visuals.js?v=054';
-import { installWorldCollision } from './world-collision.js?v=055';
-import { installVillagePathNetwork } from './village-path-network.js?v=055';
-import { installBuildingPlacement } from './building-placement.js?v=055';
+import { GlbPlayerVisual, PLAYER_GLB_CONTRACT } from './player-visual-glb.js?v=057';
+import { installEnvironmentVisuals } from './environment-visuals.js?v=057';
+import { installWorldCollision } from './world-collision.js?v=057';
+import { installVillagePathNetwork } from './village-path-network.js?v=057';
+import { installBuildingPlacement } from './building-placement.js?v=057';
 
-await import('./game-v014.js?v=055-runtime');
+await import('./game-v014.js?v=057-runtime');
 
 const badge=document.querySelector('.badge');
 const version=document.getElementById('version');
 const harvestPanel=document.getElementById('harvest');
 const harvestLabel=document.getElementById('harvest-label');
 const playerRoot=globalThis.__villagerPlayerRoot||null;
-if(version)version.textContent='3D-0.5.5';
+if(version)version.textContent='3D-0.5.7';
 function currentResourceType(){const text=(harvestLabel?.textContent||'').toLowerCase();if(text.includes('rock')||text.includes('stone'))return 'stone';if(text.includes('tree')||text.includes('wood'))return 'wood';return null;}
 if(!playerRoot){if(badge)badge.textContent='ROOT?';console.warn('[The Villager] Player root hook unavailable; gameplay fallback remains active.');}
 else{
