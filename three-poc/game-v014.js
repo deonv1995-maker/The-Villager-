@@ -1,10 +1,8 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 
-// Compatibility layer: capture the actual gameplay player and camera without changing
-// the legacy movement/controller loop.
+// Compatibility layer: capture the legacy player while keeping its movement loop intact.
 let playerRoot = null;
 const originalGroupAdd = THREE.Group.prototype.add;
-const originalUpdateProjectionMatrix = THREE.PerspectiveCamera.prototype.updateProjectionMatrix;
 
 THREE.Group.prototype.add = function (...objects) {
   const result = originalGroupAdd.apply(this, objects);
@@ -17,16 +15,24 @@ THREE.Group.prototype.add = function (...objects) {
   return result;
 };
 
-// PerspectiveCamera's constructor calls updateProjectionMatrix(). Capture that instance
-// directly because the legacy camera is not added to the scene graph.
-THREE.PerspectiveCamera.prototype.updateProjectionMatrix = function (...args) {
-  globalThis.__villagerCamera = this;
-  return originalUpdateProjectionMatrix.apply(this, args);
-};
+// The legacy runtime writes its fixed isometric camera immediately before renderer.render().
+// Own the final render boundary instead: capture the actual gameplay camera here and, once
+// the third-person controller exists, apply its pose after the legacy update but before draw.
+if (!globalThis.__villagerRenderBoundaryHook) {
+  const originalRender = THREE.WebGLRenderer.prototype.render;
+  THREE.WebGLRenderer.prototype.render = function (scene, camera) {
+    if (camera?.isPerspectiveCamera) {
+      globalThis.__villagerCamera = camera;
+      const controller = globalThis.__villagerThirdPersonCamera;
+      if (controller?.active && typeof controller.apply === 'function') controller.apply(camera);
+    }
+    return originalRender.call(this, scene, camera);
+  };
+  globalThis.__villagerRenderBoundaryHook = true;
+}
 
-await import('./game-v013.js?v=087-runtime');
+await import('./game-v013.js?v=088-runtime');
 THREE.Group.prototype.add = originalGroupAdd;
-THREE.PerspectiveCamera.prototype.updateProjectionMatrix = originalUpdateProjectionMatrix;
 
 if (playerRoot) {
   const GROUND_OFFSET = 0.53;
