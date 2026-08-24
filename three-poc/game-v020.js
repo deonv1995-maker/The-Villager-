@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-import { GlbPlayerVisual, PLAYER_GLB_CONTRACT } from './player-visual-glb.js?v=059';
+import { GlbPlayerVisual, PLAYER_GLB_CONTRACT } from './player-visual-glb.js?v=060';
 import { installEnvironmentVisuals } from './environment-visuals.js?v=057';
 import { installWorldCollision } from './world-collision.js?v=057';
 import { installVillagePathNetwork } from './village-path-network.js?v=057';
@@ -12,8 +12,9 @@ const version=document.getElementById('version');
 const harvestPanel=document.getElementById('harvest');
 const harvestLabel=document.getElementById('harvest-label');
 const playerRoot=globalThis.__villagerPlayerRoot||null;
-if(version)version.textContent='3D-0.5.9';
+if(version)version.textContent='3D-0.6.0';
 function currentResourceType(){const text=(harvestLabel?.textContent||'').toLowerCase();if(text.includes('rock')||text.includes('stone'))return 'stone';if(text.includes('tree')||text.includes('wood'))return 'wood';return null;}
+function findBone(root,names){let found=null;root.traverse(o=>{if(!found&&names.includes(o.name))found=o;});return found;}
 if(!playerRoot){if(badge)badge.textContent='ROOT?';console.warn('[The Villager] Player root hook unavailable; gameplay fallback remains active.');}
 else{
  const world=playerRoot.parent;
@@ -26,37 +27,37 @@ else{
  const modelUrl=new URL('./assets/characters/villager-male.gltf',import.meta.url).href;
  const visual=new GlbPlayerVisual({playerRoot,fallbackObjects,modelUrl,targetHeight:PLAYER_GLB_CONTRACT.targetHeight,localGroundOffset:-0.53});
  if(badge)badge.textContent='GLB…';const loaded=await visual.load();if(loaded){if(badge)badge.textContent='GLB';}else{for(const object of fallbackObjects)object.visible=true;if(badge)badge.textContent='FALLBACK';}
-
- // Locomotion presentation stays separate from gameplay position/collision ownership.
- // The walk clip cadence and vertical body motion both follow real movement speed.
- const visualClock=new THREE.Clock();
- const BASE_VISUAL_Y=-0.53;
- let walkPlayback=1,gaitPhase=0;
+ const baseVisualY=visual.container.position.y;
+ const leftFoot=loaded?findBone(visual.container,['foot_l','Foot_L','LeftFoot','foot.L']):null;
+ const rightFoot=loaded?findBone(visual.container,['foot_r','Foot_R','RightFoot','foot.R']):null;
+ const spine=loaded?findBone(visual.container,['spine_01','Spine','spine']):null;
+ const leftFootRest=leftFoot?.quaternion.clone(),rightFootRest=rightFoot?.quaternion.clone();
+ const gaitOffset=new THREE.Quaternion();
+ const visualClock=new THREE.Clock();let walkPlayback=1,bodyLift=0;
  function updateExternalVisual(){
   requestAnimationFrame(updateExternalVisual);
   const dt=Math.min(visualClock.getDelta(),.05),harvesting=!!harvestPanel&&!harvestPanel.classList.contains('hidden');
   visual.update(dt,{harvesting,resourceType:harvesting?currentResourceType():null});
-
-  const speed=dt>0?visual.velocitySample.length()/dt:0;
-  const speed01=THREE.MathUtils.clamp(speed/4.35,0,1);
-  const walkAction=visual.loaded?visual.actionFor('walk'):null;
+  const speed=dt>0?visual.velocitySample.length()/dt:0,walkAction=visual.loaded?visual.actionFor('walk'):null;
   const walking=!harvesting&&visual.loaded&&visual.activeAction===walkAction;
-
-  if(walking){
+  if(walking&&walkAction){
    const targetPlayback=THREE.MathUtils.clamp(speed/4.35,.12,1.02);
    walkPlayback=THREE.MathUtils.lerp(walkPlayback,targetPlayback,1-Math.exp(-dt*8));
-   visual.activeAction.setEffectiveTimeScale(walkPlayback);
-
-   // One gait cycle per clip loop; abs(sin) gives a rise on each planted step.
-   gaitPhase=(gaitPhase+dt*Math.PI*2*walkPlayback)%(Math.PI*2);
-   const bobAmplitude=THREE.MathUtils.lerp(.018,.085,speed01);
-   const stepRise=Math.abs(Math.sin(gaitPhase))*bobAmplitude;
-   const targetY=BASE_VISUAL_Y+stepRise;
-   visual.container.position.y=THREE.MathUtils.lerp(visual.container.position.y,targetY,1-Math.exp(-dt*18));
+   walkAction.setEffectiveTimeScale(walkPlayback);
+   const phase=((walkAction.time%1)+1)%1,stride=Math.min(speed/4.35,1);
+   const targetLift=(.035+.055*(.5+.5*Math.cos(phase*Math.PI*4)))*stride;
+   bodyLift=THREE.MathUtils.lerp(bodyLift,targetLift,1-Math.exp(-dt*14));
+   visual.container.position.y=baseVisualY+bodyLift;
+   if(visual.usingFallbackClips&&leftFoot&&rightFoot){
+    const leftRoll=Math.sin(phase*Math.PI*2)*.24*stride,rightRoll=Math.sin((phase+.5)*Math.PI*2)*.24*stride;
+    leftFoot.quaternion.copy(leftFootRest);gaitOffset.setFromEuler(new THREE.Euler(leftRoll,0,0));leftFoot.quaternion.multiply(gaitOffset);
+    rightFoot.quaternion.copy(rightFootRest);gaitOffset.setFromEuler(new THREE.Euler(rightRoll,0,0));rightFoot.quaternion.multiply(gaitOffset);
+    if(spine){gaitOffset.setFromEuler(new THREE.Euler(.025*stride,0,Math.sin(phase*Math.PI*2)*.035*stride));spine.quaternion.multiply(gaitOffset);}
+   }
   }else{
-   walkPlayback=THREE.MathUtils.lerp(walkPlayback,1,1-Math.exp(-dt*10));
-   if(visual.activeAction)visual.activeAction.setEffectiveTimeScale(1);
-   visual.container.position.y=THREE.MathUtils.lerp(visual.container.position.y,BASE_VISUAL_Y,1-Math.exp(-dt*14));
+   walkPlayback=THREE.MathUtils.lerp(walkPlayback,1,1-Math.exp(-dt*10));if(visual.activeAction)visual.activeAction.setEffectiveTimeScale(1);
+   bodyLift=THREE.MathUtils.lerp(bodyLift,0,1-Math.exp(-dt*14));visual.container.position.y=baseVisualY+bodyLift;
+   if(visual.usingFallbackClips){if(leftFoot&&leftFootRest)leftFoot.quaternion.copy(leftFootRest);if(rightFoot&&rightFootRest)rightFoot.quaternion.copy(rightFootRest);}
   }
  }
  updateExternalVisual();
