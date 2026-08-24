@@ -3,10 +3,12 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 export function installThirdPersonCamera({playerRoot}){
  if(!playerRoot)return null;
  const look=document.getElementById('look-stick'),knob=document.getElementById('look-stick-knob');
- if(look){look.style.display='block';look.style.pointerEvents='auto';}
- let yaw=0,pitch=.12,pointer=null,sx=0,sy=0,last=performance.now();
+ if(look){
+  Object.assign(look.style,{display:'block',visibility:'visible',opacity:'1',pointerEvents:'auto',position:'absolute',right:'24px',bottom:'54px',zIndex:'20'});
+ }
+ let yaw=0,pitch=.035,pointer=null,sx=0,sy=0,last=performance.now();
  const target=new THREE.Vector3(),desired=new THREE.Vector3(),lastPlayer=new THREE.Vector3().copy(playerRoot.position);
- const distance=6.7,targetHeight=1.55,cameraLift=1.15;
+ const distance=4.65,targetHeight=1.55,cameraLift=.48,shoulderOffset=.32;
 
  function updateStick(e){
   if(!look)return;const r=look.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,max=r.width*.34;
@@ -18,7 +20,6 @@ export function installThirdPersonCamera({playerRoot}){
  function release(e){if(e.pointerId!==pointer)return;pointer=null;sx=sy=0;if(knob)knob.style.transform='translate(-50%,-50%)';}
  addEventListener('pointerup',release);addEventListener('pointercancel',release);
 
- // Camera-relative movement: install after world collision so collision checks the final rotated destination.
  const previousSet=playerRoot.position.set.bind(playerRoot.position);
  playerRoot.position.set=(x,y,z)=>{
   const dx=x-playerRoot.position.x,dz=z-playerRoot.position.z,step=Math.hypot(dx,dz);
@@ -29,8 +30,6 @@ export function installThirdPersonCamera({playerRoot}){
   return previousSet(x,y,z);
  };
 
- // The legacy runtime owns renderer.render(). Override camera pose immediately before each draw,
- // so the old isometric follow code cannot win the frame.
  const originalRender=THREE.WebGLRenderer.prototype.render;
  if(!globalThis.__villagerThirdPersonRenderHook){
   THREE.WebGLRenderer.prototype.render=function(scene,camera){
@@ -43,12 +42,13 @@ export function installThirdPersonCamera({playerRoot}){
 
  function applyCamera(camera){
   const now=performance.now(),dt=Math.min((now-last)/1000,.05);last=now;
-  yaw-=sx*2.05*dt;pitch=THREE.MathUtils.clamp(pitch-sy*1.18*dt,-.10,.46);
+  yaw-=sx*2.15*dt;pitch=THREE.MathUtils.clamp(pitch-sy*1.05*dt,-.12,.34);
   target.set(playerRoot.position.x,playerRoot.position.y+targetHeight,playerRoot.position.z);
   const horizontal=Math.cos(pitch)*distance;
-  desired.set(target.x+Math.sin(yaw)*horizontal,target.y+cameraLift+Math.sin(pitch)*distance,target.z+Math.cos(yaw)*horizontal);
-  camera.position.lerp(desired,1-Math.exp(-dt*18));camera.lookAt(target);
-  camera.fov=48;camera.updateProjectionMatrix();
+  const rightX=Math.cos(yaw)*shoulderOffset,rightZ=-Math.sin(yaw)*shoulderOffset;
+  desired.set(target.x+Math.sin(yaw)*horizontal+rightX,target.y+cameraLift+Math.sin(pitch)*distance,target.z+Math.cos(yaw)*horizontal+rightZ);
+  camera.position.lerp(desired,1-Math.exp(-dt*20));camera.lookAt(target);
+  if(Math.abs(camera.fov-54)>.01){camera.fov=54;camera.updateProjectionMatrix();}
   globalThis.__villagerCameraPosition={x:camera.position.x,y:camera.position.y,z:camera.position.z};
 
   const dx=playerRoot.position.x-lastPlayer.x,dz=playerRoot.position.z-lastPlayer.z;
