@@ -1,180 +1,148 @@
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
-
-const CLIFF_YAW_FIX=Math.PI;
-
 export class TerrainFeatures {
  constructor(THREE,{world,scene}){
   this.T=THREE;
   this.world=world;
   this.scene=scene;
   this.root=new THREE.Group();
-  this.root.name='TerrainModuleShowcase';
-  this.loader=new OBJLoader();
-  this.prototypes={};
-  this.loading=null;
+  this.root.name='ProceduralTerrainFeatures';
+  this.seed=9413;
   this.materials={
-   rock:new THREE.MeshStandardMaterial({color:0x78827d,roughness:.96,metalness:0,flatShading:true}),
-   dirt:new THREE.MeshStandardMaterial({color:0x756d59,roughness:.97,metalness:0,flatShading:true}),
-   grass:new THREE.MeshStandardMaterial({color:0x7fb64e,roughness:.95,metalness:0,flatShading:true}),
-   bush:new THREE.MeshStandardMaterial({color:0x4f8747,roughness:.9,metalness:0,flatShading:true}),
-   hiddenGrass:new THREE.MeshStandardMaterial({visible:false,depthWrite:false})
+   rock:new THREE.MeshStandardMaterial({vertexColors:true,roughness:.96,metalness:0,flatShading:true}),
+   boulder:new THREE.MeshStandardMaterial({color:0x747f7a,roughness:.96,metalness:0,flatShading:true})
   };
  }
 
- materialFor(source,fallback,suppressGrass=false){
-  const n=(source?.name||'').toLowerCase();
-  if(n.includes('grass'))return suppressGrass?this.materials.hiddenGrass:this.materials.grass;
-  if(n.includes('dirt'))return this.materials.dirt;
-  if(n.includes('rock'))return this.materials.rock;
-  return fallback;
+ rand(i){
+  const x=Math.sin(i*12.9898+this.seed)*43758.5453;
+  return x-Math.floor(x);
  }
 
- measureHorizontalPivot(obj){
-  const box=new this.T.Box3().setFromObject(obj);
-  const center=box.getCenter(new this.T.Vector3());
-  obj.userData.terrainPivot={x:center.x,z:center.z};
+ rockColor(seed,topBand=false){
+  const T=this.T;
+  if(topBand){
+   const dirt=[0x71644e,0x796c52,0x685f50];
+   return new T.Color(dirt[Math.floor(this.rand(seed)*dirt.length)%dirt.length]);
+  }
+  const rocks=[0x66716d,0x717c78,0x7b8580,0x5f6a67,0x858e88];
+  return new T.Color(rocks[Math.floor(this.rand(seed)*rocks.length)%rocks.length]);
  }
 
- async loadObj(path,fallback=this.materials.rock,{suppressGrass=false}={}){
-  const res=await fetch(path,{cache:'no-store'});
-  if(!res.ok)throw new Error(`${path}: ${res.status}`);
-  const obj=this.loader.parse(await res.text());
-  obj.traverse(child=>{
-   if(!child.isMesh)return;
-   child.material=Array.isArray(child.material)
-    ?child.material.map(m=>this.materialFor(m,fallback,suppressGrass))
-    :this.materialFor(child.material,fallback,suppressGrass);
-   child.castShadow=true;
-   child.receiveShadow=true;
+ triangle(positions,colors,a,b,c,color){
+  for(const p of [a,b,c])positions.push(p.x,p.y,p.z);
+  for(let i=0;i<3;i++)colors.push(color.r,color.g,color.b);
+ }
+
+ buildWallSpan(u0,u1,segments,seedOffset){
+  const T=this.T;
+  const terrain=this.world.terrain;
+  const positions=[];
+  const colors=[];
+  const rows=[];
+
+  for(let i=0;i<=segments;i++){
+   const t=i/segments;
+   const u=u0+(u1-u0)*t;
+   const edgeV=terrain.cliffEdgeV(u);
+   const highLocal={u,v:edgeV+1.35};
+   const lowLocal={u,v:edgeV-1.35};
+   const highWorld=terrain.cliffFormationWorld(highLocal.u,highLocal.v);
+   const lowWorld=terrain.cliffFormationWorld(lowLocal.u,lowLocal.v);
+   const topY=this.world.heightAt(highWorld.x,highWorld.z)-.08;
+   const bottomY=this.world.heightAt(lowWorld.x,lowWorld.z)-.05;
+   const drop=Math.max(1.2,topY-bottomY);
+
+   const sample=[];
+   const rowFractions=[0,.31,.66,1];
+   for(let r=0;r<4;r++){
+    const localSeed=seedOffset+i*31+r*7;
+    const jitterU=r===0?0:(this.rand(localSeed)-.5)*.42;
+    let outward=0;
+    if(r===0)outward=-.06;
+    else if(r===1)outward=-(.34+this.rand(localSeed+2)*.42);
+    else if(r===2)outward=-(.28+this.rand(localSeed+3)*.62);
+    else outward=-(.08+this.rand(localSeed+4)*.28);
+
+    const pLocalU=u+jitterU;
+    const pLocalV=terrain.cliffEdgeV(pLocalU)+outward;
+    const w=terrain.cliffFormationWorld(pLocalU,pLocalV);
+    let y=topY-drop*rowFractions[r];
+    if(r===1)y-=drop*(this.rand(localSeed+5)-.5)*.10;
+    if(r===2)y-=drop*(this.rand(localSeed+6)-.5)*.12;
+    if(r===3)y=bottomY+.02;
+    sample.push(new T.Vector3(w.x,y,w.z));
+   }
+   rows.push(sample);
+  }
+
+  for(let i=0;i<segments;i++){
+   for(let r=0;r<3;r++){
+    const a=rows[i][r],b=rows[i+1][r],c=rows[i+1][r+1],d=rows[i][r+1];
+    const topBand=r===0;
+    const colorA=this.rockColor(seedOffset+i*43+r*11,topBand);
+    const colorB=this.rockColor(seedOffset+i*43+r*11+5,topBand);
+    if((i+r)%2===0){
+     this.triangle(positions,colors,a,b,c,colorA);
+     this.triangle(positions,colors,a,c,d,colorB);
+    }else{
+     this.triangle(positions,colors,a,b,d,colorA);
+     this.triangle(positions,colors,b,c,d,colorB);
+    }
+   }
+  }
+
+  const geo=new T.BufferGeometry();
+  geo.setAttribute('position',new T.Float32BufferAttribute(positions,3));
+  geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));
+  geo.computeVertexNormals();
+  const mesh=new T.Mesh(geo,this.materials.rock);
+  mesh.castShadow=true;
+  mesh.receiveShadow=true;
+  mesh.name='ProceduralCliffWall';
+  this.root.add(mesh);
+ }
+
+ buildCliffWall(){
+  const spans=this.world.terrain.cliffWallSpans();
+  spans.forEach((span,index)=>{
+   const length=Math.max(1,span[1]-span[0]);
+   const segments=Math.max(8,Math.round(length/1.35));
+   this.buildWallSpan(span[0],span[1],segments,200+index*1000);
   });
-  this.measureHorizontalPivot(obj);
-  return obj;
  }
 
- async load(){
-  if(this.loading)return this.loading;
-  const A='./assets/modular-terrain/';
-  const cliff={suppressGrass:true};
-  this.loading=Promise.all([
-   this.loadObj(`${A}Cliff_Terrain_Side_Top.obj`,this.materials.rock,cliff),
-   this.loadObj(`${A}Cliff_Terrain_Corner_Outer_2x2_Top.obj`,this.materials.rock,cliff),
-   this.loadObj(`${A}Cliff_Terrain_Corner_Inner_2x2_Top.obj`,this.materials.rock,cliff),
-   this.loadObj(`${A}Cliff_Terrain_Side_Falloff_Center.obj`,this.materials.rock,cliff),
-   this.loadObj(`${A}Cliff_Terrain_Side_Falloff_Edge.obj`,this.materials.rock,cliff),
-   this.loadObj(`${A}Escarpment_Terrain_Side_Top.obj`,this.materials.rock,cliff),
-   this.loadObj(`${A}Hilly_Terrain_Hill_Side_Gentle.obj`,this.materials.grass),
-   this.loadObj(`${A}Hilly_Terrain_Hill_Side_Sharp.obj`,this.materials.grass),
-   this.loadObj(`${A}Hilly_Terrain_Hill_Corner_Outer_3x3.obj`,this.materials.grass),
-   this.loadObj('./assets/kaykit/forest/Rock_1_A_Color1.obj',this.materials.rock),
-   this.loadObj('./assets/kaykit/forest/Rock_2_A_Color1.obj',this.materials.rock),
-   this.loadObj('./assets/kaykit/forest/Bush_1_A_Color1.obj',this.materials.bush),
-   this.loadObj('./assets/kaykit/forest/Bush_2_A_Color1.obj',this.materials.bush)
-  ]).then(([sideTop,outerTop,innerTop,falloffCenter,falloffEdge,escarpTop,hillGentle,hillSharp,hillOuter,rock1,rock2,bush1,bush2])=>{
-   this.prototypes={
-    sideTop,outerTop,innerTop,falloffCenter,falloffEdge,escarpTop,
-    hillGentle,hillSharp,hillOuter,
-    rocks:[rock1,rock2],bushes:[bush1,bush2]
-   };
-   return this.prototypes;
-  });
-  return this.loading;
- }
+ buildBaseBoulders(){
+  const T=this.T;
+  const terrain=this.world.terrain;
+  const spans=terrain.cliffWallSpans();
+  const geo=new T.IcosahedronGeometry(1,0);
 
- toWorld(u,v){return this.world.terrain.moduleFormationWorld(u,v);}
-
- place(source,u,v,relativeYaw=0,yOffset=0,scaleMultiplier=1){
-  if(!source)return null;
-  const f=this.world.terrain.moduleFormation;
-  const S=f.scale*scaleMultiplier;
-  const p=this.toWorld(u,v);
-  const o=source.clone(true);
-  o.position.set(p.x,this.world.terrain.moduleFormationBaseHeight()-.2*f.scale+yOffset,p.z);
-  o.rotation.y=f.yaw+relativeYaw;
-  o.scale.setScalar(S);
-  this.root.add(o);
-  return o;
- }
-
- placeCliff(source,u,v,relativeYaw=0,yOffset=0,scaleMultiplier=1){
-  if(!source)return null;
-
-  const f=this.world.terrain.moduleFormation;
-  const S=f.scale*scaleMultiplier;
-  const p=this.toWorld(u,v);
-  const originalYaw=f.yaw+relativeYaw;
-  const pivot=source.userData?.terrainPivot||{x:0,z:0};
-  const pivotX=pivot.x*S;
-  const pivotZ=pivot.z*S;
-  const c=Math.cos(originalYaw);
-  const s=Math.sin(originalYaw);
-
-  const wrapper=new this.T.Group();
-  wrapper.position.set(
-   p.x+c*pivotX+s*pivotZ,
-   this.world.terrain.moduleFormationBaseHeight()-.2*f.scale+yOffset,
-   p.z-s*pivotX+c*pivotZ
-  );
-  wrapper.rotation.y=originalYaw+CLIFF_YAW_FIX;
-  wrapper.scale.setScalar(S);
-
-  const visual=source.clone(true);
-  visual.position.set(-pivot.x,0,-pivot.z);
-  wrapper.add(visual);
-  this.root.add(wrapper);
-  return wrapper;
- }
-
- placeProp(list,u,v,seed,scale){
-  if(!list?.length)return;
-  const src=list[Math.abs(seed)%list.length];
-  const p=this.toWorld(u,v);
-  const o=src.clone(true);
-  o.position.set(p.x,this.world.heightAt(p.x,p.z)-.05,p.z);
-  o.rotation.y=(seed*.73)%6.28318530718;
-  o.scale.setScalar(scale);
-  this.root.add(o);
- }
-
- buildShowcaseFormation(){
-  const S=this.world.terrain.moduleFormation.scale;
-
-  // The procedural terrain stays authoritative. The modular kit now supplies
-  // varied exposed geology rather than forming one repeated necklace of the
-  // same grass-capped cliff tile. Grass faces on cliff-family assets are hidden
-  // so the island mesh remains the continuous upper walking surface.
-  this.placeCliff(this.prototypes.outerTop,0,0,0);
-
-  // West face: each neighbouring section uses genuinely different geometry.
-  this.placeCliff(this.prototypes.sideTop,0,-1.62*S,0);
-  this.placeCliff(this.prototypes.escarpTop,.04*S,-2.72*S,0);
-  this.placeCliff(this.prototypes.innerTop,.08*S,-3.88*S,-Math.PI/2,0,.92);
-  this.placeCliff(this.prototypes.falloffCenter,0,-4.78*S,0,0,1.05);
-  this.placeCliff(this.prototypes.falloffEdge,0,-5.62*S,0);
-
-  // South face: short rock run, then it dissolves into the authored ramp.
-  this.placeCliff(this.prototypes.escarpTop,1.62*S,0,Math.PI/2);
-  this.placeCliff(this.prototypes.sideTop,2.68*S,0,Math.PI/2,0,.96);
-  this.placeCliff(this.prototypes.falloffCenter,3.58*S,0,Math.PI/2,0,1.08);
-  this.placeCliff(this.prototypes.falloffEdge,4.62*S,0,Math.PI/2);
-
-  // The climb is intentionally mixed too: one broad curved hill, one gentle
-  // connector and one sharper shoulder. The terrain below remains the actual
-  // walk surface, so these can be sunk slightly without changing gameplay.
-  this.place(this.prototypes.hillOuter,6.75*S,-2.05*S,-Math.PI/2,-.12);
-  this.place(this.prototypes.hillGentle,7.55*S,-1.0*S,-Math.PI/2,-.08);
-  this.place(this.prototypes.hillSharp,6.45*S,-3.25*S,-Math.PI/2,-.10,1.05);
-
-  // Break the remaining joins with sparse geology/vegetation instead of
-  // repeating another terrain tile.
-  this.placeProp(this.prototypes.rocks,-.82*S,-2.95*S,3,1.25);
-  this.placeProp(this.prototypes.rocks,-.72*S,-5.15*S,5,1.0);
-  this.placeProp(this.prototypes.rocks,3.95*S,-.72*S,9,1.18);
-  this.placeProp(this.prototypes.bushes,.58*S,-4.4*S,7,1.3);
-  this.placeProp(this.prototypes.bushes,4.55*S,-.6*S,11,1.15);
+  let index=0;
+  for(const [u0,u1] of spans){
+   const count=Math.max(4,Math.round((u1-u0)/3.4));
+   for(let i=0;i<count;i++){
+    const seed=500+index*17;
+    index++;
+    if(this.rand(seed)>.72)continue;
+    const u=u0+(u1-u0)*((i+.35+this.rand(seed+1)*.3)/count);
+    const edgeV=terrain.cliffEdgeV(u);
+    const v=edgeV-(1.7+this.rand(seed+2)*2.4);
+    const p=terrain.cliffFormationWorld(u,v);
+    const y=this.world.heightAt(p.x,p.z)-.05;
+    const rock=new T.Mesh(geo,this.materials.boulder);
+    const s=.45+this.rand(seed+3)*.78;
+    rock.position.set(p.x,y,p.z);
+    rock.rotation.set(this.rand(seed+4)*.25,this.rand(seed+5)*Math.PI*2,this.rand(seed+6)*.22);
+    rock.scale.set(s*(.85+this.rand(seed+7)*.45),s*(.65+this.rand(seed+8)*.55),s*(.9+this.rand(seed+9)*.4));
+    rock.castShadow=true;
+    rock.receiveShadow=true;
+    this.root.add(rock);
+   }
+  }
  }
 
  initialize(){
   this.scene.add(this.root);
-  this.load().then(()=>this.buildShowcaseFormation()).catch(err=>console.error('[Terrain module showcase load]',err));
+  this.buildCliffWall();
+  this.buildBaseBoulders();
  }
 }
