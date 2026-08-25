@@ -1,8 +1,13 @@
 export class IslandTerrain{
- constructor(THREE){this.T=THREE;this.radius=135;this.seaLevel=-2;}
+ constructor(THREE){
+  this.T=THREE;
+  this.radius=135;
+  this.seaLevel=-2;
+  this.seabedLevel=-5.2;
+ }
  heightAt(x,z){
   const d=Math.hypot(x*.92,z*1.08)/this.radius;
-  if(d>=1)return this.seaLevel;
+  if(d>=1)return this.seabedLevel;
   const coast=Math.max(0,1-d*d);
   const broad=Math.sin(x*.028)*1.15+Math.cos(z*.025)*1.0+Math.sin((x+z)*.018)*.75;
   const detail=Math.sin((x-z)*.065)*.28+Math.cos((x+z)*.052)*.22;
@@ -27,12 +32,14 @@ export class IslandTerrain{
   const grassLight=new T.Color(0x8cc65b);
   const soil=new T.Color(0x7a6b4b);
   const stone=new T.Color(0x7d8681);
+  const seabed=new T.Color(0x64745e);
   for(let i=0;i<p.count;i++){
    const x=p.getX(i),y=p.getY(i),z=p.getZ(i);
    const d=Math.hypot(x*.92,z*1.08)/this.radius;
    const s=this.slopeAt(x,z);
    let c;
-   if(d>.955)c=soil;
+   if(d>=1)c=seabed;
+   else if(d>.955)c=soil;
    else if(s>.52)c=stone;
    else if(y>7)c=grassLight;
    else if(y<1.25)c=grassDark;
@@ -52,8 +59,19 @@ export class IslandTerrain{
   const land=new T.Mesh(geo,this.createLandMaterial(geo));
   land.name='NaturalIslandLand';land.receiveShadow=true;root.add(land);
   const oceanGeo=new T.PlaneGeometry(700,700,1,1);oceanGeo.rotateX(-Math.PI/2);
-  const ocean=new T.Mesh(oceanGeo,new T.MeshPhongMaterial({color:0x43b7d5,shininess:55,specular:0x9fe7ef}));
-  ocean.position.y=this.seaLevel;root.add(ocean);
+  const oceanMaterial=new T.MeshPhongMaterial({
+   color:0x43b7d5,
+   shininess:55,
+   specular:0x9fe7ef,
+   depthWrite:true,
+   polygonOffset:true,
+   polygonOffsetFactor:-1,
+   polygonOffsetUnits:-1
+  });
+  const ocean=new T.Mesh(oceanGeo,oceanMaterial);
+  ocean.name='OceanSurface';
+  ocean.position.y=this.seaLevel;
+  root.add(ocean);
   return root;
  }
 }
