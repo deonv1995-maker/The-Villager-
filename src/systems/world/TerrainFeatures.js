@@ -16,13 +16,14 @@ export class TerrainFeatures {
    rock:new THREE.MeshStandardMaterial({color:0x78827d,roughness:.96,metalness:0,flatShading:true}),
    dirt:new THREE.MeshStandardMaterial({color:0x756d59,roughness:.97,metalness:0,flatShading:true}),
    grass:new THREE.MeshStandardMaterial({color:0x7fb64e,roughness:.95,metalness:0,flatShading:true}),
-   bush:new THREE.MeshStandardMaterial({color:0x4f8747,roughness:.9,metalness:0,flatShading:true})
+   bush:new THREE.MeshStandardMaterial({color:0x4f8747,roughness:.9,metalness:0,flatShading:true}),
+   hiddenGrass:new THREE.MeshStandardMaterial({visible:false,depthWrite:false})
   };
  }
 
- materialFor(source,fallback){
+ materialFor(source,fallback,suppressGrass=false){
   const n=(source?.name||'').toLowerCase();
-  if(n.includes('grass'))return this.materials.grass;
+  if(n.includes('grass'))return suppressGrass?this.materials.hiddenGrass:this.materials.grass;
   if(n.includes('dirt'))return this.materials.dirt;
   if(n.includes('rock'))return this.materials.rock;
   return fallback;
@@ -34,15 +35,15 @@ export class TerrainFeatures {
   obj.userData.terrainPivot={x:center.x,z:center.z};
  }
 
- async loadObj(path,fallback=this.materials.rock){
+ async loadObj(path,fallback=this.materials.rock,{suppressGrass=false}={}){
   const res=await fetch(path,{cache:'no-store'});
   if(!res.ok)throw new Error(`${path}: ${res.status}`);
   const obj=this.loader.parse(await res.text());
   obj.traverse(child=>{
    if(!child.isMesh)return;
    child.material=Array.isArray(child.material)
-    ?child.material.map(m=>this.materialFor(m,fallback))
-    :this.materialFor(child.material,fallback);
+    ?child.material.map(m=>this.materialFor(m,fallback,suppressGrass))
+    :this.materialFor(child.material,fallback,suppressGrass);
    child.castShadow=true;
    child.receiveShadow=true;
   });
@@ -53,17 +54,27 @@ export class TerrainFeatures {
  async load(){
   if(this.loading)return this.loading;
   const A='./assets/modular-terrain/';
+  const cliff={suppressGrass:true};
   this.loading=Promise.all([
-   this.loadObj(`${A}Cliff_Terrain_Side_Top.obj`,this.materials.rock),
-   this.loadObj(`${A}Cliff_Terrain_Corner_Outer_2x2_Top.obj`,this.materials.rock),
-   this.loadObj(`${A}Cliff_Terrain_Side_Falloff_Edge.obj`,this.materials.rock),
+   this.loadObj(`${A}Cliff_Terrain_Side_Top.obj`,this.materials.rock,cliff),
+   this.loadObj(`${A}Cliff_Terrain_Corner_Outer_2x2_Top.obj`,this.materials.rock,cliff),
+   this.loadObj(`${A}Cliff_Terrain_Corner_Inner_2x2_Top.obj`,this.materials.rock,cliff),
+   this.loadObj(`${A}Cliff_Terrain_Side_Falloff_Center.obj`,this.materials.rock,cliff),
+   this.loadObj(`${A}Cliff_Terrain_Side_Falloff_Edge.obj`,this.materials.rock,cliff),
+   this.loadObj(`${A}Escarpment_Terrain_Side_Top.obj`,this.materials.rock,cliff),
    this.loadObj(`${A}Hilly_Terrain_Hill_Side_Gentle.obj`,this.materials.grass),
+   this.loadObj(`${A}Hilly_Terrain_Hill_Side_Sharp.obj`,this.materials.grass),
+   this.loadObj(`${A}Hilly_Terrain_Hill_Corner_Outer_3x3.obj`,this.materials.grass),
    this.loadObj('./assets/kaykit/forest/Rock_1_A_Color1.obj',this.materials.rock),
    this.loadObj('./assets/kaykit/forest/Rock_2_A_Color1.obj',this.materials.rock),
    this.loadObj('./assets/kaykit/forest/Bush_1_A_Color1.obj',this.materials.bush),
    this.loadObj('./assets/kaykit/forest/Bush_2_A_Color1.obj',this.materials.bush)
-  ]).then(([sideTop,outerTop,falloffEdge,hillGentle,rock1,rock2,bush1,bush2])=>{
-   this.prototypes={sideTop,outerTop,falloffEdge,hillGentle,rocks:[rock1,rock2],bushes:[bush1,bush2]};
+  ]).then(([sideTop,outerTop,innerTop,falloffCenter,falloffEdge,escarpTop,hillGentle,hillSharp,hillOuter,rock1,rock2,bush1,bush2])=>{
+   this.prototypes={
+    sideTop,outerTop,innerTop,falloffCenter,falloffEdge,escarpTop,
+    hillGentle,hillSharp,hillOuter,
+    rocks:[rock1,rock2],bushes:[bush1,bush2]
+   };
    return this.prototypes;
   });
   return this.loading;
@@ -92,12 +103,6 @@ export class TerrainFeatures {
   const p=this.toWorld(u,v);
   const originalYaw=f.yaw+relativeYaw;
   const pivot=source.userData?.terrainPivot||{x:0,z:0};
-
-  // Preserve the exact 0.5.21 module footprint while turning the visible
-  // cliff mesh around. Rotating the raw OBJ root moved asymmetric pieces
-  // because their authored origins are not centered. The wrapper is placed
-  // at the original world-space footprint centre, then the visual is rotated
-  // 180 degrees around that centre instead of around the OBJ origin.
   const pivotX=pivot.x*S;
   const pivotZ=pivot.z*S;
   const c=Math.cos(originalYaw);
@@ -133,27 +138,39 @@ export class TerrainFeatures {
  buildShowcaseFormation(){
   const S=this.world.terrain.moduleFormation.scale;
 
-  // Keep the 0.5.21 formation, ramp, spacing and terrain profile unchanged.
-  // Only cliff-family visuals receive the pivot-safe 180 degree correction.
+  // The procedural terrain stays authoritative. The modular kit now supplies
+  // varied exposed geology rather than forming one repeated necklace of the
+  // same grass-capped cliff tile. Grass faces on cliff-family assets are hidden
+  // so the island mesh remains the continuous upper walking surface.
   this.placeCliff(this.prototypes.outerTop,0,0,0);
 
-  for(const vUnit of [-1.62,-2.62,-3.62,-4.62]){
-   this.placeCliff(this.prototypes.sideTop,0,vUnit*S,0);
-  }
+  // West face: each neighbouring section uses genuinely different geometry.
+  this.placeCliff(this.prototypes.sideTop,0,-1.62*S,0);
+  this.placeCliff(this.prototypes.escarpTop,.04*S,-2.72*S,0);
+  this.placeCliff(this.prototypes.innerTop,.08*S,-3.88*S,-Math.PI/2,0,.92);
+  this.placeCliff(this.prototypes.falloffCenter,0,-4.78*S,0,0,1.05);
   this.placeCliff(this.prototypes.falloffEdge,0,-5.62*S,0);
 
-  for(const uUnit of [1.62,2.62,3.62]){
-   this.placeCliff(this.prototypes.sideTop,uUnit*S,0,Math.PI/2);
-  }
+  // South face: short rock run, then it dissolves into the authored ramp.
+  this.placeCliff(this.prototypes.escarpTop,1.62*S,0,Math.PI/2);
+  this.placeCliff(this.prototypes.sideTop,2.68*S,0,Math.PI/2,0,.96);
+  this.placeCliff(this.prototypes.falloffCenter,3.58*S,0,Math.PI/2,0,1.08);
   this.placeCliff(this.prototypes.falloffEdge,4.62*S,0,Math.PI/2);
 
-  for(const vUnit of [-1,-2,-3]){
-   this.place(this.prototypes.hillGentle,7.5*S,vUnit*S,-Math.PI/2);
-  }
+  // The climb is intentionally mixed too: one broad curved hill, one gentle
+  // connector and one sharper shoulder. The terrain below remains the actual
+  // walk surface, so these can be sunk slightly without changing gameplay.
+  this.place(this.prototypes.hillOuter,6.75*S,-2.05*S,-Math.PI/2,-.12);
+  this.place(this.prototypes.hillGentle,7.55*S,-1.0*S,-Math.PI/2,-.08);
+  this.place(this.prototypes.hillSharp,6.45*S,-3.25*S,-Math.PI/2,-.10,1.05);
 
-  this.placeProp(this.prototypes.rocks,-.9*S,-5.35*S,3,1.2);
-  this.placeProp(this.prototypes.rocks,4.9*S,-.65*S,5,1.05);
-  this.placeProp(this.prototypes.bushes,.8*S,-5.55*S,7,1.4);
+  // Break the remaining joins with sparse geology/vegetation instead of
+  // repeating another terrain tile.
+  this.placeProp(this.prototypes.rocks,-.82*S,-2.95*S,3,1.25);
+  this.placeProp(this.prototypes.rocks,-.72*S,-5.15*S,5,1.0);
+  this.placeProp(this.prototypes.rocks,3.95*S,-.72*S,9,1.18);
+  this.placeProp(this.prototypes.bushes,.58*S,-4.4*S,7,1.3);
+  this.placeProp(this.prototypes.bushes,4.55*S,-.6*S,11,1.15);
  }
 
  initialize(){
