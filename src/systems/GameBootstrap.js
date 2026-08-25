@@ -1,7 +1,7 @@
-import { WorldManager } from './WorldManager.js?v=528';
+import { WorldManager } from './WorldManager.js?v=529';
 import { MobileControls } from './input/MobileControls.js';
 import { PlayerController } from './player/PlayerController.js?v=519';
-import { ThirdPersonCamera } from './player/ThirdPersonCamera.js';
+import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
 import { PlayerVisual } from './player/PlayerVisual.js';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
@@ -45,7 +45,7 @@ export class GameBootstrap {
     rightRoot:document.getElementById('look-stick'),
     rightKnob:document.getElementById('look-knob')
    });
-   this.cameraController=new ThirdPersonCamera(T,{camera:this.camera,target:this.player,input:this.input});
+   this.cameraController=new ThirdPersonCamera(T,{camera:this.camera,target:this.player,input:this.input,world:this.world});
    this.playerController=new PlayerController(T,{player:this.player,input:this.input,cameraController:this.cameraController,world:this.world,groundOffset:0});
    this.cameraController.update(1/60);
 
@@ -55,7 +55,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.28 · unified cliffs + restored ground · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.29 · solid cliffs + terrain-safe camera · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -68,7 +68,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.28 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.29 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -89,11 +89,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.28 · Ranger · unified cliffs + restored ground'
-    :'Clean rebuild 0.5.28 · Ranger · unified cliffs + restored ground · animations pending';
+    ?'Clean rebuild 0.5.29 · Ranger · solid cliffs + terrain-safe camera'
+    :'Clean rebuild 0.5.29 · Ranger · solid cliffs + terrain-safe camera · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.28 · unified cliffs + restored ground · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.29 · solid cliffs + terrain-safe camera · Ranger model unavailable';
   }
  }
 }
