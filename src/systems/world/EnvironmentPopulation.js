@@ -21,30 +21,11 @@ export class EnvironmentPopulation {
  }
  createVariantCatalog(){
   return {
-   tree:[
-    {name:'natural',scale:[1,1,1]},
-    {name:'young',scale:[.84,.88,.84]},
-    {name:'mature',scale:[1.1,1.08,1.1]}
-   ],
-   bareTree:[
-    {name:'bare',scale:[1,1,1]},
-    {name:'weathered',scale:[.9,1.12,.9]}
-   ],
-   rock:[
-    {name:'natural',scale:[1,1,1]},
-    {name:'small',scale:[.7,.7,.7]},
-    {name:'large',scale:[1.3,1.15,1.25]}
-   ],
-   bush:[
-    {name:'natural',scale:[1,1,1]},
-    {name:'small',scale:[.75,.75,.75]},
-    {name:'full',scale:[1.22,1.1,1.18]}
-   ],
-   grass:[
-    {name:'short',scale:[1,.78,1]},
-    {name:'natural',scale:[1,1,1]},
-    {name:'tall',scale:[.9,1.25,.9]}
-   ]
+   tree:[{name:'natural',scale:[1,1,1]},{name:'young',scale:[.84,.88,.84]},{name:'mature',scale:[1.1,1.08,1.1]}],
+   bareTree:[{name:'bare',scale:[1,1,1]},{name:'weathered',scale:[.9,1.12,.9]}],
+   rock:[{name:'natural',scale:[1,1,1]},{name:'small',scale:[.7,.7,.7]},{name:'large',scale:[1.3,1.15,1.25]}],
+   bush:[{name:'natural',scale:[1,1,1]},{name:'small',scale:[.75,.75,.75]},{name:'full',scale:[1.22,1.1,1.18]}],
+   grass:[{name:'short',scale:[1,.78,1]},{name:'natural',scale:[1,1,1]},{name:'tall',scale:[.9,1.25,.9]}]
   };
  }
  rand(i){const x=Math.sin(i*12.9898+this.seed)*43758.5453;return x-Math.floor(x);}
@@ -87,13 +68,7 @@ export class EnvironmentPopulation {
    this.loadObj('./assets/kaykit/forest/Grass_1_A_Color1.obj','grass'),
    this.loadObj('./assets/kaykit/forest/Grass_2_A_Color1.obj','grass')
   ]).then(([tree1,tree2,tree4,bare1,rock1,rock2,rock3,bush1,bush2,grass1,grass2])=>{
-   this.prototypes={
-    tree:[tree1,tree2,tree4],
-    bareTree:[bare1],
-    rock:[rock1,rock2,rock3],
-    bush:[bush1,bush2],
-    grass:[grass1,grass2]
-   };
+   this.prototypes={tree:[tree1,tree2,tree4],bareTree:[bare1],rock:[rock1,rock2,rock3],bush:[bush1,bush2],grass:[grass1,grass2]};
    return this.prototypes;
   });
   return this.loading;
@@ -114,6 +89,31 @@ export class EnvironmentPopulation {
   o.scale.set(baseScale*v.scale[0],baseScale*v.scale[1],baseScale*v.scale[2]);
   o.userData.environmentType=type;o.userData.environmentVariant=v.name;
  }
+ placeObject(type,x,y,z,i,scaleMultiplier=1){
+  const o=this.clone(type,i*19+7);if(!o)return false;
+  let scale=(.78+this.rand(i*4+3)*.88)*scaleMultiplier;
+  if(type==='tree')scale*=1.12;
+  else if(type==='bareTree')scale*=1.08;
+  else if(type==='rock')scale*=2.15;
+  else if(type==='bush')scale*=4.15;
+  else scale*=2.15;
+  const variantIndex=Math.floor(this.rand(i*11+5)*this.variants[type].length);
+  this.applyVariant(o,type,variantIndex,scale);
+  o.rotation.y=this.rand(i*7+3)*Math.PI*2;o.position.set(x,y,z);
+  this.root.add(o);return true;
+ }
+ populateSlopeRocks(startIndex){
+  let placed=0;
+  for(let i=0;i<420;i++){
+   const a=this.rand(i*13+2)*Math.PI*2;
+   const r=24+Math.sqrt(this.rand(i*13+3))*106;
+   const x=Math.cos(a)*r,z=Math.sin(a)*r,y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
+   if(y<.1||s<.22||s>.9||Math.hypot(x,z)<15)continue;
+   if(this.rand(i*13+4)>.58)continue;
+   if(this.placeObject('rock',x,y-.08,z,startIndex+i,1.18+.55*Math.min(s,.7)))placed++;
+  }
+  return placed;
+ }
  populate(){
   this.root.clear();let placed=0;
   for(let i=0;i<1100;i++){
@@ -121,23 +121,14 @@ export class EnvironmentPopulation {
    const x=Math.cos(a)*r,z=Math.sin(a)*r,y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
    if(y<.12||s>.78||Math.hypot(x,z)<12)continue;
    const forestBias=Math.max(0,1-r/125),roll=this.rand(i*4+2);let type;
-   if(roll<(.44+.18*forestBias)&&s<.48){
-    type=this.rand(i*17+11)<.055?'bareTree':'tree';
-   }else if(roll<.68)type='rock';
+   if(s>.33){type='rock';}
+   else if(roll<(.44+.18*forestBias)){type=this.rand(i*17+11)<.055?'bareTree':'tree';}
+   else if(roll<.68)type='rock';
    else if(roll<.86)type='bush';
    else type='grass';
-   const o=this.clone(type,i*19+7);if(!o)continue;
-   let scale=.78+this.rand(i*4+3)*.88;
-   if(type==='tree')scale*=1.12;
-   else if(type==='bareTree')scale*=1.08;
-   else if(type==='rock')scale*=2.15;
-   else if(type==='bush')scale*=4.15;
-   else scale*=2.15;
-   const variantIndex=Math.floor(this.rand(i*11+5)*this.variants[type].length);
-   this.applyVariant(o,type,variantIndex,scale);
-   o.rotation.y=this.rand(i*7+3)*Math.PI*2;o.position.set(x,y,z);
-   this.root.add(o);placed++;
+   if(this.placeObject(type,x,y,z,i))placed++;
   }
+  placed+=this.populateSlopeRocks(5000);
   return placed;
  }
  initialize(){
