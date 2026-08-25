@@ -4,22 +4,24 @@ export class IslandTerrain {
   this.radius = 135;
   this.seaLevel = -2;
   this.seabedLevel = -5.2;
-  this._moduleBaseHeight = null;
-  this.moduleFormation = {
+
+  // One shared terrain definition drives the visible ground, procedural rock
+  // wall, environment clearance and player blocking. No prefab placement data
+  // is used here.
+  this.cliffFormation = {
    cx: -20,
    cz: -18,
-   yaw: .28,
-   scale: 3.2,
-   westCliffNorthUnits: -5.9,
-   southCliffEastUnits: 4.85,
-   plateauWestUnits: 0,
-   plateauEastUnits: 4.05,
-   plateauSouthUnits: -5.8,
-   plateauNorthUnits: 0,
-   rampHighUnits: 4.0,
-   rampLowUnits: 8.0,
-   rampSouthUnits: -3.55,
-   rampNorthUnits: -.45
+   yaw: .24,
+   uMin: -19,
+   uMax: 20,
+   drop: 5.15,
+   cliffSeam: .48,
+   highDepth: 13.5,
+   lowDepth: 9.5,
+   rampCenter: 12.4,
+   rampHalfWidth: 3.25,
+   rampBlend: 1.35,
+   rampHalfDepth: 5.4
   };
  }
 
@@ -87,8 +89,8 @@ export class IslandTerrain {
   return Math.max(-.6, shore * (1 - eased) + interiorHeight * eased);
  }
 
- moduleFormationLocal(x, z) {
-  const f = this.moduleFormation;
+ cliffFormationLocal(x, z) {
+  const f = this.cliffFormation;
   const dx = x - f.cx;
   const dz = z - f.cz;
   const c = Math.cos(f.yaw);
@@ -96,104 +98,85 @@ export class IslandTerrain {
   return { u: c * dx - s * dz, v: s * dx + c * dz };
  }
 
- moduleFormationWorld(u, v) {
-  const f = this.moduleFormation;
+ cliffFormationWorld(u, v) {
+  const f = this.cliffFormation;
   const c = Math.cos(f.yaw);
   const s = Math.sin(f.yaw);
   return { x: f.cx + c * u + s * v, z: f.cz - s * u + c * v };
  }
 
- moduleFormationBaseHeight() {
-  if (this._moduleBaseHeight != null) return this._moduleBaseHeight;
-  const f = this.moduleFormation;
-  const S = f.scale;
-  const samples = [
-   [0, 0], [-1.5 * S, 1.2 * S], [5.5 * S, 1.2 * S],
-   [-1.5 * S, -6.2 * S], [8.2 * S, -4.2 * S], [8.2 * S, .8 * S]
-  ];
-  let highest = -Infinity;
-  for (const [u, v] of samples) {
-   const p = this.moduleFormationWorld(u, v);
-   highest = Math.max(highest, this.regionalHeightAt(p.x, p.z));
-  }
-  this._moduleBaseHeight = highest + .18;
-  return this._moduleBaseHeight;
+ cliffEdgeV(u) {
+  const broad = Math.sin((u + 4.5) * .18) * 2.15;
+  const detail = Math.sin((u - 1.2) * .43) * .82 + Math.cos((u + 8) * .29) * .42;
+  const shoulder = 1.45 * Math.exp(-Math.pow((u + 10.2) / 3.7, 2));
+  const bite = -1.25 * Math.exp(-Math.pow((u - 3.8) / 2.9, 2));
+  return -1.1 + broad + detail + shoulder + bite + u * .025;
  }
 
- gentleHillFactor(localZ) {
-  if (localZ <= -.5) return 0;
-  if (localZ < .5) return (localZ + .5) * .15;
-  if (localZ < 2.5) return .15 + ((localZ - .5) / 2) * .70;
-  if (localZ < 3.5) return .85 + (localZ - 2.5) * .15;
-  return 1;
+ cliffRampMask(u) {
+  const f = this.cliffFormation;
+  const left = this.smoothstep(f.rampCenter - f.rampHalfWidth - f.rampBlend, f.rampCenter - f.rampHalfWidth + f.rampBlend, u);
+  const right = 1 - this.smoothstep(f.rampCenter + f.rampHalfWidth - f.rampBlend, f.rampCenter + f.rampHalfWidth + f.rampBlend, u);
+  return left * right;
  }
 
- moduleFormationProfileAt(x, z) {
-  const f = this.moduleFormation;
-  const S = f.scale;
-  const { u, v } = this.moduleFormationLocal(x, z);
-  const seam = .11 * S;
+ cliffFormationProfileAt(x, z) {
+  const f = this.cliffFormation;
+  const {u,v} = this.cliffFormationLocal(x,z);
+  const edgeV = this.cliffEdgeV(u);
+  const signed = v - edgeV;
+  const rampMask = this.cliffRampMask(u);
+  const transitionHalfWidth = f.cliffSeam * (1 - rampMask) + f.rampHalfDepth * rampMask;
+  const highFactor = this.smoothstep(-transitionHalfWidth, transitionHalfWidth, signed);
 
-  const westHigh = this.smoothstep(-seam, seam, u);
-  const northOfSouthEdge = 1 - this.smoothstep(-seam, seam, v);
-  const eastLimit = 1 - this.smoothstep((f.plateauEastUnits - .08) * S, (f.plateauEastUnits + .08) * S, u);
-  const southLimit = this.smoothstep((f.plateauSouthUnits - .10) * S, (f.plateauSouthUnits + .10) * S, v);
-  const plateau = westHigh * northOfSouthEdge * eastLimit * southLimit;
-
-  const rampV = this.smoothstep((f.rampSouthUnits - .12) * S, (f.rampSouthUnits + .12) * S, v)
-   * (1 - this.smoothstep((f.rampNorthUnits - .12) * S, (f.rampNorthUnits + .12) * S, v));
-  const rampU = this.smoothstep((f.rampHighUnits - .18) * S, f.rampHighUnits * S, u)
-   * (1 - this.smoothstep(f.rampLowUnits * S, (f.rampLowUnits + .18) * S, u));
-  const rampLocalZ = 7.5 - u / S;
-  const ramp = rampV * rampU * this.gentleHillFactor(rampLocalZ);
-
-  const raised = Math.max(plateau, ramp);
-
-  const uWeight = this.smoothstep(-2.15 * S, -1.25 * S, u)
-   * (1 - this.smoothstep(8.35 * S, 9.25 * S, u));
-  const vWeight = this.smoothstep(-6.75 * S, -5.95 * S, v)
-   * (1 - this.smoothstep(1.0 * S, 1.85 * S, v));
+  const uWeight = this.smoothstep(f.uMin - 3.2, f.uMin, u)
+   * (1 - this.smoothstep(f.uMax, f.uMax + 3.2, u));
+  const vWeight = this.smoothstep(-f.lowDepth - 3.0, -f.lowDepth, signed)
+   * (1 - this.smoothstep(f.highDepth, f.highDepth + 3.0, signed));
   const weight = uWeight * vWeight;
+  const raised = highFactor * weight;
 
-  const baseHeight = this.moduleFormationBaseHeight();
-  const upperHeight = baseHeight + S;
-  const targetHeight = baseHeight + S * raised;
-
-  const westCliff = Math.abs(u) < .22 * S && v > f.westCliffNorthUnits * S && v < -.25 * S;
-  const southCliff = Math.abs(v) < .22 * S && u > .25 * S && u < f.southCliffEastUnits * S;
-
-  return { u, v, weight, raised, baseHeight, upperHeight, targetHeight, westCliff, southCliff, cliffSeam: westCliff || southCliff };
+  return {
+   u,v,edgeV,signed,rampMask,transitionHalfWidth,weight,raised,
+   isCliffSeam: Math.abs(signed) < Math.max(.72,transitionHalfWidth*1.25) && rampMask < .35
+  };
  }
 
+ // Compatibility boundary used by environment population. It now describes
+ // the procedural formation rather than the retired modular prefab showcase.
  moduleFormationContains(x, z, margin = 0) {
-  const S = this.moduleFormation.scale;
-  const { u, v } = this.moduleFormationLocal(x, z);
-  return u > -2.2 * S - margin && u < 9.3 * S + margin && v > -6.8 * S - margin && v < 1.9 * S + margin;
+  const f = this.cliffFormation;
+  const p = this.cliffFormationProfileAt(x,z);
+  return p.u > f.uMin - 3 - margin && p.u < f.uMax + 3 + margin
+   && p.signed > -f.lowDepth - 2 - margin && p.signed < f.highDepth + 2 + margin;
  }
 
  moduleFormationBlocksSegment(fromX, fromZ, toX, toZ) {
-  const f = this.moduleFormation;
-  const S = f.scale;
-  const a = this.moduleFormationLocal(fromX, fromZ);
-  const b = this.moduleFormationLocal(toX, toZ);
+  const f = this.cliffFormation;
+  const a = this.cliffFormationLocal(fromX,fromZ);
+  const b = this.cliffFormationLocal(toX,toZ);
+  const sa = a.v - this.cliffEdgeV(a.u);
+  const sb = b.v - this.cliffEdgeV(b.u);
+  if (sa === 0 || sb === 0 || sa * sb > 0) return false;
+  const midU = (a.u + b.u) * .5;
+  if (midU < f.uMin || midU > f.uMax) return false;
+  if (this.cliffRampMask(midU) > .32) return false;
+  return true;
+ }
 
-  const crossedWest = (a.u <= 0 && b.u > 0) || (a.u >= 0 && b.u < 0);
-  const westMidV = (a.v + b.v) * .5;
-  if (crossedWest && westMidV > f.westCliffNorthUnits * S && westMidV < -.25 * S) return true;
-
-  const crossedSouth = (a.v <= 0 && b.v > 0) || (a.v >= 0 && b.v < 0);
-  const southMidU = (a.u + b.u) * .5;
-  if (crossedSouth && southMidU > .25 * S && southMidU < f.southCliffEastUnits * S) return true;
-
-  return false;
+ cliffWallSpans() {
+  const f = this.cliffFormation;
+  const gapStart = f.rampCenter - f.rampHalfWidth - f.rampBlend * .8;
+  const gapEnd = f.rampCenter + f.rampHalfWidth + f.rampBlend * .8;
+  return [[f.uMin + .5,gapStart],[gapEnd,f.uMax - .4]];
  }
 
  rawHeightAt(x, z) {
   const d = this.islandMetric(x, z);
   if (d >= 1) return this.seabedLevel;
   const natural = this.regionalHeightAt(x, z);
-  const formation = this.moduleFormationProfileAt(x, z);
-  const interior = natural * (1 - formation.weight) + formation.targetHeight * formation.weight;
+  const formation = this.cliffFormationProfileAt(x,z);
+  const interior = natural + this.cliffFormation.drop * formation.raised;
   return this.coastHeight(x, z, interior);
  }
 
@@ -217,7 +200,7 @@ export class IslandTerrain {
   const grass = new T.Color(0x7fb64e);
   const grassDark = new T.Color(0x6da246);
   const grassLight = new T.Color(0x8cc65b);
-  const soil = new T.Color(0x7a6b4b);
+  const soil = new T.Color(0x786a4d);
   const stone = new T.Color(0x7d8681);
   const stoneDark = new T.Color(0x69736f);
   const seabed = new T.Color(0x64745e);
@@ -226,14 +209,12 @@ export class IslandTerrain {
    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
    const d = this.islandMetric(x, z);
    const s = this.slopeAt(x, z);
-   const formation = this.moduleFormationProfileAt(x, z);
+   const formation = this.cliffFormationProfileAt(x,z);
    let c;
    if (d >= 1) c = seabed;
    else if (d > .955) c = soil;
-   else if (formation.weight > .2 && formation.cliffSeam) c = stoneDark;
-   else if (formation.weight > .2 && s > 1.28) c = stone;
-   else if (s > 1.18) c = stoneDark;
-   else if (s > .84) c = stone;
+   else if (formation.weight > .15 && formation.isCliffSeam) c = stoneDark;
+   else if (s > 1.15) c = stone;
    else if (y > 7.5) c = grassLight;
    else if (y < 1.1) c = grassDark;
    else c = grass;
