@@ -1,0 +1,5 @@
+export class IslandTerrain{
+ constructor(THREE){this.T=THREE;this.radius=90;this.seaLevel=-2;}
+ heightAt(x,z){const d=Math.hypot(x*.92,z*1.08)/this.radius;if(d>=1)return this.seaLevel;const coast=Math.max(0,1-d*d);const hills=Math.sin(x*.055)*1.2+Math.cos(z*.047)*1.0+Math.sin((x+z)*.035)*.8;const mountain=Math.pow(Math.max(0,1-d/.72),2)*13;return Math.max(-.5,(1.1+hills+mountain)*coast);}
+ create(){const T=this.T,root=new T.Group();root.name='IslandWorld';const size=this.radius*2.08,geo=new T.PlaneGeometry(size,size,96,96);geo.rotateX(-Math.PI/2);const p=geo.attributes.position;for(let i=0;i<p.count;i++)p.setY(i,this.heightAt(p.getX(i),p.getZ(i)));geo.computeVertexNormals();const land=new T.Mesh(geo,new T.MeshLambertMaterial({color:0x78a94b,flatShading:true}));root.add(land);const oceanGeo=new T.PlaneGeometry(500,500,1,1);oceanGeo.rotateX(-Math.PI/2);const ocean=new T.Mesh(oceanGeo,new T.MeshPhongMaterial({color:0x43b7d5,shininess:60}));ocean.position.y=this.seaLevel;root.add(ocean);return root;}
+}
