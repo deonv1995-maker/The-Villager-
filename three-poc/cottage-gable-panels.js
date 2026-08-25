@@ -1,9 +1,9 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 
 const COTTAGE_NAME='VillageCottage046';
-const PANEL_PREFIX='VillageCottageGablePanel';
+const PANEL_PREFIX='VillageCottageGable';
 
-function createGableGeometry(width,rise,depth){
+function createUpperWedge(width,rise,depth){
   const shape=new THREE.Shape();
   shape.moveTo(-width/2,0);
   shape.lineTo(width/2,0);
@@ -11,24 +11,32 @@ function createGableGeometry(width,rise,depth){
   shape.closePath();
   const geometry=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:false,steps:1});
   geometry.translate(0,0,-depth/2);
+  geometry.computeVertexNormals();
   return geometry;
 }
 
-function removeOldPanels(cottage){
+function removeOldGables(cottage){
   const stale=[];
-  cottage.traverse(o=>{if(o!==cottage&&o.name?.startsWith(PANEL_PREFIX))stale.push(o);});
-  for(const o of stale){o.parent?.remove(o);o.geometry?.dispose?.();}
+  cottage.traverse(o=>{
+    if(o!==cottage&&o.name?.startsWith(PANEL_PREFIX))stale.push(o);
+    if(o!==cottage&&o.name?.startsWith('VillageCottageGablePanel'))stale.push(o);
+  });
+  for(const o of stale){
+    o.parent?.remove(o);
+    o.geometry?.dispose?.();
+    if(Array.isArray(o.material))for(const m of o.material)m?.dispose?.();
+    else o.material?.dispose?.();
+  }
 }
 
-function installPanels(cottage){
-  removeOldPanels(cottage);
+function installSolidUpper(cottage){
+  removeOldGables(cottage);
 
   const width=5.72;
-  const houseDepth=4.15;
-  const eave=4.18;
   const rise=2.06;
-  const thickness=.18;
-  const geometry=createGableGeometry(width,rise,thickness);
+  const depth=4.48;
+  const eave=4.18;
+
   const material=new THREE.MeshStandardMaterial({
     color:0xd8bd83,
     roughness:.88,
@@ -37,39 +45,17 @@ function installPanels(cottage){
     side:THREE.DoubleSide
   });
 
-  // Put the infill just inside the timber face, but with real thickness so it cannot
-  // disappear from back-face culling, camera angle, or z-fighting on mobile GPUs.
-  const faceZ=houseDepth/2+.08;
-  const front=new THREE.Mesh(geometry,material);
-  front.name=`${PANEL_PREFIX}-Front`;
-  front.position.set(0,eave,faceZ);
-  front.castShadow=true;
-  front.receiveShadow=true;
-  front.userData.isBuildingOccluder=true;
-  cottage.add(front);
+  // One continuous solid prism fills the entire triangular upper storey from
+  // front wall to back wall. This avoids detached face panels, z-fighting,
+  // back-face issues and gaps when the camera rotates around the house.
+  const upper=new THREE.Mesh(createUpperWedge(width,rise,depth),material);
+  upper.name=`${PANEL_PREFIX}-SolidUpper`;
+  upper.position.set(0,eave,0);
+  upper.castShadow=true;
+  upper.receiveShadow=true;
+  upper.userData.isBuildingOccluder=true;
+  cottage.add(upper);
 
-  const back=new THREE.Mesh(geometry,material.clone());
-  back.name=`${PANEL_PREFIX}-Back`;
-  back.position.set(0,eave,-faceZ);
-  back.rotation.y=Math.PI;
-  back.castShadow=true;
-  back.receiveShadow=true;
-  back.userData.isBuildingOccluder=true;
-  cottage.add(back);
-
-  // Small side wedges close the visible gaps where the sloped roof meets the side walls.
-  const sideMat=material.clone();
-  const sideHeight=.95;
-  const sideWidth=.42;
-  for(const sx of [-1,1]){
-    const side=new THREE.Mesh(new THREE.BoxGeometry(sideWidth,sideHeight,houseDepth-.05),sideMat.clone());
-    side.name=`${PANEL_PREFIX}-Side-${sx}`;
-    side.position.set(sx*(width/2-sideWidth/2),eave+sideHeight/2-.04,0);
-    side.castShadow=true;
-    side.receiveShadow=true;
-    side.userData.isBuildingOccluder=true;
-    cottage.add(side);
-  }
   return true;
 }
 
@@ -78,7 +64,7 @@ function findAndInstall(){
   if(!scene){requestAnimationFrame(findAndInstall);return;}
   const cottage=scene.getObjectByName(COTTAGE_NAME);
   if(!cottage){requestAnimationFrame(findAndInstall);return;}
-  installPanels(cottage);
+  installSolidUpper(cottage);
 }
 
 findAndInstall();
