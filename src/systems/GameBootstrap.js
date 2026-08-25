@@ -1,4 +1,4 @@
-import { WorldManager } from './WorldManager.js?v=515';
+import { WorldManager } from './WorldManager.js?v=516';
 import { MobileControls } from './input/MobileControls.js';
 import { PlayerController } from './player/PlayerController.js';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js';
@@ -51,7 +51,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.15 · terrain/prefab integration · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.16 · refined cliff blend · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -64,7 +64,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),350);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.15 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.16 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -84,10 +84,10 @@ export class GameBootstrap {
    this.player.add(ranger.root);
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
-   if(status)status.textContent='Clean rebuild 0.5.15 · Ranger · terrain/prefab integration';
+   if(status)status.textContent='Clean rebuild 0.5.16 · Ranger · refined cliff blend';
   }catch(err){
    console.error('[KayKit Ranger optional load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.15 · terrain/prefab integration · Ranger unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.16 · refined cliff blend · Ranger unavailable';
   }
  }
 }
