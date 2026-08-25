@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.6.36",
-  "releaseId": "3d-v0.6.36-shell-runtime-sync",
+  "version": "3D-0.6.37",
+  "releaseId": "3d-v0.6.37-solid-cottage-gables",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
