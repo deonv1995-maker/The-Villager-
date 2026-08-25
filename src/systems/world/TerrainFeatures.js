@@ -108,7 +108,7 @@ export class TerrainFeatures {
 
  scaleForWidth(source, targetWidth) {
   const m = this.metrics(source);
-  return m ? targetWidth / m.footprint : targetWidth;
+  return m ? targetWidth / m.width : targetWidth;
  }
 
  addModel(source, x, y, z, yaw, sx, sy = sx, sz = sx) {
@@ -121,11 +121,11 @@ export class TerrainFeatures {
   return o;
  }
 
- addTopAligned(source, x, topY, z, yaw, scale, sy = scale, sz = scale) {
+ addTopAligned(source, x, topY, z, yaw, sx, sy = sx, sz = sx) {
   if (!source) return null;
   const m = this.metrics(source);
   const y = m ? topY - m.maxY * sy : topY;
-  const o = this.addModel(source, x, y, z, yaw, scale, sy, sz);
+  const o = this.addModel(source, x, y, z, yaw, sx, sy, sz);
   return { object: o, bottomY: m ? y + m.minY * sy : y, scaleY: sy };
  }
 
@@ -144,46 +144,54 @@ export class TerrainFeatures {
 
  placeStack(family, profile, x, z, yaw, targetWidth, seed) {
   if (!family?.top) return;
-  const scale = this.scaleForWidth(family.top, targetWidth);
-  const topScaleY = scale * (.94 + this.rand(seed + 1) * .09);
-  const topScaleZ = scale * (.92 + this.rand(seed + 2) * .14);
-  const lipY = profile.upperHeight - .06;
-  const top = this.addTopAligned(family.top, x, lipY, z, yaw, scale, topScaleY, topScaleZ);
+
+  const topScale = this.scaleForWidth(family.top, targetWidth);
+  const topDepth = topScale * (.76 + this.rand(seed + 1) * .10);
+  const topHeight = topScale * (.90 + this.rand(seed + 2) * .08);
+  const topWidth = topScale * (1.04 + this.rand(seed + 3) * .10);
+  const lipY = profile.upperHeight - .16;
+  const top = this.addTopAligned(family.top, x, lipY, z, yaw, topDepth, topHeight, topWidth);
   if (!top) return;
 
   let currentBottom = top.bottomY;
-  const lowerTarget = profile.lowerHeight - .04;
+  const lowerTarget = profile.lowerHeight - .08;
   const mid = family.mid;
   let midCount = 0;
 
-  while (mid && currentBottom - lowerTarget > .65 && midCount < 2) {
-   const midScale = scale * (.94 + this.rand(seed + 10 + midCount) * .08);
-   const metrics = this.metrics(mid);
-   const scaledHeight = metrics ? metrics.height * midScale : midScale;
-   if (currentBottom - lowerTarget < scaledHeight * .5) break;
-   const overlap = Math.min(.18, targetWidth * .035);
+  while (mid && currentBottom - lowerTarget > .55 && midCount < 2) {
+   const midScale = this.scaleForWidth(mid, targetWidth * (.98 + this.rand(seed + 10 + midCount) * .08));
+   const midMetrics = this.metrics(mid);
+   const midHeight = midScale * (.92 + this.rand(seed + 14 + midCount) * .08);
+   const scaledHeight = midMetrics ? midMetrics.height * midHeight : midHeight;
+   if (currentBottom - lowerTarget < scaledHeight * .42) break;
+
+   const overlap = .18 + this.rand(seed + 18 + midCount) * .10;
    const placed = this.addTopAligned(
     mid,
-    x - profile.nx * (.12 + midCount * .08),
+    x - profile.nx * (.08 + midCount * .07),
     currentBottom + overlap,
-    z - profile.nz * (.12 + midCount * .08),
-    yaw + (this.rand(seed + 20 + midCount) - .5) * .08,
-    midScale
+    z - profile.nz * (.08 + midCount * .07),
+    yaw + (this.rand(seed + 20 + midCount) - .5) * .06,
+    midScale * (.79 + this.rand(seed + 22 + midCount) * .08),
+    midHeight,
+    midScale * (1.04 + this.rand(seed + 24 + midCount) * .08)
    );
    if (!placed) break;
    currentBottom = placed.bottomY;
    midCount++;
   }
 
-  if (family.base && currentBottom - lowerTarget > .25) {
-   const baseScale = scale * (.92 + this.rand(seed + 30) * .1);
+  if (family.base && currentBottom - lowerTarget > .2) {
+   const baseScale = this.scaleForWidth(family.base, targetWidth * (.96 + this.rand(seed + 30) * .08));
    this.addTopAligned(
     family.base,
-    x - profile.nx * .28,
-    currentBottom + .12,
-    z - profile.nz * .28,
-    yaw + (this.rand(seed + 31) - .5) * .1,
-    baseScale
+    x - profile.nx * .18,
+    currentBottom + .18,
+    z - profile.nz * .18,
+    yaw + (this.rand(seed + 31) - .5) * .07,
+    baseScale * (.82 + this.rand(seed + 32) * .08),
+    baseScale * (.92 + this.rand(seed + 33) * .08),
+    baseScale * (1.02 + this.rand(seed + 34) * .08)
    );
   }
  }
@@ -194,43 +202,43 @@ export class TerrainFeatures {
   this.addTopAligned(
    source,
    x,
-   profile.upperHeight - .05,
+   profile.upperHeight - .14,
    z,
    yaw,
-   scale,
-   scale * (.95 + this.rand(seed + 1) * .08),
-   scale * (.93 + this.rand(seed + 2) * .12)
+   scale * (.80 + this.rand(seed + 1) * .08),
+   scale * (.91 + this.rand(seed + 2) * .08),
+   scale * (1.04 + this.rand(seed + 3) * .10)
   );
  }
 
  buildIntegratedCliff() {
-  const anchors = [.035];
-  let t = .105;
+  const anchors = [.03];
+  let t = .09;
   let cursor = 0;
-  while (t < .91 && cursor < 18) {
+  while (t < .93 && cursor < 24) {
    anchors.push(t);
-   t += .052 + this.rand(cursor * 41 + 5) * .062;
+   t += .046 + this.rand(cursor * 41 + 5) * .046;
    cursor++;
   }
-  anchors.push(.965);
+  anchors.push(.97);
 
   for (let i = 0; i < anchors.length; i++) {
-   const t0 = Math.min(.98, Math.max(.02, anchors[i] + (this.rand(i * 23 + 4) - .5) * .018));
+   const t0 = Math.min(.985, Math.max(.015, anchors[i] + (this.rand(i * 23 + 4) - .5) * .014));
    const profile = this.world.terrain.cliffFeatureProfile(t0);
-   if (profile.drop < 1.35) continue;
+   if (profile.drop < 1.2) continue;
 
    const end = i === 0 || i === anchors.length - 1;
-   if (!end && this.rand(i * 31 + 6) < .12) continue;
+   if (!end && this.rand(i * 31 + 6) < .06) continue;
 
-   const along = (this.rand(i * 43 + 7) - .5) * 1.0;
-   const faceInset = .08 + this.rand(i * 37 + 2) * .38;
-   const x = profile.x - profile.nx * faceInset + profile.tx * along;
-   const z = profile.z - profile.nz * faceInset + profile.tz * along;
-   const baseYaw = Math.atan2(profile.tx, profile.tz) + (this.rand(i * 47 + 9) - .5) * .13;
+   const along = (this.rand(i * 43 + 7) - .5) * .7;
+   const embed = .14 + this.rand(i * 37 + 2) * .24;
+   const x = profile.x + profile.nx * embed + profile.tx * along;
+   const z = profile.z + profile.nz * embed + profile.tz * along;
+   const baseYaw = Math.atan2(profile.tx, profile.tz) + (this.rand(i * 47 + 9) - .5) * .10;
    const curve = this.curvatureAt(t0);
    const absCurve = Math.abs(curve);
    const seed = i * 101 + 13;
-   const targetWidth = 3.2 + this.rand(seed + 2) * 1.45;
+   const targetWidth = 3.6 + this.rand(seed + 2) * 1.6;
 
    if (end) {
     this.placeFalloff(
@@ -239,31 +247,33 @@ export class TerrainFeatures {
      x,
      z,
      baseYaw + (i === 0 ? Math.PI : 0),
-     targetWidth * 1.06,
+     targetWidth * 1.08,
      seed
     );
-   } else if (absCurve > .085 && this.rand(seed + 3) > .18) {
+   } else if (profile.drop < 2.0 && this.rand(seed + 4) > .18) {
+    this.placeFalloff(this.prototypes.falloff.center, profile, x, z, baseYaw, targetWidth * 1.05, seed + 6);
+   } else if (absCurve > .07 && this.rand(seed + 8) > .14) {
     const outer = curve > 0;
     const family = outer ? this.prototypes.outer : this.prototypes.inner;
-    const cornerYaw = baseYaw + (outer ? -Math.PI / 4 : Math.PI / 4) + (this.rand(seed + 5) - .5) * .06;
-    this.placeStack(family, profile, x, z, cornerYaw, targetWidth * 1.18, seed + 10);
-   } else if (this.rand(seed + 6) < .18) {
+    const cornerYaw = baseYaw + (outer ? -Math.PI / 4 : Math.PI / 4) + (this.rand(seed + 9) - .5) * .045;
+    this.placeStack(family, profile, x, z, cornerYaw, targetWidth * 1.2, seed + 10);
+   } else if (this.rand(seed + 12) < .24) {
     this.placeFalloff(this.prototypes.falloff.center, profile, x, z, baseYaw, targetWidth, seed + 20);
    } else {
-    const family = this.rand(seed + 10) < .48 ? this.prototypes.escarp : this.prototypes.cliff;
+    const family = this.rand(seed + 16) < .38 ? this.prototypes.escarp : this.prototypes.cliff;
     this.placeStack(family, profile, x, z, baseYaw, targetWidth, seed + 30);
    }
 
-   if (this.rand(seed + 50) > .24) {
-    const rx = x - profile.nx * (1.5 + this.rand(seed + 51) * 2.6) + (this.rand(seed + 52) - .5) * 2.6 * profile.tx;
-    const rz = z - profile.nz * (1.5 + this.rand(seed + 53) * 2.6) + (this.rand(seed + 54) - .5) * 2.6 * profile.tz;
-    this.addNatural(this.prototypes.rocks, rx, this.world.heightAt(rx, rz) - .05, rz, this.rand(seed + 55) * Math.PI * 2, 1.0 + this.rand(seed + 56) * 1.65);
+   if (this.rand(seed + 50) > .26) {
+    const rx = x - profile.nx * (1.4 + this.rand(seed + 51) * 2.4) + (this.rand(seed + 52) - .5) * 2.4 * profile.tx;
+    const rz = z - profile.nz * (1.4 + this.rand(seed + 53) * 2.4) + (this.rand(seed + 54) - .5) * 2.4 * profile.tz;
+    this.addNatural(this.prototypes.rocks, rx, this.world.heightAt(rx, rz) - .07, rz, this.rand(seed + 55) * Math.PI * 2, 1.0 + this.rand(seed + 56) * 1.55);
    }
 
-   if (this.rand(seed + 60) > .48) {
-    const bx = x + profile.nx * (.65 + this.rand(seed + 61) * 1.7) + (this.rand(seed + 62) - .5) * 2.4 * profile.tx;
-    const bz = z + profile.nz * (.65 + this.rand(seed + 63) * 1.7) + (this.rand(seed + 64) - .5) * 2.4 * profile.tz;
-    this.addNatural(this.prototypes.bushes, bx, this.world.heightAt(bx, bz), bz, this.rand(seed + 65) * Math.PI * 2, 1.35 + this.rand(seed + 66) * 1.45);
+   if (this.rand(seed + 60) > .5) {
+    const bx = x + profile.nx * (.75 + this.rand(seed + 61) * 1.55) + (this.rand(seed + 62) - .5) * 2.2 * profile.tx;
+    const bz = z + profile.nz * (.75 + this.rand(seed + 63) * 1.55) + (this.rand(seed + 64) - .5) * 2.2 * profile.tz;
+    this.addNatural(this.prototypes.bushes, bx, this.world.heightAt(bx, bz), bz, this.rand(seed + 65) * Math.PI * 2, 1.3 + this.rand(seed + 66) * 1.35);
    }
   }
  }
