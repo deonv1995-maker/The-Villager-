@@ -4,9 +4,6 @@ export class IslandTerrain {
   this.radius = 135;
   this.seaLevel = -2;
   this.seabedLevel = -5.2;
-
-  // Shared authored formation definition. TerrainFeatures reads this same
-  // object so scale, elevations and placement are never duplicated.
   this.moduleFormation = {
    cx: -20,
    cz: -18,
@@ -91,20 +88,14 @@ export class IslandTerrain {
   const dz = z - f.cz;
   const c = Math.cos(f.yaw);
   const s = Math.sin(f.yaw);
-  return {
-   u: c * dx - s * dz,
-   v: s * dx + c * dz
-  };
+  return { u: c * dx - s * dz, v: s * dx + c * dz };
  }
 
  moduleFormationWorld(u, v) {
   const f = this.moduleFormation;
   const c = Math.cos(f.yaw);
   const s = Math.sin(f.yaw);
-  return {
-   x: f.cx + c * u + s * v,
-   z: f.cz - s * u + c * v
-  };
+  return { x: f.cx + c * u + s * v, z: f.cz - s * u + c * v };
  }
 
  moduleFormationBaseHeight() {
@@ -124,31 +115,19 @@ export class IslandTerrain {
   const f = this.moduleFormation;
   const S = f.scale;
   const { u, v } = this.moduleFormationLocal(x, z);
-
-  // The cliff faces are intentionally very narrow. The visible vertical
-  // surface is supplied by the modular cliff mesh, not by a stretched hill.
   const cliffHalfWidth = .10 * S;
   const westStep = this.smoothstep(-cliffHalfWidth, cliffHalfWidth, u);
   const southStep = 1 - this.smoothstep(-cliffHalfWidth, cliffHalfWidth, v);
-
-  // Exact normalized height profile of Hilly_Terrain_Hill_Side_Gentle.
-  // Its local Z runs from -0.5 (low) to 3.5 (high). With the slope rotated
-  // toward -U and its origin at 7.5 grid units, U=4 is high and U=8 is low.
   const rampLocalZ = 7.5 - u / S;
   const eastRamp = this.gentleHillFactor(rampLocalZ);
-
-  // The far end of the plateau returns to the macro terrain with a broad,
-  // natural slope rather than another cliff wall.
   const northFade = this.smoothstep(f.northFadeUnits * S, f.plateauNorthUnits * S, v);
   const raised = westStep * southStep * eastRamp * northFade;
-
   const uWeight = this.smoothstep(-2.3 * S, -1.5 * S, u) * (1 - this.smoothstep(8.4 * S, 9.3 * S, u));
   const vWeight = this.smoothstep(-11.0 * S, -10.0 * S, v) * (1 - this.smoothstep(1.1 * S, 2.0 * S, v));
   const weight = uWeight * vWeight;
   const baseHeight = this.moduleFormationBaseHeight();
   const upperHeight = baseHeight + S;
   const targetHeight = baseHeight + S * raised;
-
   return { u, v, weight, raised, baseHeight, upperHeight, targetHeight };
  }
 
@@ -164,13 +143,12 @@ export class IslandTerrain {
   const S = f.scale;
   const a = this.moduleFormationLocal(fromX, fromZ);
   const b = this.moduleFormationLocal(toX, toZ);
-  const eps = .05 * S;
 
-  const crossedWest = (a.u < -eps && b.u > eps) || (a.u > eps && b.u < -eps);
+  const crossedWest = (a.u <= 0 && b.u > 0) || (a.u >= 0 && b.u < 0);
   const westMidV = (a.v + b.v) * .5;
   if (crossedWest && westMidV > f.westCliffNorthUnits * S && westMidV < -.35 * S) return true;
 
-  const crossedSouth = (a.v < -eps && b.v > eps) || (a.v > eps && b.v < -eps);
+  const crossedSouth = (a.v <= 0 && b.v > 0) || (a.v >= 0 && b.v < 0);
   const southMidU = (a.u + b.u) * .5;
   if (crossedSouth && southMidU > .35 * S && southMidU < f.southCliffEastUnits * S) return true;
 
@@ -180,16 +158,13 @@ export class IslandTerrain {
  rawHeightAt(x, z) {
   const d = this.islandMetric(x, z);
   if (d >= 1) return this.seabedLevel;
-
   const natural = this.regionalHeightAt(x, z);
   const formation = this.moduleFormationProfileAt(x, z);
   const interior = natural * (1 - formation.weight) + formation.targetHeight * formation.weight;
   return this.coastHeight(x, z, interior);
  }
 
- heightAt(x, z) {
-  return this.rawHeightAt(x, z);
- }
+ heightAt(x, z) { return this.rawHeightAt(x, z); }
 
  slopeAt(x, z) {
   const e = .8;
@@ -215,14 +190,11 @@ export class IslandTerrain {
   const seabed = new T.Color(0x64745e);
 
   for (let i = 0; i < p.count; i++) {
-   const x = p.getX(i);
-   const y = p.getY(i);
-   const z = p.getZ(i);
+   const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
    const d = this.islandMetric(x, z);
    const s = this.slopeAt(x, z);
    const formation = this.moduleFormationProfileAt(x, z);
    let c;
-
    if (d >= 1) c = seabed;
    else if (d > .955) c = soil;
    else if (formation.weight > .18 && s > 1.25) c = stoneDark;
@@ -231,10 +203,7 @@ export class IslandTerrain {
    else if (y > 7.5) c = grassLight;
    else if (y < 1.1) c = grassDark;
    else c = grass;
-
-   colors[i * 3] = c.r;
-   colors[i * 3 + 1] = c.g;
-   colors[i * 3 + 2] = c.b;
+   colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
   }
 
   geometry.setAttribute('color', new T.BufferAttribute(colors, 3));
@@ -249,11 +218,7 @@ export class IslandTerrain {
   const geo = new T.PlaneGeometry(size, size, 220, 220);
   geo.rotateX(-Math.PI / 2);
   const p = geo.attributes.position;
-
-  for (let i = 0; i < p.count; i++) {
-   p.setY(i, this.heightAt(p.getX(i), p.getZ(i)));
-  }
-
+  for (let i = 0; i < p.count; i++) p.setY(i, this.heightAt(p.getX(i), p.getZ(i)));
   geo.computeVertexNormals();
   const land = new T.Mesh(geo, this.createLandMaterial(geo));
   land.name = 'AsymmetricIslandLand';
@@ -263,13 +228,8 @@ export class IslandTerrain {
   const oceanGeo = new T.PlaneGeometry(700, 700, 1, 1);
   oceanGeo.rotateX(-Math.PI / 2);
   const ocean = new T.Mesh(oceanGeo, new T.MeshPhongMaterial({
-   color: 0x43b7d5,
-   shininess: 55,
-   specular: 0x9fe7ef,
-   depthWrite: true,
-   polygonOffset: true,
-   polygonOffsetFactor: -1,
-   polygonOffsetUnits: -1
+   color: 0x43b7d5, shininess: 55, specular: 0x9fe7ef,
+   depthWrite: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
   }));
   ocean.name = 'OceanSurface';
   ocean.position.y = this.seaLevel;
