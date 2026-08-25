@@ -8,6 +8,7 @@ export class EnvironmentPopulation {
   this.materials=this.createMaterials();
   this.variants=this.createVariantCatalog();
  }
+
  createMaterials(){
   const T=this.T;
   const mat=(color,extra={})=>new T.MeshStandardMaterial({color,roughness:.82,metalness:0,flatShading:false,...extra});
@@ -19,6 +20,7 @@ export class EnvironmentPopulation {
    grass:mat(0x629b4d,{side:T.DoubleSide})
   };
  }
+
  createVariantCatalog(){
   return {
    tree:[{name:'natural',scale:[1,1,1]},{name:'young',scale:[.84,.88,.84]},{name:'mature',scale:[1.1,1.08,1.1]}],
@@ -28,14 +30,11 @@ export class EnvironmentPopulation {
    grass:[{name:'short',scale:[1,.78,1]},{name:'natural',scale:[1,1,1]},{name:'tall',scale:[.9,1.25,.9]}]
   };
  }
+
  rand(i){const x=Math.sin(i*12.9898+this.seed)*43758.5453;return x-Math.floor(x);}
  slopeAt(x,z){const e=.8,h=this.world.heightAt(x,z);return Math.max(Math.abs(this.world.heightAt(x+e,z)-h),Math.abs(this.world.heightAt(x,z+e)-h))/e;}
- cliffClearance(x,z){
-  const terrain=this.world.terrain;
-  if(!terrain?.cliffProfileAt)return {blocked:false,profile:null};
-  const profile=terrain.cliffProfileAt(x,z);
-  return {blocked:profile.active&&Math.abs(profile.signed)<3.2,profile};
- }
+ terrainClearance(x,z){return !!this.world.terrain?.moduleFormationContains?.(x,z,2.5);}
+
  async loadObj(path,type){
   const res=await fetch(path);if(!res.ok)throw new Error(`${path}: ${res.status}`);
   const obj=this.loader.parse(await res.text());
@@ -46,6 +45,7 @@ export class EnvironmentPopulation {
   });
   return obj;
  }
+
  applyTreeColors(mesh){
   const T=this.T;
   let geometry=mesh.geometry.index?mesh.geometry.toNonIndexed():mesh.geometry.clone();
@@ -59,6 +59,7 @@ export class EnvironmentPopulation {
   }
   geometry.setAttribute('color',new T.BufferAttribute(colors,3));mesh.geometry=geometry;
  }
+
  async loadKayKit(){
   if(this.loading)return this.loading;
   this.loading=Promise.all([
@@ -79,6 +80,7 @@ export class EnvironmentPopulation {
   });
   return this.loading;
  }
+
  clone(type,seed=0){
   const source=this.prototypes[type];
   if(Array.isArray(source)){
@@ -90,11 +92,13 @@ export class EnvironmentPopulation {
   }
   return source?.clone(true)||null;
  }
+
  applyVariant(o,type,index,baseScale){
   const list=this.variants[type],v=list[index%list.length];
   o.scale.set(baseScale*v.scale[0],baseScale*v.scale[1],baseScale*v.scale[2]);
   o.userData.environmentType=type;o.userData.environmentVariant=v.name;
  }
+
  placeObject(type,x,y,z,i,scaleMultiplier=1){
   const o=this.clone(type,i*19+7);if(!o)return false;
   let scale=(.78+this.rand(i*4+3)*.88)*scaleMultiplier;
@@ -108,29 +112,29 @@ export class EnvironmentPopulation {
   o.rotation.y=this.rand(i*7+3)*Math.PI*2;o.position.set(x,y,z);
   this.root.add(o);return true;
  }
+
  populateSlopeRocks(startIndex){
   let placed=0;
   for(let i=0;i<420;i++){
    const a=this.rand(i*13+2)*Math.PI*2;
    const r=24+Math.sqrt(this.rand(i*13+3))*106;
    const x=Math.cos(a)*r,z=Math.sin(a)*r,y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
-   const clearance=this.cliffClearance(x,z);
-   if(y<.1||s<.22||s>.9||Math.hypot(x,z)<15||clearance.blocked)continue;
+   if(y<.1||s<.22||s>.9||Math.hypot(x,z)<15||this.terrainClearance(x,z))continue;
    if(this.rand(i*13+4)>.58)continue;
    if(this.placeObject('rock',x,y-.08,z,startIndex+i,1.18+.55*Math.min(s,.7)))placed++;
   }
   return placed;
  }
+
  populate(){
   this.root.clear();let placed=0;
   for(let i=0;i<1100;i++){
    const a=this.rand(i*4)*Math.PI*2,r=13+Math.sqrt(this.rand(i*4+1))*116;
    const x=Math.cos(a)*r,z=Math.sin(a)*r,y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
-   const clearance=this.cliffClearance(x,z);
-   if(y<.12||s>.78||Math.hypot(x,z)<12||clearance.blocked)continue;
+   if(y<.12||s>.78||Math.hypot(x,z)<12||this.terrainClearance(x,z))continue;
    const forestBias=Math.max(0,1-r/125),roll=this.rand(i*4+2);let type;
-   if(s>.33){type='rock';}
-   else if(roll<(.44+.18*forestBias)){type=this.rand(i*17+11)<.055?'bareTree':'tree';}
+   if(s>.33)type='rock';
+   else if(roll<(.44+.18*forestBias))type=this.rand(i*17+11)<.055?'bareTree':'tree';
    else if(roll<.68)type='rock';
    else if(roll<.86)type='bush';
    else type='grass';
@@ -139,6 +143,7 @@ export class EnvironmentPopulation {
   placed+=this.populateSlopeRocks(5000);
   return placed;
  }
+
  initialize(){
   this.scene.add(this.root);
   this.loadKayKit().then(()=>this.populate()).catch(err=>console.error('[KayKit forest load]',err));
