@@ -68,9 +68,9 @@ export class TerrainFeatures {
   const S=f.scale*scaleMultiplier;
   const p=this.toWorld(u,v);
   const o=source.clone(true);
-  // The terrain kit's walkable top is authored at local Y=1.2 while the
-  // lower floor is local Y=.2/0. Keeping the shared -0.2 unit datum makes
-  // every module meet the exact base/upper elevations used by IslandTerrain.
+  // Terrain kit datum: lower rock base is local Y=0/.2 and the walkable cap
+  // reaches local Y=1.2. The shared -0.2 offset therefore aligns one kit
+  // unit of elevation with IslandTerrain's baseHeight -> baseHeight + scale.
   o.position.set(p.x,this.world.terrain.moduleFormationBaseHeight()-.2*f.scale+yOffset,p.z);
   o.rotation.y=f.yaw+relativeYaw;
   o.scale.setScalar(S);
@@ -92,37 +92,38 @@ export class TerrainFeatures {
  buildShowcaseFormation(){
   const S=this.world.terrain.moduleFormation.scale;
 
-  // Source-space convention verified from the OBJ geometry:
-  // Cliff Side high ground is local +X, and the outer corner's high ground
-  // occupies +X/-Z. Our procedural terrace uses that same +U/-V quadrant.
+  // Source geometry orientation:
+  // - Cliff_Terrain_Side_Top has its flat high ground on local -X.
+  // - Cliff_Terrain_Corner_Outer_2x2_Top therefore encloses high ground in
+  //   the -X/+Z quadrant. The whole showcase is laid out in that convention.
   this.place(this.prototypes.outerTop,0,0,0);
 
-  // The outer 2x2 corner ends around -1.12 grid units. Starting the first
-  // one-unit straight section at -1.62 closes the old visible gap instead of
-  // placing pieces on arbitrary two-unit intervals.
-  for(const vUnit of [-1.62,-2.62,-3.62,-4.62]){
+  // East-facing cliff: high plateau is to local -U (left/west), low ground
+  // to +U. One-unit centres line up directly with the corner's +V edge.
+  for(const vUnit of [1,2,3,4,5]){
    this.place(this.prototypes.sideTop,0,vUnit*S,0);
   }
-  this.place(this.prototypes.falloffEdge,0,-5.62*S,0);
 
-  // Same exact grid spacing after the 90° turn.
-  for(const uUnit of [1.62,2.62,3.62]){
+  // South-facing cliff: rotating the same side by +90° makes its -X high
+  // side point toward +V. The first three grid units are deliberately left
+  // open for the authored gentle-hill ramp below.
+  for(const uUnit of [-4,-5]){
    this.place(this.prototypes.sideTop,uUnit*S,0,Math.PI/2);
   }
-  this.place(this.prototypes.falloffEdge,4.62*S,0,Math.PI/2);
 
-  // Gentle-hill source mesh is four grid units long. At -90° its high end
-  // meets U=4 and its low end meets U=8; three adjacent copies form a clean
-  // walkable route instead of a broad procedural slope.
-  for(const vUnit of [-1,-2,-3]){
-   this.place(this.prototypes.hillGentle,7.5*S,vUnit*S,-Math.PI/2);
+  // The hill prefab is four units long from source Z=-.5 (low) to Z=3.5
+  // (high). Unrotated and centred at V=-3 it reaches low ground at -3.5 and
+  // the upper plateau at +.5. Three adjacent tiles create a real kit-built
+  // passage through the cliff instead of a procedural fake slope.
+  for(const uUnit of [-1,-2,-3]){
+   this.place(this.prototypes.hillGentle,uUnit*S,-3*S,0);
   }
 
-  // Minimal dressing at transition ends only. It must not hide alignment
-  // errors while we validate the terrain kit as structural geometry.
-  this.placeProp(this.prototypes.rocks,-.9*S,-5.35*S,3,1.2);
-  this.placeProp(this.prototypes.rocks,4.9*S,-.65*S,5,1.05);
-  this.placeProp(this.prototypes.bushes,.8*S,-5.55*S,7,1.4);
+  // Keep dressing sparse until the structural orientation is proven. These
+  // props sit outside the module seams and do not conceal bad alignment.
+  this.placeProp(this.prototypes.rocks,.85*S,4.6*S,3,1.15);
+  this.placeProp(this.prototypes.rocks,-5.25*S,-.8*S,5,1.05);
+  this.placeProp(this.prototypes.bushes,.75*S,5.1*S,7,1.35);
  }
 
  initialize(){
