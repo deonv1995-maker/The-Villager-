@@ -1,4 +1,4 @@
-import { WorldManager } from './WorldManager.js?v=526';
+import { WorldManager } from './WorldManager.js?v=527';
 import { MobileControls } from './input/MobileControls.js';
 import { PlayerController } from './player/PlayerController.js?v=519';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js';
@@ -55,7 +55,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.26 · procedural low-poly cliffs · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.27 · unified procedural terrain mesh · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -68,7 +68,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.26 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.27 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -89,11 +89,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.26 · Ranger · procedural low-poly cliffs'
-    :'Clean rebuild 0.5.26 · Ranger · procedural low-poly cliffs · animations pending';
+    ?'Clean rebuild 0.5.27 · Ranger · unified procedural terrain mesh'
+    :'Clean rebuild 0.5.27 · Ranger · unified procedural terrain mesh · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.26 · procedural low-poly cliffs · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.27 · unified procedural terrain mesh · Ranger model unavailable';
   }
  }
 }
