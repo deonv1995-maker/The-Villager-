@@ -10,6 +10,7 @@ export class WorldManager {
   this.environment = null;
   this.features = null;
   this.maxStepUp = .68;
+  this.cliffPlayerClearance = 1.05;
  }
 
  initialize() {
@@ -29,11 +30,39 @@ export class WorldManager {
   return this.terrain.heightAt(x, z);
  }
 
+ cliffProfileAt(x, z) {
+  return this.terrain.cliffFormationProfileAt?.(x, z) || null;
+ }
+
+ isApproachingSolidCliff(fromX, fromZ, toX, toZ) {
+  const from = this.cliffProfileAt(fromX, fromZ);
+  const to = this.cliffProfileAt(toX, toZ);
+  if (!from || !to) return false;
+
+  const solid = to.weight > .12 && to.rampMask < .36 && to.drop > 1.15;
+  if (!solid) return false;
+
+  const fromDistance = Math.abs(from.signed);
+  const toDistance = Math.abs(to.signed);
+  const clearance = this.cliffPlayerClearance;
+
+  // Keep the Ranger's body clear of the procedural rock volume. If an old
+  // cached build has already left the player inside this margin, movement away
+  // from the wall is still allowed so the character can recover naturally.
+  if (toDistance < clearance && toDistance <= fromDistance + .001) return true;
+
+  // Never allow a single movement step to tunnel through the cliff boundary.
+  if (from.signed * to.signed < 0) return true;
+
+  return false;
+ }
+
  resolveMovement(fromX, fromZ, currentY, toX, toZ) {
   const ground = this.surfaceHeightAt(toX, toZ);
   const rise = ground - currentY;
 
-  if (this.terrain.moduleFormationBlocksSegment(fromX, fromZ, toX, toZ)) {
+  if (this.isApproachingSolidCliff(fromX, fromZ, toX, toZ)
+   || this.terrain.moduleFormationBlocksSegment(fromX, fromZ, toX, toZ)) {
    return { allowed: false, ground, reason: 'procedural-cliff' };
   }
 
