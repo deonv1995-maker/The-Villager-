@@ -1,5 +1,7 @@
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
+const CLIFF_YAW_FIX=Math.PI;
+
 export class TerrainFeatures {
  constructor(THREE,{world,scene}){
   this.T=THREE;
@@ -68,14 +70,15 @@ export class TerrainFeatures {
   const S=f.scale*scaleMultiplier;
   const p=this.toWorld(u,v);
   const o=source.clone(true);
-  // Terrain kit datum: lower rock base is local Y=0/.2 and the walkable cap
-  // reaches local Y=1.2. The shared -0.2 offset therefore aligns one kit
-  // unit of elevation with IslandTerrain's baseHeight -> baseHeight + scale.
   o.position.set(p.x,this.world.terrain.moduleFormationBaseHeight()-.2*f.scale+yOffset,p.z);
   o.rotation.y=f.yaw+relativeYaw;
   o.scale.setScalar(S);
   this.root.add(o);
   return o;
+ }
+
+ placeCliff(source,u,v,relativeYaw=0,yOffset=0,scaleMultiplier=1){
+  return this.place(source,u,v,relativeYaw+CLIFF_YAW_FIX,yOffset,scaleMultiplier);
  }
 
  placeProp(list,u,v,seed,scale){
@@ -92,38 +95,27 @@ export class TerrainFeatures {
  buildShowcaseFormation(){
   const S=this.world.terrain.moduleFormation.scale;
 
-  // Source geometry orientation:
-  // - Cliff_Terrain_Side_Top has its flat high ground on local -X.
-  // - Cliff_Terrain_Corner_Outer_2x2_Top therefore encloses high ground in
-  //   the -X/+Z quadrant. The whole showcase is laid out in that convention.
-  this.place(this.prototypes.outerTop,0,0,0);
+  // Preserve the 0.5.21 formation exactly. Only the cliff-family meshes are
+  // yaw-corrected 180 degrees; the terrain profile and gentle hill stay put.
+  this.placeCliff(this.prototypes.outerTop,0,0,0);
 
-  // East-facing cliff: high plateau is to local -U (left/west), low ground
-  // to +U. One-unit centres line up directly with the corner's +V edge.
-  for(const vUnit of [1,2,3,4,5]){
-   this.place(this.prototypes.sideTop,0,vUnit*S,0);
+  for(const vUnit of [-1.62,-2.62,-3.62,-4.62]){
+   this.placeCliff(this.prototypes.sideTop,0,vUnit*S,0);
+  }
+  this.placeCliff(this.prototypes.falloffEdge,0,-5.62*S,0);
+
+  for(const uUnit of [1.62,2.62,3.62]){
+   this.placeCliff(this.prototypes.sideTop,uUnit*S,0,Math.PI/2);
+  }
+  this.placeCliff(this.prototypes.falloffEdge,4.62*S,0,Math.PI/2);
+
+  for(const vUnit of [-1,-2,-3]){
+   this.place(this.prototypes.hillGentle,7.5*S,vUnit*S,-Math.PI/2);
   }
 
-  // South-facing cliff: rotating the same side by +90° makes its -X high
-  // side point toward +V. The first three grid units are deliberately left
-  // open for the authored gentle-hill ramp below.
-  for(const uUnit of [-4,-5]){
-   this.place(this.prototypes.sideTop,uUnit*S,0,Math.PI/2);
-  }
-
-  // The hill prefab is four units long from source Z=-.5 (low) to Z=3.5
-  // (high). Unrotated and centred at V=-3 it reaches low ground at -3.5 and
-  // the upper plateau at +.5. Three adjacent tiles create a real kit-built
-  // passage through the cliff instead of a procedural fake slope.
-  for(const uUnit of [-1,-2,-3]){
-   this.place(this.prototypes.hillGentle,uUnit*S,-3*S,0);
-  }
-
-  // Keep dressing sparse until the structural orientation is proven. These
-  // props sit outside the module seams and do not conceal bad alignment.
-  this.placeProp(this.prototypes.rocks,.85*S,4.6*S,3,1.15);
-  this.placeProp(this.prototypes.rocks,-5.25*S,-.8*S,5,1.05);
-  this.placeProp(this.prototypes.bushes,.75*S,5.1*S,7,1.35);
+  this.placeProp(this.prototypes.rocks,-.9*S,-5.35*S,3,1.2);
+  this.placeProp(this.prototypes.rocks,4.9*S,-.65*S,5,1.05);
+  this.placeProp(this.prototypes.bushes,.8*S,-5.55*S,7,1.4);
  }
 
  initialize(){
