@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.6.37",
-  "releaseId": "3d-v0.6.37-solid-cottage-gables",
+  "version": "3D-0.6.38",
+  "releaseId": "3d-v0.6.38-solid-upper-wedge",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
