@@ -4,17 +4,22 @@ export class IslandTerrain {
   this.radius = 135;
   this.seaLevel = -2;
   this.seabedLevel = -5.2;
+  this._moduleBaseHeight = null;
   this.moduleFormation = {
    cx: -20,
    cz: -18,
    yaw: .28,
    scale: 3.2,
-   plateauEastUnits: 4,
-   rampEndUnits: 8,
-   plateauNorthUnits: -6,
-   northFadeUnits: -10,
-   westCliffNorthUnits: -6,
-   southCliffEastUnits: 5
+   westCliffNorthUnits: -5.9,
+   southCliffEastUnits: 4.85,
+   plateauWestUnits: 0,
+   plateauEastUnits: 4.05,
+   plateauSouthUnits: -5.8,
+   plateauNorthUnits: 0,
+   rampHighUnits: 4.0,
+   rampLowUnits: 8.0,
+   rampSouthUnits: -3.55,
+   rampNorthUnits: -.45
   };
  }
 
@@ -99,8 +104,20 @@ export class IslandTerrain {
  }
 
  moduleFormationBaseHeight() {
+  if (this._moduleBaseHeight != null) return this._moduleBaseHeight;
   const f = this.moduleFormation;
-  return this.regionalHeightAt(f.cx, f.cz);
+  const S = f.scale;
+  const samples = [
+   [0, 0], [-1.5 * S, 1.2 * S], [5.5 * S, 1.2 * S],
+   [-1.5 * S, -6.2 * S], [8.2 * S, -4.2 * S], [8.2 * S, .8 * S]
+  ];
+  let highest = -Infinity;
+  for (const [u, v] of samples) {
+   const p = this.moduleFormationWorld(u, v);
+   highest = Math.max(highest, this.regionalHeightAt(p.x, p.z));
+  }
+  this._moduleBaseHeight = highest + .18;
+  return this._moduleBaseHeight;
  }
 
  gentleHillFactor(localZ) {
@@ -115,27 +132,50 @@ export class IslandTerrain {
   const f = this.moduleFormation;
   const S = f.scale;
   const { u, v } = this.moduleFormationLocal(x, z);
-  const cliffHalfWidth = .10 * S;
-  const westStep = this.smoothstep(-cliffHalfWidth, cliffHalfWidth, u);
-  const southStep = 1 - this.smoothstep(-cliffHalfWidth, cliffHalfWidth, v);
+  const seam = .11 * S;
+
+  // Explicit upper plateau: high ground is the +U / -V quadrant behind the
+  // grass caps. This is the same orientation used by the source cliff kit.
+  const westHigh = this.smoothstep(-seam, seam, u);
+  const northOfSouthEdge = 1 - this.smoothstep(-seam, seam, v);
+  const eastLimit = 1 - this.smoothstep((f.plateauEastUnits - .08) * S, (f.plateauEastUnits + .08) * S, u);
+  const southLimit = this.smoothstep((f.plateauSouthUnits - .10) * S, (f.plateauSouthUnits + .10) * S, v);
+  const plateau = westHigh * northOfSouthEdge * eastLimit * southLimit;
+
+  // The gentle-hill prefab rises from local Z=-.5 to Z=3.5. Rotated -90°,
+  // that means low ground at +U and high ground at -U. Mirror that exact
+  // source profile only inside the three-tile ramp corridor.
+  const rampV = this.smoothstep((f.rampSouthUnits - .12) * S, (f.rampSouthUnits + .12) * S, v)
+   * (1 - this.smoothstep((f.rampNorthUnits - .12) * S, (f.rampNorthUnits + .12) * S, v));
+  const rampU = this.smoothstep((f.rampHighUnits - .18) * S, f.rampHighUnits * S, u)
+   * (1 - this.smoothstep(f.rampLowUnits * S, (f.rampLowUnits + .18) * S, u));
   const rampLocalZ = 7.5 - u / S;
-  const eastRamp = this.gentleHillFactor(rampLocalZ);
-  const northFade = this.smoothstep(f.northFadeUnits * S, f.plateauNorthUnits * S, v);
-  const raised = westStep * southStep * eastRamp * northFade;
-  const uWeight = this.smoothstep(-2.3 * S, -1.5 * S, u) * (1 - this.smoothstep(8.4 * S, 9.3 * S, u));
-  const vWeight = this.smoothstep(-11.0 * S, -10.0 * S, v) * (1 - this.smoothstep(1.1 * S, 2.0 * S, v));
+  const ramp = rampV * rampU * this.gentleHillFactor(rampLocalZ);
+
+  const raised = Math.max(plateau, ramp);
+
+  // A controlled apron makes the showcase read as an elevated landform,
+  // never as a trench cut into the procedural island.
+  const uWeight = this.smoothstep(-2.15 * S, -1.25 * S, u)
+   * (1 - this.smoothstep(8.35 * S, 9.25 * S, u));
+  const vWeight = this.smoothstep(-6.75 * S, -5.95 * S, v)
+   * (1 - this.smoothstep(1.0 * S, 1.85 * S, v));
   const weight = uWeight * vWeight;
+
   const baseHeight = this.moduleFormationBaseHeight();
   const upperHeight = baseHeight + S;
   const targetHeight = baseHeight + S * raised;
-  return { u, v, weight, raised, baseHeight, upperHeight, targetHeight };
+
+  const westCliff = Math.abs(u) < .22 * S && v > f.westCliffNorthUnits * S && v < -.25 * S;
+  const southCliff = Math.abs(v) < .22 * S && u > .25 * S && u < f.southCliffEastUnits * S;
+
+  return { u, v, weight, raised, baseHeight, upperHeight, targetHeight, westCliff, southCliff, cliffSeam: westCliff || southCliff };
  }
 
  moduleFormationContains(x, z, margin = 0) {
-  const f = this.moduleFormation;
-  const S = f.scale;
+  const S = this.moduleFormation.scale;
   const { u, v } = this.moduleFormationLocal(x, z);
-  return u > -2.5 * S - margin && u < 9.5 * S + margin && v > -11.2 * S - margin && v < 2.2 * S + margin;
+  return u > -2.2 * S - margin && u < 9.3 * S + margin && v > -6.8 * S - margin && v < 1.9 * S + margin;
  }
 
  moduleFormationBlocksSegment(fromX, fromZ, toX, toZ) {
@@ -146,11 +186,11 @@ export class IslandTerrain {
 
   const crossedWest = (a.u <= 0 && b.u > 0) || (a.u >= 0 && b.u < 0);
   const westMidV = (a.v + b.v) * .5;
-  if (crossedWest && westMidV > f.westCliffNorthUnits * S && westMidV < -.35 * S) return true;
+  if (crossedWest && westMidV > f.westCliffNorthUnits * S && westMidV < -.25 * S) return true;
 
   const crossedSouth = (a.v <= 0 && b.v > 0) || (a.v >= 0 && b.v < 0);
   const southMidU = (a.u + b.u) * .5;
-  if (crossedSouth && southMidU > .35 * S && southMidU < f.southCliffEastUnits * S) return true;
+  if (crossedSouth && southMidU > .25 * S && southMidU < f.southCliffEastUnits * S) return true;
 
   return false;
  }
@@ -197,13 +237,16 @@ export class IslandTerrain {
    let c;
    if (d >= 1) c = seabed;
    else if (d > .955) c = soil;
-   else if (formation.weight > .18 && s > 1.25) c = stoneDark;
+   else if (formation.weight > .2 && formation.cliffSeam) c = stoneDark;
+   else if (formation.weight > .2 && s > 1.28) c = stone;
    else if (s > 1.18) c = stoneDark;
    else if (s > .84) c = stone;
    else if (y > 7.5) c = grassLight;
    else if (y < 1.1) c = grassDark;
    else c = grass;
-   colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+   colors[i * 3] = c.r;
+   colors[i * 3 + 1] = c.g;
+   colors[i * 3 + 2] = c.b;
   }
 
   geometry.setAttribute('color', new T.BufferAttribute(colors, 3));
@@ -215,7 +258,7 @@ export class IslandTerrain {
   const root = new T.Group();
   root.name = 'IslandWorld';
   const size = this.radius * 2.42;
-  const geo = new T.PlaneGeometry(size, size, 220, 220);
+  const geo = new T.PlaneGeometry(size, size, 240, 240);
   geo.rotateX(-Math.PI / 2);
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) p.setY(i, this.heightAt(p.getX(i), p.getZ(i)));
