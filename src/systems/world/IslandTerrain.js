@@ -5,8 +5,8 @@ export class IslandTerrain {
   this.seaLevel = -2;
   this.seabedLevel = -5.2;
 
-  // Shared formation data drives ground height, cliff geometry, ramp access,
-  // environment clearance and movement blocking.
+  // One formation definition remains the source of truth for terrain height,
+  // rock geometry, grassy rim, ramp access, environment clearance and movement.
   this.cliffFormation = {
    cx: -20,
    cz: -18,
@@ -165,7 +165,6 @@ export class IslandTerrain {
   };
  }
 
- // Compatibility boundary used by environment population.
  moduleFormationContains(x, z, margin = 0) {
   const f = this.cliffFormation;
   const p = this.cliffFormationProfileAt(x,z);
@@ -194,6 +193,10 @@ export class IslandTerrain {
   return [[f.uMin - .6,gapStart],[gapEnd,f.uMax + .6]];
  }
 
+ cliffWallActiveAtU(u) {
+  return this.cliffWallSpans().some(([a,b])=>u>=a && u<=b);
+ }
+
  rawHeightAt(x, z) {
   const d = this.islandMetric(x, z);
   if (d >= 1) return this.seabedLevel;
@@ -216,6 +219,12 @@ export class IslandTerrain {
   ) / e;
  }
 
+ grassSurfaceColorAt(y) {
+  if(y>7.5)return new this.T.Color(0x8cc65b);
+  if(y<1.1)return new this.T.Color(0x6da246);
+  return new this.T.Color(0x7fb64e);
+ }
+
  surfaceColorAt(x,y,z) {
   const T=this.T;
   const d=this.islandMetric(x,z);
@@ -224,36 +233,24 @@ export class IslandTerrain {
   if(d>=1)return new T.Color(0x64745e);
   if(d>.955)return new T.Color(0x786a4d);
 
-  // The playable plateau owns the grass surface. Keep the high side green
-  // right up to the lip; exposed stone belongs to the wall and low side.
   if(formation.weight>.15 && formation.isCliffSeam){
-   if(formation.signed>=-.03)return new T.Color(0x7fb64e);
+   if(formation.signed>=-.03)return this.grassSurfaceColorAt(y);
    return new T.Color(0x6d7773);
   }
   if(s>1.22 && !(formation.weight>.15 && formation.signed>0))return new T.Color(0x737d79);
   if(s>.88 && !(formation.weight>.15 && formation.signed>0))return new T.Color(0x71866b);
-  if(y>7.5)return new T.Color(0x8cc65b);
-  if(y<1.1)return new T.Color(0x6da246);
-  return new T.Color(0x7fb64e);
+  return this.grassSurfaceColorAt(y);
  }
 
  cliffRockColor(seed,row) {
   const T=this.T;
   const roll=this.hash(seed);
-  if(row===0 && roll>.88){
+  if(row===0 && roll>.90){
    const dirt=[0x766b55,0x6d6555,0x806f54];
    return new T.Color(dirt[Math.floor(this.hash(seed+3)*dirt.length)%dirt.length]);
   }
   const rocks=[0x5f6b68,0x697572,0x737e7a,0x7d8782,0x68736f,0x848d87];
   return new T.Color(rocks[Math.floor(this.hash(seed+7)*rocks.length)%rocks.length]);
- }
-
- cliffCapColor(seed,row) {
-  const T=this.T;
-  const grasses=[0x7fb64e,0x84bc51,0x79ae49,0x8ac258];
-  let index=Math.floor(this.hash(seed+row*17)*grasses.length)%grasses.length;
-  if(row>=3 && this.hash(seed+91)>.72)index=0;
-  return new T.Color(grasses[index]);
  }
 
  appendTriangle(positions,colors,indices,a,b,c,colorA,colorB=colorA,colorC=colorA) {
@@ -263,6 +260,22 @@ export class IslandTerrain {
   indices.push(base,base+1,base+2);
  }
 
+ cliffLipPoint(u) {
+  const edgeV=this.cliffEdgeV(u);
+  const anchor=this.cliffFormationWorld(u,edgeV+1.05);
+  const rim=this.cliffFormationWorld(u,edgeV+.015);
+  const y=this.heightAt(anchor.x,anchor.z)-.018;
+  return new this.T.Vector3(rim.x,y,rim.z);
+ }
+
+ cliffBasePoint(u) {
+  const edgeV=this.cliffEdgeV(u);
+  const groundSample=this.cliffFormationWorld(u,edgeV-1.8);
+  const base=this.cliffFormationWorld(u,edgeV-.34);
+  const y=this.heightAt(groundSample.x,groundSample.z)+.018;
+  return new this.T.Vector3(base.x,y,base.z);
+ }
+
  appendCliffSpan(positions,colors,indices,u0,u1,segments,seedOffset) {
   const T=this.T;
   const rows=[];
@@ -270,32 +283,34 @@ export class IslandTerrain {
   for(let i=0;i<=segments;i++){
    const t=i/segments;
    const u=u0+(u1-u0)*t;
-   const edgeV=this.cliffEdgeV(u);
-   const highWorld=this.cliffFormationWorld(u,edgeV+.72);
-   const lowWorld=this.cliffFormationWorld(u,edgeV-1.65);
-   const topY=this.heightAt(highWorld.x,highWorld.z)-.045;
-   const bottomY=this.heightAt(lowWorld.x,lowWorld.z)-.025;
-   const drop=Math.max(.15,topY-bottomY);
+   const lip=this.cliffLipPoint(u);
+   const base=this.cliffBasePoint(u);
+   const drop=Math.max(.15,lip.y-base.y);
    const ledgeBias=this.hash(seedOffset+i*47)>.66 ? .48 : 0;
    const rowFractions=[0,.20,.45,.72,1];
    const sample=[];
 
    for(let r=0;r<rowFractions.length;r++){
     const seed=seedOffset+i*53+r*13;
-    const jitterU=r===0||r===4?0:(this.hash(seed)-.5)*.48;
+    if(r===0){
+     sample.push(new T.Vector3(lip.x,lip.y-.018,lip.z));
+     continue;
+    }
+    if(r===4){
+     sample.push(new T.Vector3(base.x,base.y+.012,base.z));
+     continue;
+    }
+
+    const jitterU=(this.hash(seed)-.5)*.48;
     let outward;
-    if(r===0)outward=.02;
-    else if(r===1)outward=-(.20+this.hash(seed+1)*.42+ledgeBias*.35);
+    if(r===1)outward=-(.20+this.hash(seed+1)*.42+ledgeBias*.35);
     else if(r===2)outward=-(.08+this.hash(seed+2)*.48-ledgeBias*.22);
-    else if(r===3)outward=-(.30+this.hash(seed+3)*.58+ledgeBias*.18);
-    else outward=-(.08+this.hash(seed+4)*.24);
+    else outward=-(.30+this.hash(seed+3)*.58+ledgeBias*.18);
 
     const pu=u+jitterU;
     const pv=this.cliffEdgeV(pu)+outward;
     const w=this.cliffFormationWorld(pu,pv);
-    let y=topY-drop*rowFractions[r];
-    if(r>0&&r<4)y+=(this.hash(seed+5)-.5)*drop*.10;
-    if(r===4)y=bottomY+.015;
+    let y=lip.y-drop*rowFractions[r]+(this.hash(seed+5)-.5)*drop*.10;
     sample.push(new T.Vector3(w.x,y,w.z));
    }
    rows.push(sample);
@@ -317,57 +332,111 @@ export class IslandTerrain {
   }
  }
 
- appendCliffTopCapSpan(positions,colors,indices,u0,u1,segments,seedOffset) {
-  const T=this.T;
+ appendCliffTopCapSpan(positions,colors,indices,u0,u1,segments) {
   const rows=[];
-  // The cap is deliberately wide enough to cover the coarse height-field
-  // transition, then melts back into the ordinary plateau several metres in.
-  const inwardOffsets=[.02,.78,1.65,3.0,4.8];
+  const inwardOffsets=[.015,.45,1.0,1.8,2.8,4.1,5.8];
 
   for(let i=0;i<=segments;i++){
    const t=i/segments;
    const u=u0+(u1-u0)*t;
    const edgeV=this.cliffEdgeV(u);
-   const highSample=this.cliffFormationWorld(u,edgeV+.72);
-   const lipY=this.heightAt(highSample.x,highSample.z)-.035;
+   const lip=this.cliffLipPoint(u);
+   const anchorWorld=this.cliffFormationWorld(u,edgeV+1.15);
+   const anchorY=this.heightAt(anchorWorld.x,anchorWorld.z);
    const sample=[];
 
    for(let r=0;r<inwardOffsets.length;r++){
-    const pv=edgeV+inwardOffsets[r];
-    const w=this.cliffFormationWorld(u,pv);
-    let y;
-    if(r===0){
-     // This vertex is the actual grassy rim and shares the rock wall's top
-     // height, so there is no floating shelf or missing strip.
-     y=lipY+.012;
-    }else{
-     y=this.heightAt(w.x,w.z)+.025;
-    }
-    sample.push(new T.Vector3(w.x,y,w.z));
+    const offset=inwardOffsets[r];
+    const w=this.cliffFormationWorld(u,edgeV+offset);
+    const terrainY=this.heightAt(w.x,w.z);
+    const blend=this.smoothstep(.85,4.9,offset);
+    const heldTop=anchorY*(1-blend)+terrainY*blend;
+    const lift=.022*(1-this.smoothstep(.25,5.8,offset));
+    const y=r===0 ? lip.y+.018 : heldTop+lift;
+    sample.push({
+     p:new this.T.Vector3(w.x,y,w.z),
+     color:this.grassSurfaceColorAt(y)
+    });
    }
    rows.push(sample);
   }
 
   for(let i=0;i<segments;i++){
    for(let r=0;r<inwardOffsets.length-1;r++){
-    const a=rows[i][r];
-    const b=rows[i+1][r];
-    const c=rows[i+1][r+1];
-    const d=rows[i][r+1];
-    const c1=this.cliffCapColor(seedOffset+i*37+r*11,r);
-    const c2=this.cliffCapColor(seedOffset+i*37+r*11+5,r);
-
-    // Local +u x +v points down, so reverse the surface winding to keep the
-    // grassy top upward-facing and visible with normal back-face culling.
+    const a=rows[i][r],b=rows[i+1][r],c=rows[i+1][r+1],d=rows[i][r+1];
     if((i+r)%2===0){
-     this.appendTriangle(positions,colors,indices,a,c,b,c1,c2,c1);
-     this.appendTriangle(positions,colors,indices,a,d,c,c1,c1,c2);
+     this.appendTriangle(positions,colors,indices,a.p,c.p,b.p,a.color,c.color,b.color);
+     this.appendTriangle(positions,colors,indices,a.p,d.p,c.p,a.color,d.color,c.color);
     }else{
-     this.appendTriangle(positions,colors,indices,a,d,b,c1,c2,c1);
-     this.appendTriangle(positions,colors,indices,b,d,c,c1,c2,c2);
+     this.appendTriangle(positions,colors,indices,a.p,d.p,b.p,a.color,d.color,b.color);
+     this.appendTriangle(positions,colors,indices,b.p,d.p,c.p,b.color,d.color,c.color);
     }
    }
   }
+ }
+
+ appendCliffBaseApronSpan(positions,colors,indices,u0,u1,segments) {
+  const rows=[];
+  const outwardOffsets=[-.34,-.72,-1.25,-2.0,-2.85,-3.7];
+
+  for(let i=0;i<=segments;i++){
+   const t=i/segments;
+   const u=u0+(u1-u0)*t;
+   const edgeV=this.cliffEdgeV(u);
+   const base=this.cliffBasePoint(u);
+   const sample=[];
+
+   for(let r=0;r<outwardOffsets.length;r++){
+    const offset=outwardOffsets[r];
+    const w=this.cliffFormationWorld(u,edgeV+offset);
+    const terrainY=this.heightAt(w.x,w.z);
+    const blend=this.smoothstep(.34,3.35,Math.abs(offset));
+    const y=r===0 ? base.y+.006 : base.y*(1-blend)+terrainY*blend+.006*(1-blend);
+    sample.push({
+     p:new this.T.Vector3(w.x,y,w.z),
+     color:this.grassSurfaceColorAt(y)
+    });
+   }
+   rows.push(sample);
+  }
+
+  for(let i=0;i<segments;i++){
+   for(let r=0;r<outwardOffsets.length-1;r++){
+    const a=rows[i][r],b=rows[i+1][r],c=rows[i+1][r+1],d=rows[i][r+1];
+    if((i+r)%2===0){
+     this.appendTriangle(positions,colors,indices,a.p,b.p,c.p,a.color,b.color,c.color);
+     this.appendTriangle(positions,colors,indices,a.p,c.p,d.p,a.color,c.color,d.color);
+    }else{
+     this.appendTriangle(positions,colors,indices,a.p,b.p,d.p,a.color,b.color,d.color);
+     this.appendTriangle(positions,colors,indices,b.p,c.p,d.p,b.color,c.color,d.color);
+    }
+   }
+  }
+ }
+
+ shouldCutGroundQuad(points) {
+  let minSigned=Infinity;
+  let maxSigned=-Infinity;
+  let u=0;
+  let weight=0;
+  let ramp=0;
+  let drop=0;
+
+  for(const p of points){
+   const profile=this.cliffFormationProfileAt(p.x,p.z);
+   minSigned=Math.min(minSigned,profile.signed);
+   maxSigned=Math.max(maxSigned,profile.signed);
+   u+=profile.u;
+   weight=Math.max(weight,profile.weight);
+   ramp=Math.max(ramp,profile.rampMask);
+   drop=Math.max(drop,profile.drop);
+  }
+  u/=points.length;
+
+  if(!this.cliffWallActiveAtU(u) || weight<.10 || ramp>.48 || drop<1.0)return false;
+  const crosses=minSigned<=0 && maxSigned>=0;
+  const near=Math.min(Math.abs(minSigned),Math.abs(maxSigned))<1.35;
+  return crosses || near;
  }
 
  buildUnifiedLandGeometry() {
@@ -390,14 +459,24 @@ export class IslandTerrain {
    }
   }
 
-  // The X/Z grid is generated from south to north. Wind surface triangles
-  // counter-clockwise from above so normals point upward.
+  const vertexPoint=index=>new T.Vector3(
+   positions[index*3],
+   positions[index*3+1],
+   positions[index*3+2]
+  );
+
   for(let iz=0;iz<segments;iz++){
    for(let ix=0;ix<segments;ix++){
     const a=iz*row+ix;
     const b=a+1;
     const c=(iz+1)*row+ix+1;
     const d=(iz+1)*row+ix;
+
+    // Remove only the coarse height-field quads that cross the true cliff.
+    // The stitched cap, rock wall and lower apron replace this narrow strip,
+    // preventing green wedges from poking through the cliff or leaving holes.
+    if(this.shouldCutGroundQuad([vertexPoint(a),vertexPoint(b),vertexPoint(c),vertexPoint(d)]))continue;
+
     if((ix+iz)%2===0)indices.push(a,c,b,a,d,c);
     else indices.push(a,d,b,b,d,c);
    }
@@ -405,9 +484,10 @@ export class IslandTerrain {
 
   this.cliffWallSpans().forEach((span,index)=>{
    const length=Math.max(1,span[1]-span[0]);
-   const wallSegments=Math.max(10,Math.round(length/1.1));
+   const wallSegments=Math.max(16,Math.round(length/.72));
    this.appendCliffSpan(positions,colors,indices,span[0],span[1],wallSegments,1200+index*4000);
-   this.appendCliffTopCapSpan(positions,colors,indices,span[0],span[1],wallSegments,8200+index*4000);
+   this.appendCliffTopCapSpan(positions,colors,indices,span[0],span[1],wallSegments);
+   this.appendCliffBaseApronSpan(positions,colors,indices,span[0],span[1],wallSegments);
   });
 
   const geo=new T.BufferGeometry();
