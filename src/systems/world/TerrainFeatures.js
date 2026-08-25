@@ -5,7 +5,7 @@ export class TerrainFeatures{
   this.T=THREE;this.world=world;this.scene=scene;
   this.root=new THREE.Group();this.root.name='TerrainFeatures';
   this.loader=new OBJLoader();this.prototypes={};this.loading=null;
-  this.material=new THREE.MeshStandardMaterial({color:0x7d8681,roughness:.96,metalness:0,flatShading:true});
+  this.material=new THREE.MeshStandardMaterial({color:0x78827d,roughness:.96,metalness:0,flatShading:true});
  }
  async loadObj(path){
   const res=await fetch(path);if(!res.ok)throw new Error(`${path}: ${res.status}`);
@@ -27,23 +27,50 @@ export class TerrainFeatures{
   const o=source.clone(true);o.position.set(x,y,z);o.rotation.y=rotationY;o.scale.setScalar(scale);this.root.add(o);
  }
  buildShelfCliff(){
+  // Follow the actual authored shelf, but use each modular piece as a short
+  // cliff face rather than building one long freestanding wall.
   const angle=-.72,c=Math.cos(angle),s=Math.sin(angle);
-  const rotationY=Math.PI/2-angle;
-  const scale=2.25;
-  const segmentSpacing=scale*.96;
-  const segmentCount=27;
+  const tangentX=c,tangentZ=s,normalX=-s,normalZ=c;
+  const scale=3.4;
+  const spacing=scale*.92;
+  const sampleOffset=5.5;
+  const segmentCount=18;
+
   for(let i=0;i<segmentCount;i++){
-   const u=(i-(segmentCount-1)/2)*segmentSpacing;
-   const cx=-48+u*c,cz=-12+u*s;
-   const nx=-s,nz=c;
-   const high=this.world.heightAt(cx+nx*4,cz+nz*4);
-   const low=this.world.heightAt(cx-nx*4,cz-nz*4);
-   if(high-low<1.7)continue;
-   const baseY=low-.05;
-   const topY=Math.max(baseY+scale*.85,high-scale*1.12);
-   this.addPiece('base',cx,baseY,cz,rotationY,scale);
-   if(high-low>scale*1.85)this.addPiece('mid',cx,baseY+scale*.82,cz,rotationY,scale);
-   this.addPiece('top',cx,topY,cz,rotationY,scale);
+   const u=(i-(segmentCount-1)/2)*spacing;
+   const cx=-48+u*tangentX,cz=-12+u*tangentZ;
+   const sideA=this.world.heightAt(cx+normalX*sampleOffset,cz+normalZ*sampleOffset);
+   const sideB=this.world.heightAt(cx-normalX*sampleOffset,cz-normalZ*sampleOffset);
+   const delta=sideA-sideB;
+   const drop=Math.abs(delta);
+   if(drop<2.0)continue;
+
+   // Point the rock face toward the lower side and sink it into both surfaces.
+   const lowSign=delta>0?-1:1;
+   const lowX=cx+normalX*sampleOffset*lowSign;
+   const lowZ=cz+normalZ*sampleOffset*lowSign;
+   const highX=cx-normalX*sampleOffset*lowSign;
+   const highZ=cz-normalZ*sampleOffset*lowSign;
+   const low=this.world.heightAt(lowX,lowZ);
+   const high=this.world.heightAt(highX,highZ);
+   const faceX=cx+normalX*lowSign*1.35;
+   const faceZ=cz+normalZ*lowSign*1.35;
+   const rotationY=Math.atan2(normalX*lowSign,normalZ*lowSign)+Math.PI/2;
+
+   // The source top mesh is ~1.2 units high. Anchor its grassy lip just below
+   // the high terrain so the terrain hides the back half of the modular tile.
+   const topY=high-scale*1.13;
+   this.addPiece('top',faceX,topY,faceZ,rotationY,scale);
+
+   // Only stack extra stone where the terrain genuinely has enough vertical drop.
+   if(drop>scale*1.18){
+    const midY=topY-scale*.88;
+    this.addPiece('mid',faceX,midY,faceZ,rotationY,scale);
+   }
+   if(drop>scale*2.05){
+    const baseY=Math.max(low-scale*.15,topY-scale*1.72);
+    this.addPiece('base',faceX,baseY,faceZ,rotationY,scale);
+   }
   }
  }
  initialize(){
