@@ -22,7 +22,8 @@ export class IslandTerrain {
    rampBlend: 1.5,
    rampHalfDepth: 5.8,
    groundCutEndInset: 1.45,
-   groundCutHalfWidth: 1.0
+   groundCutHalfWidth: 1.0,
+   endClosureLength: 2.45
   };
  }
 
@@ -267,6 +268,11 @@ export class IslandTerrain {
   indices.push(base,base+1,base+2);
  }
 
+ appendTwoSidedTriangle(positions,colors,indices,a,b,c,colorA,colorB=colorA,colorC=colorA) {
+  this.appendTriangle(positions,colors,indices,a,b,c,colorA,colorB,colorC);
+  this.appendTriangle(positions,colors,indices,a,c,b,colorA,colorC,colorB);
+ }
+
  cliffLipPoint(u) {
   const edgeV=this.cliffEdgeV(u);
   const anchor=this.cliffFormationWorld(u,edgeV+1.05);
@@ -421,6 +427,43 @@ export class IslandTerrain {
   }
  }
 
+ appendCliffEndClosure(positions,colors,indices,u,direction,seedOffset) {
+  const T=this.T;
+  const f=this.cliffFormation;
+  const lip=this.cliffLipPoint(u);
+  const base=this.cliffBasePoint(u);
+  const mid=new T.Vector3(
+   (lip.x+base.x)*.5,
+   (lip.y+base.y)*.5,
+   (lip.z+base.z)*.5
+  );
+
+  // Reach into the terrain section that was deliberately left uncut. This
+  // turns each open wall endpoint into a tapered rock-to-slope wedge instead
+  // of leaving a vertical cross-section through which the ocean can be seen.
+  const outU=u+direction*f.endClosureLength;
+  const edgeV=this.cliffEdgeV(outU);
+  const highWorld=this.cliffFormationWorld(outU,edgeV+1.45);
+  const seamWorld=this.cliffFormationWorld(outU,edgeV-.12);
+  const lowWorld=this.cliffFormationWorld(outU,edgeV-2.15);
+  const highY=this.heightAt(highWorld.x,highWorld.z)+.028;
+  const seamY=this.heightAt(seamWorld.x,seamWorld.z)+.018;
+  const lowY=this.heightAt(lowWorld.x,lowWorld.z)+.028;
+  const high=new T.Vector3(highWorld.x,highY,highWorld.z);
+  const seam=new T.Vector3(seamWorld.x,seamY,seamWorld.z);
+  const low=new T.Vector3(lowWorld.x,lowY,lowWorld.z);
+
+  const rockA=this.cliffRockColor(seedOffset,1);
+  const rockB=this.cliffRockColor(seedOffset+17,2);
+  const grassHigh=this.grassSurfaceColorAt(highY);
+  const grassLow=this.grassSurfaceColorAt(lowY);
+
+  this.appendTwoSidedTriangle(positions,colors,indices,lip,high,seam,rockA,grassHigh,rockA);
+  this.appendTwoSidedTriangle(positions,colors,indices,lip,seam,mid,rockA,rockA,rockB);
+  this.appendTwoSidedTriangle(positions,colors,indices,mid,seam,low,rockB,rockA,grassLow);
+  this.appendTwoSidedTriangle(positions,colors,indices,mid,low,base,rockB,grassLow,rockB);
+ }
+
  shouldCutGroundQuad(points) {
   const f=this.cliffFormation;
   let minSigned=Infinity;
@@ -441,10 +484,6 @@ export class IslandTerrain {
   }
   u/=points.length;
 
-  // Keep the original height-field intact near every cliff-span endpoint.
-  // The rock/cap/apron ribbons overlap that retained ground, so the wall can
-  // flow into the natural side slope without exposing the ocean through an
-  // open cross-section.
   if(!this.cliffGroundCutActiveAtU(u) || weight<.10 || ramp>.48 || drop<1.0)return false;
   const crosses=minSigned<=0 && maxSigned>=0;
   const near=Math.min(Math.abs(minSigned),Math.abs(maxSigned))<f.groundCutHalfWidth;
@@ -497,6 +536,8 @@ export class IslandTerrain {
    this.appendCliffSpan(positions,colors,indices,span[0],span[1],wallSegments,1200+index*4000);
    this.appendCliffTopCapSpan(positions,colors,indices,span[0],span[1],wallSegments);
    this.appendCliffBaseApronSpan(positions,colors,indices,span[0],span[1],wallSegments);
+   this.appendCliffEndClosure(positions,colors,indices,span[0],-1,16000+index*2000);
+   this.appendCliffEndClosure(positions,colors,indices,span[1],1,17000+index*2000);
   });
 
   const geo=new T.BufferGeometry();
