@@ -1,4 +1,4 @@
-import { IslandTerrain } from './world/IslandTerrain.js?v=528';
+import { IslandTerrain } from './world/IslandTerrain.js?v=530';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=520';
 import { TerrainFeatures } from './world/TerrainFeatures.js?v=527';
 
@@ -46,12 +46,7 @@ export class WorldManager {
   const toDistance = Math.abs(to.signed);
   const clearance = this.cliffPlayerClearance;
 
-  // Keep the Ranger's body clear of the procedural rock volume. If an old
-  // cached build has already left the player inside this margin, movement away
-  // from the wall is still allowed so the character can recover naturally.
   if (toDistance < clearance && toDistance <= fromDistance + .001) return true;
-
-  // Never allow a single movement step to tunnel through the cliff boundary.
   if (from.signed * to.signed < 0) return true;
 
   return false;
