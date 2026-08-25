@@ -68,6 +68,9 @@ export class TerrainFeatures {
   const S=f.scale*scaleMultiplier;
   const p=this.toWorld(u,v);
   const o=source.clone(true);
+  // The terrain kit's walkable top is authored at local Y=1.2 while the
+  // lower floor is local Y=.2/0. Keeping the shared -0.2 unit datum makes
+  // every module meet the exact base/upper elevations used by IslandTerrain.
   o.position.set(p.x,this.world.terrain.moduleFormationBaseHeight()-.2*f.scale+yOffset,p.z);
   o.rotation.y=f.yaw+relativeYaw;
   o.scale.setScalar(S);
@@ -87,40 +90,39 @@ export class TerrainFeatures {
  }
 
  buildShowcaseFormation(){
-  const f=this.world.terrain.moduleFormation;
-  const S=f.scale;
+  const S=this.world.terrain.moduleFormation.scale;
 
-  // One authored grid formation: no per-piece stretching and no guessed
-  // placement. Every terrain module stays at the same kit scale.
+  // Source-space convention verified from the OBJ geometry:
+  // Cliff Side high ground is local +X, and the outer corner's high ground
+  // occupies +X/-Z. Our procedural terrace uses that same +U/-V quadrant.
   this.place(this.prototypes.outerTop,0,0,0);
 
-  // West cliff run. The corner occupies the first 2x2 footprint, so the
-  // straight one-unit modules continue on the pack grid behind it.
-  for(const unit of [-2,-3,-4,-5]){
-   this.place(this.prototypes.sideTop,0,unit*S,0);
+  // The outer 2x2 corner ends around -1.12 grid units. Starting the first
+  // one-unit straight section at -1.62 closes the old visible gap instead of
+  // placing pieces on arbitrary two-unit intervals.
+  for(const vUnit of [-1.62,-2.62,-3.62,-4.62]){
+   this.place(this.prototypes.sideTop,0,vUnit*S,0);
   }
-  this.place(this.prototypes.falloffEdge,0,-6*S,0);
+  this.place(this.prototypes.falloffEdge,0,-5.62*S,0);
 
-  // South cliff run turning ninety degrees from the same outer corner.
-  for(const unit of [2,3,4]){
-   this.place(this.prototypes.sideTop,unit*S,0,Math.PI/2);
+  // Same exact grid spacing after the 90° turn.
+  for(const uUnit of [1.62,2.62,3.62]){
+   this.place(this.prototypes.sideTop,uUnit*S,0,Math.PI/2);
   }
-  this.place(this.prototypes.falloffEdge,5*S,0,Math.PI/2);
+  this.place(this.prototypes.falloffEdge,4.62*S,0,Math.PI/2);
 
-  // Three adjacent intended-scale gentle hill tiles form the actual route
-  // between the lower ground and the upper plateau. Their original mesh is
-  // one grid unit wide and four units long, rising exactly one grid unit.
+  // Gentle-hill source mesh is four grid units long. At -90° its high end
+  // meets U=4 and its low end meets U=8; three adjacent copies form a clean
+  // walkable route instead of a broad procedural slope.
   for(const vUnit of [-1,-2,-3]){
    this.place(this.prototypes.hillGentle,7.5*S,vUnit*S,-Math.PI/2);
   }
 
-  // Small natural dressing only around the formation ends; it never drives
-  // terrain placement and remains visually separate from the module grid.
-  this.placeProp(this.prototypes.rocks,-1.15*S,-4.7*S,3,1.35);
-  this.placeProp(this.prototypes.rocks,1.1*S,.65*S,5,1.0);
-  this.placeProp(this.prototypes.rocks,5.4*S,-.9*S,7,1.15);
-  this.placeProp(this.prototypes.bushes,.85*S,-5.9*S,11,1.6);
-  this.placeProp(this.prototypes.bushes,4.4*S,-3.7*S,13,1.45);
+  // Minimal dressing at transition ends only. It must not hide alignment
+  // errors while we validate the terrain kit as structural geometry.
+  this.placeProp(this.prototypes.rocks,-.9*S,-5.35*S,3,1.2);
+  this.placeProp(this.prototypes.rocks,4.9*S,-.65*S,5,1.05);
+  this.placeProp(this.prototypes.bushes,.8*S,-5.55*S,7,1.4);
  }
 
  initialize(){
