@@ -20,7 +20,7 @@ export class TerrainFeatures{
   return fallback;
  }
  async loadObj(path,fallback=this.materials.rock){
-  const res=await fetch(path);if(!res.ok)throw new Error(`${path}: ${res.status}`);
+  const res=await fetch(path,{cache:'no-store'});if(!res.ok)throw new Error(`${path}: ${res.status}`);
   const obj=this.loader.parse(await res.text());
   obj.traverse(child=>{
    if(!child.isMesh)return;
