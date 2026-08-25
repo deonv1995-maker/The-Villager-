@@ -28,6 +28,12 @@ export class TerrainFeatures {
   return fallback;
  }
 
+ measureHorizontalPivot(obj){
+  const box=new this.T.Box3().setFromObject(obj);
+  const center=box.getCenter(new this.T.Vector3());
+  obj.userData.terrainPivot={x:center.x,z:center.z};
+ }
+
  async loadObj(path,fallback=this.materials.rock){
   const res=await fetch(path,{cache:'no-store'});
   if(!res.ok)throw new Error(`${path}: ${res.status}`);
@@ -40,6 +46,7 @@ export class TerrainFeatures {
    child.castShadow=true;
    child.receiveShadow=true;
   });
+  this.measureHorizontalPivot(obj);
   return obj;
  }
 
@@ -78,7 +85,38 @@ export class TerrainFeatures {
  }
 
  placeCliff(source,u,v,relativeYaw=0,yOffset=0,scaleMultiplier=1){
-  return this.place(source,u,v,relativeYaw+CLIFF_YAW_FIX,yOffset,scaleMultiplier);
+  if(!source)return null;
+
+  const f=this.world.terrain.moduleFormation;
+  const S=f.scale*scaleMultiplier;
+  const p=this.toWorld(u,v);
+  const originalYaw=f.yaw+relativeYaw;
+  const pivot=source.userData?.terrainPivot||{x:0,z:0};
+
+  // Preserve the exact 0.5.21 module footprint while turning the visible
+  // cliff mesh around. Rotating the raw OBJ root moved asymmetric pieces
+  // because their authored origins are not centered. The wrapper is placed
+  // at the original world-space footprint centre, then the visual is rotated
+  // 180 degrees around that centre instead of around the OBJ origin.
+  const pivotX=pivot.x*S;
+  const pivotZ=pivot.z*S;
+  const c=Math.cos(originalYaw);
+  const s=Math.sin(originalYaw);
+
+  const wrapper=new this.T.Group();
+  wrapper.position.set(
+   p.x+c*pivotX+s*pivotZ,
+   this.world.terrain.moduleFormationBaseHeight()-.2*f.scale+yOffset,
+   p.z-s*pivotX+c*pivotZ
+  );
+  wrapper.rotation.y=originalYaw+CLIFF_YAW_FIX;
+  wrapper.scale.setScalar(S);
+
+  const visual=source.clone(true);
+  visual.position.set(-pivot.x,0,-pivot.z);
+  wrapper.add(visual);
+  this.root.add(wrapper);
+  return wrapper;
  }
 
  placeProp(list,u,v,seed,scale){
@@ -95,8 +133,8 @@ export class TerrainFeatures {
  buildShowcaseFormation(){
   const S=this.world.terrain.moduleFormation.scale;
 
-  // Preserve the 0.5.21 formation exactly. Only the cliff-family meshes are
-  // yaw-corrected 180 degrees; the terrain profile and gentle hill stay put.
+  // Keep the 0.5.21 formation, ramp, spacing and terrain profile unchanged.
+  // Only cliff-family visuals receive the pivot-safe 180 degree correction.
   this.placeCliff(this.prototypes.outerTop,0,0,0);
 
   for(const vUnit of [-1.62,-2.62,-3.62,-4.62]){
