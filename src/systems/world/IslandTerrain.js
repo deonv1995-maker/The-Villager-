@@ -6,10 +6,10 @@ export class IslandTerrain {
   this.seabedLevel = -5.2;
   this.cliffSettings = {
    nearestSamples: 36,
-   transitionWidth: 1.05,
-   profileFadeDistance: 27,
-   snapDistance: 4.6,
-   materialBand: 4.2
+   transitionWidth: .78,
+   profileFadeDistance: 24,
+   snapDistance: 4.2,
+   materialBand: 2.65
   };
  }
 
@@ -98,9 +98,9 @@ export class IslandTerrain {
   const edgeDrop = (5.0 + 1.15 * Math.sin(t * Math.PI * 2.25 + 1.05)) * alongFade;
   const fadeDistance = this.cliffSettings.profileFadeDistance;
   const envelope = Math.exp(-Math.pow(Math.abs(nearest.signed) / fadeDistance, 4));
-  const transitionWidth = this.cliffSettings.transitionWidth * (1 + .16 * Math.sin(t * Math.PI * 5.1 + .4));
+  const transitionWidth = this.cliffSettings.transitionWidth * (1 + .12 * Math.sin(t * Math.PI * 5.1 + .4));
   const q = Math.max(0, Math.min(1, (nearest.signed / transitionWidth + 1) * .5));
-  const smooth = q * q * (3 - 2 * q);
+  const smooth = q * q * q * (q * (q * 6 - 15) + 10);
   const signedStep = smooth * 2 - 1;
   const offset = edgeDrop * .5 * envelope * signedStep;
   const active = alongFade > .035 && nearest.dist < fadeDistance * 1.15;
@@ -112,7 +112,7 @@ export class IslandTerrain {
    transitionWidth,
    offset,
    active,
-   inSeam: active && Math.abs(nearest.signed) < Math.max(1.8, transitionWidth * 1.9),
+   inSeam: active && Math.abs(nearest.signed) < Math.max(1.25, transitionWidth * 1.55),
    materialBand: this.cliffSettings.materialBand
   };
  }
@@ -214,7 +214,7 @@ export class IslandTerrain {
   const grass = new T.Color(0x7fb64e);
   const grassDark = new T.Color(0x6da246);
   const grassLight = new T.Color(0x8cc65b);
-  const lipGrass = new T.Color(0x739f45);
+  const lipGrass = new T.Color(0x769f48);
   const soil = new T.Color(0x7a6b4b);
   const stone = new T.Color(0x7d8681);
   const stoneDark = new T.Color(0x69736f);
@@ -228,21 +228,22 @@ export class IslandTerrain {
    const d = this.islandMetric(x, z);
    const s = this.slopeAt(x, z);
    const profile = this.cliffProfileAt(x, z);
+   const seamDistance = Math.abs(profile.signed);
    let c;
 
    if (d >= 1) c = seabed;
    else if (d > .955) c = soil;
-   else if (profile.active && Math.abs(profile.signed) < profile.transitionWidth * 1.35) c = stoneDark;
+   else if (profile.active && seamDistance < Math.max(.95, profile.transitionWidth * 1.08)) c = stoneDark;
    else if (profile.active && profile.signed > 0 && profile.signed < profile.materialBand) {
     const blend = 1 - Math.min(1, profile.signed / profile.materialBand);
-    scratch.copy(grass).lerp(lipGrass, blend * .8);
+    scratch.copy(grass).lerp(lipGrass, blend * .66);
     c = scratch;
    } else if (profile.active && profile.signed < 0 && -profile.signed < profile.materialBand) {
     const blend = 1 - Math.min(1, -profile.signed / profile.materialBand);
-    scratch.copy(grassDark).lerp(soil, blend * .72);
+    scratch.copy(grassDark).lerp(soil, blend * .52);
     c = scratch;
-   } else if (s > .98) c = stoneDark;
-   else if (s > .68) c = stone;
+   } else if (s > 1.18) c = stoneDark;
+   else if (s > .84) c = stone;
    else if (y > 7.5) c = grassLight;
    else if (y < 1.1) c = grassDark;
    else c = grass;
@@ -261,7 +262,7 @@ export class IslandTerrain {
   const root = new T.Group();
   root.name = 'IslandWorld';
   const size = this.radius * 2.42;
-  const geo = new T.PlaneGeometry(size, size, 192, 192);
+  const geo = new T.PlaneGeometry(size, size, 200, 200);
   geo.rotateX(-Math.PI / 2);
   const p = geo.attributes.position;
 
