@@ -1,10 +1,10 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.6.34",
-  "releaseId": "3d-v0.6.34-remove-legacy-camera-loop",
+  "version": "3D-0.6.36",
+  "releaseId": "3d-v0.6.36-shell-runtime-sync",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
   "assets": {"playerModel":"three-poc/assets/characters/villager-male.gltf"},
-  "shell": ["index.html","manifest.webmanifest","icons/icon.svg","icons/icon-maskable.svg","src/pwa-3d.js","three-poc/styles.css","three-poc/game-v020.js","three-poc/game-v013.js","three-poc/third-person-camera.js","three-poc/player-visual-glb.js","three-poc/player-anatomy.js","three-poc/environment-visuals.js","three-poc/world-collision.js","three-poc/village-path-network.js","three-poc/building-placement.js","three-poc/building-occlusion.js","three-poc/tree-occlusion.js","three-poc/material-library.js","three-poc/world-textures.js","three-poc/resource-expansion.js","three-poc/world-expansion.js","three-poc/world-chunk-manager.js","three-poc/foliage-system.js","three-poc/streamed-resource-system.js","three-poc/harvest-ui-coordinator.js"]
+  "shell": ["index.html","manifest.webmanifest","icons/icon.svg","icons/icon-maskable.svg","src/pwa-3d.js","three-poc/styles.css","three-poc/game-v020.js","three-poc/game-v013.js","three-poc/third-person-camera.js","three-poc/cottage-gable-panels.js","three-poc/player-visual-glb.js","three-poc/player-anatomy.js","three-poc/environment-visuals.js","three-poc/world-collision.js","three-poc/village-path-network.js","three-poc/building-placement.js","three-poc/building-occlusion.js","three-poc/tree-occlusion.js","three-poc/material-library.js","three-poc/world-textures.js","three-poc/resource-expansion.js","three-poc/world-expansion.js","three-poc/world-chunk-manager.js","three-poc/foliage-system.js","three-poc/streamed-resource-system.js","three-poc/harvest-ui-coordinator.js"]
 }
