@@ -23,26 +23,26 @@ export class GameBootstrap{
    this.playerController=new PlayerController(T,{player:this.player,input:this.input,cameraController:this.cameraController,world:this.world,groundOffset:0});
    this.cameraController.update(1/60);
    addEventListener('resize',()=>{this.camera.aspect=innerWidth/innerHeight;this.camera.updateProjectionMatrix();this.renderer.setSize(innerWidth,innerHeight);});
-   if(status)status.textContent='Clean rebuild 0.4.2 · stable core';
+   if(status)status.textContent='Clean rebuild 0.4.3 · stable core';
    const loop=()=>{requestAnimationFrame(loop);const dt=Math.min(this.clock.getDelta(),.05);this.playerController.update(dt);this.playerVisual.update(dt,this.playerController.moveAmount);this.cameraController.update(dt);this.renderer.render(this.scene,this.camera);};loop();
    setTimeout(()=>this.tryKayKitRanger(status),350);
-  }catch(err){console.error('[BOOT]',err);if(status){status.textContent='0.4.2 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}}
+  }catch(err){console.error('[BOOT]',err);if(status){status.textContent='0.4.3 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}}
  }
  async tryKayKitRanger(status){
   const T=this.THREE;
-  if(status)status.textContent='Clean rebuild 0.4.2 · loading Ranger…';
+  if(status)status.textContent='Clean rebuild 0.4.3 · loading Ranger…';
   try{
-   const {KayKitPlayerVisual}=await import('./player/KayKitPlayerVisual.js?v=402');
-   const ranger=new KayKitPlayerVisual(T,{modelUrl:`${KAYKIT_BASE}/Characters/gltf/Ranger.glb`,movementUrl:`${KAYKIT_BASE}/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb`,generalUrl:`${KAYKIT_BASE}/Animations/gltf/Rig_Medium/Rig_Medium_General.glb`,targetHeight:2.7});
+   const {KayKitPlayerVisual}=await import('./player/KayKitPlayerVisual.js?v=403');
+   const ranger=new KayKitPlayerVisual(T,{modelUrl:`${KAYKIT_BASE}/Characters/gltf/Ranger.glb`,movementUrl:`${KAYKIT_BASE}/Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb`,generalUrl:`${KAYKIT_BASE}/Animations/gltf/Rig_Medium/Rig_Medium_General.glb`,targetHeight:2.7,facingYaw:0});
    await ranger.load();
    const old=this.playerVisual;
    this.player.add(ranger.root);
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
-   if(status)status.textContent='Clean rebuild 0.4.2 · KayKit Ranger';
+   if(status)status.textContent='Clean rebuild 0.4.3 · KayKit Ranger';
   }catch(err){
    console.error('[KayKit Ranger optional load]',err);
-   if(status)status.textContent='Clean rebuild 0.4.2 · core OK · Ranger unavailable';
+   if(status)status.textContent='Clean rebuild 0.4.3 · core OK · Ranger unavailable';
   }
  }
 }
