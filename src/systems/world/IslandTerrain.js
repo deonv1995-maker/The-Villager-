@@ -20,7 +20,9 @@ export class IslandTerrain {
    rampCenter: 11.7,
    rampHalfWidth: 3.45,
    rampBlend: 1.5,
-   rampHalfDepth: 5.8
+   rampHalfDepth: 5.8,
+   groundCutEndInset: 1.45,
+   groundCutHalfWidth: 1.0
   };
  }
 
@@ -195,6 +197,11 @@ export class IslandTerrain {
 
  cliffWallActiveAtU(u) {
   return this.cliffWallSpans().some(([a,b])=>u>=a && u<=b);
+ }
+
+ cliffGroundCutActiveAtU(u) {
+  const inset=this.cliffFormation.groundCutEndInset;
+  return this.cliffWallSpans().some(([a,b])=>u>=a+inset && u<=b-inset);
  }
 
  rawHeightAt(x, z) {
@@ -415,6 +422,7 @@ export class IslandTerrain {
  }
 
  shouldCutGroundQuad(points) {
+  const f=this.cliffFormation;
   let minSigned=Infinity;
   let maxSigned=-Infinity;
   let u=0;
@@ -433,9 +441,13 @@ export class IslandTerrain {
   }
   u/=points.length;
 
-  if(!this.cliffWallActiveAtU(u) || weight<.10 || ramp>.48 || drop<1.0)return false;
+  // Keep the original height-field intact near every cliff-span endpoint.
+  // The rock/cap/apron ribbons overlap that retained ground, so the wall can
+  // flow into the natural side slope without exposing the ocean through an
+  // open cross-section.
+  if(!this.cliffGroundCutActiveAtU(u) || weight<.10 || ramp>.48 || drop<1.0)return false;
   const crosses=minSigned<=0 && maxSigned>=0;
-  const near=Math.min(Math.abs(minSigned),Math.abs(maxSigned))<1.35;
+  const near=Math.min(Math.abs(minSigned),Math.abs(maxSigned))<f.groundCutHalfWidth;
   return crosses || near;
  }
 
@@ -472,9 +484,6 @@ export class IslandTerrain {
     const c=(iz+1)*row+ix+1;
     const d=(iz+1)*row+ix;
 
-    // Remove only the coarse height-field quads that cross the true cliff.
-    // The stitched cap, rock wall and lower apron replace this narrow strip,
-    // preventing green wedges from poking through the cliff or leaving holes.
     if(this.shouldCutGroundQuad([vertexPoint(a),vertexPoint(b),vertexPoint(c),vertexPoint(d)]))continue;
 
     if((ix+iz)%2===0)indices.push(a,c,b,a,d,c);
