@@ -1,6 +1,6 @@
-import { IslandTerrain } from './world/IslandTerrain.js?v=522';
+import { IslandTerrain } from './world/IslandTerrain.js?v=523';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=520';
-import { TerrainFeatures } from './world/TerrainFeatures.js?v=522';
+import { TerrainFeatures } from './world/TerrainFeatures.js?v=523';
 
 export class WorldManager {
  constructor(THREE, scene) {
