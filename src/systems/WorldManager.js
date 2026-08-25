@@ -1,7 +1,12 @@
-import { IslandTerrain } from './world/IslandTerrain.js?v=509';
+import { IslandTerrain } from './world/IslandTerrain.js?v=510';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=507';
+import { TerrainFeatures } from './world/TerrainFeatures.js?v=510';
 export class WorldManager{
- constructor(THREE,scene){this.THREE=THREE;this.scene=scene;this.terrain=new IslandTerrain(THREE);this.environment=null;}
- initialize(){const root=this.terrain.create();this.scene.add(root);this.environment=new EnvironmentPopulation(this.THREE,{world:this,scene:this.scene});this.environment.initialize();}
+ constructor(THREE,scene){this.THREE=THREE;this.scene=scene;this.terrain=new IslandTerrain(THREE);this.environment=null;this.features=null;}
+ initialize(){
+  const root=this.terrain.create();this.scene.add(root);
+  this.features=new TerrainFeatures(this.THREE,{world:this,scene:this.scene});this.features.initialize();
+  this.environment=new EnvironmentPopulation(this.THREE,{world:this,scene:this.scene});this.environment.initialize();
+ }
  heightAt(x,z){return this.terrain.heightAt(x,z);}
 }
