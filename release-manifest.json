@@ -1,7 +1,7 @@
 {
   "schemaVersion": 5,
-  "version": "3D-0.6.33",
-  "releaseId": "3d-v0.6.33-final-camera-ownership",
+  "version": "3D-0.6.34",
+  "releaseId": "3d-v0.6.34-remove-legacy-camera-loop",
   "runtime": "threejs",
   "entry": "three-poc/game-v020.js",
   "pwa": "src/pwa-3d.js",
