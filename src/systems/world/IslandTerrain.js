@@ -10,16 +10,16 @@ export class IslandTerrain {
    cz: -18,
    yaw: .28,
    scale: 3.2,
-   westCliffNorthUnits: -5.9,
-   southCliffEastUnits: 4.85,
-   plateauWestUnits: 0,
-   plateauEastUnits: 4.05,
-   plateauSouthUnits: -5.8,
-   plateauNorthUnits: 0,
-   rampHighUnits: 4.0,
-   rampLowUnits: 8.0,
-   rampSouthUnits: -3.55,
-   rampNorthUnits: -.45
+   plateauWestUnits: -5.55,
+   plateauEastUnits: 0,
+   plateauSouthUnits: 0,
+   plateauNorthUnits: 5.55,
+   eastCliffNorthUnits: 5.55,
+   southCliffWestUnits: -5.55,
+   rampWestUnits: -3.55,
+   rampEastUnits: -.45,
+   rampLowUnits: -3.55,
+   rampHighUnits: .55
   };
  }
 
@@ -105,18 +105,19 @@ export class IslandTerrain {
 
  moduleFormationBaseHeight() {
   if (this._moduleBaseHeight != null) return this._moduleBaseHeight;
-  const f = this.moduleFormation;
-  const S = f.scale;
-  const samples = [
-   [0, 0], [-1.5 * S, 1.2 * S], [5.5 * S, 1.2 * S],
-   [-1.5 * S, -6.2 * S], [8.2 * S, -4.2 * S], [8.2 * S, .8 * S]
-  ];
+  const S = this.moduleFormation.scale;
   let highest = -Infinity;
-  for (const [u, v] of samples) {
-   const p = this.moduleFormationWorld(u, v);
-   highest = Math.max(highest, this.regionalHeightAt(p.x, p.z));
+
+  // Build the showcase on a flat apron that is guaranteed to sit above the
+  // natural terrain beneath its entire footprint. This prevents a nearby
+  // procedural hill from making the authored raised terrace read as a pit.
+  for (let u = -6.5; u <= 1.5; u += 1) {
+   for (let v = -4.5; v <= 6.5; v += 1) {
+    const p = this.moduleFormationWorld(u * S, v * S);
+    highest = Math.max(highest, this.regionalHeightAt(p.x, p.z));
+   }
   }
-  this._moduleBaseHeight = highest + .18;
+  this._moduleBaseHeight = highest + .28;
   return this._moduleBaseHeight;
  }
 
@@ -132,50 +133,54 @@ export class IslandTerrain {
   const f = this.moduleFormation;
   const S = f.scale;
   const { u, v } = this.moduleFormationLocal(x, z);
-  const seam = .11 * S;
+  const seam = .08 * S;
 
-  // Explicit upper plateau: high ground is the +U / -V quadrant behind the
-  // grass caps. This is the same orientation used by the source cliff kit.
-  const westHigh = this.smoothstep(-seam, seam, u);
-  const northOfSouthEdge = 1 - this.smoothstep(-seam, seam, v);
-  const eastLimit = 1 - this.smoothstep((f.plateauEastUnits - .08) * S, (f.plateauEastUnits + .08) * S, u);
-  const southLimit = this.smoothstep((f.plateauSouthUnits - .10) * S, (f.plateauSouthUnits + .10) * S, v);
-  const plateau = westHigh * northOfSouthEdge * eastLimit * southLimit;
+  // Verified from Cliff_Terrain_Side_Top.obj: the flat upper grass edge is
+  // on local -X, while the rock face projects toward +X. Therefore the
+  // outer-corner plateau belongs in the -U / +V quadrant, not +U / -V.
+  const highWestOfEastEdge = 1 - this.smoothstep(-seam, seam, u);
+  const highNorthOfSouthEdge = this.smoothstep(-seam, seam, v);
+  const westLimit = this.smoothstep((f.plateauWestUnits - .10) * S, (f.plateauWestUnits + .10) * S, u);
+  const northLimit = 1 - this.smoothstep((f.plateauNorthUnits - .10) * S, (f.plateauNorthUnits + .10) * S, v);
+  const plateau = highWestOfEastEdge * highNorthOfSouthEdge * westLimit * northLimit;
 
-  // The gentle-hill prefab rises from local Z=-.5 to Z=3.5. Rotated -90°,
-  // that means low ground at +U and high ground at -U. Mirror that exact
-  // source profile only inside the three-tile ramp corridor.
-  const rampV = this.smoothstep((f.rampSouthUnits - .12) * S, (f.rampSouthUnits + .12) * S, v)
-   * (1 - this.smoothstep((f.rampNorthUnits - .12) * S, (f.rampNorthUnits + .12) * S, v));
-  const rampU = this.smoothstep((f.rampHighUnits - .18) * S, f.rampHighUnits * S, u)
-   * (1 - this.smoothstep(f.rampLowUnits * S, (f.rampLowUnits + .18) * S, u));
-  const rampLocalZ = 7.5 - u / S;
-  const ramp = rampV * rampU * this.gentleHillFactor(rampLocalZ);
+  // Hilly_Terrain_Hill_Side_Gentle rises from source Z=-.5 to Z=3.5.
+  // Unrotated, that is exactly the direction we need here: low at -V and
+  // high at +V, opening a walkable route through the south cliff.
+  const rampU = this.smoothstep((f.rampWestUnits - .10) * S, (f.rampWestUnits + .10) * S, u)
+   * (1 - this.smoothstep((f.rampEastUnits - .10) * S, (f.rampEastUnits + .10) * S, u));
+  const rampV = this.smoothstep((f.rampLowUnits - .10) * S, f.rampLowUnits * S, v)
+   * (1 - this.smoothstep(f.rampHighUnits * S, (f.rampHighUnits + .10) * S, v));
+  const rampLocalZ = v / S + 3.0;
+  const ramp = rampU * rampV * this.gentleHillFactor(rampLocalZ);
 
   const raised = Math.max(plateau, ramp);
 
-  // A controlled apron makes the showcase read as an elevated landform,
-  // never as a trench cut into the procedural island.
-  const uWeight = this.smoothstep(-2.15 * S, -1.25 * S, u)
-   * (1 - this.smoothstep(8.35 * S, 9.25 * S, u));
-  const vWeight = this.smoothstep(-6.75 * S, -5.95 * S, v)
-   * (1 - this.smoothstep(1.0 * S, 1.85 * S, v));
+  // Broad lower apron around the authored modules. It fades back into the
+  // procedural island outside the showcase, while the actual formation area
+  // remains exactly at the kit's lower datum or one kit unit above it.
+  const uWeight = this.smoothstep(-6.55 * S, -5.75 * S, u)
+   * (1 - this.smoothstep(.75 * S, 1.55 * S, u));
+  const vWeight = this.smoothstep(-4.55 * S, -3.75 * S, v)
+   * (1 - this.smoothstep(5.75 * S, 6.55 * S, v));
   const weight = uWeight * vWeight;
 
   const baseHeight = this.moduleFormationBaseHeight();
   const upperHeight = baseHeight + S;
   const targetHeight = baseHeight + S * raised;
 
-  const westCliff = Math.abs(u) < .22 * S && v > f.westCliffNorthUnits * S && v < -.25 * S;
-  const southCliff = Math.abs(v) < .22 * S && u > .25 * S && u < f.southCliffEastUnits * S;
+  const eastCliff = Math.abs(u) < .18 * S && v > .45 * S && v < f.eastCliffNorthUnits * S;
+  const southCliffWest = Math.abs(v) < .18 * S && u > f.southCliffWestUnits * S && u < f.rampWestUnits * S;
+  const southCliffCorner = Math.abs(v) < .18 * S && u > f.rampEastUnits * S && u < -.35 * S;
+  const cliffSeam = eastCliff || southCliffWest || southCliffCorner;
 
-  return { u, v, weight, raised, baseHeight, upperHeight, targetHeight, westCliff, southCliff, cliffSeam: westCliff || southCliff };
+  return {u,v,weight,raised,baseHeight,upperHeight,targetHeight,eastCliff,southCliffWest,southCliffCorner,cliffSeam};
  }
 
  moduleFormationContains(x, z, margin = 0) {
   const S = this.moduleFormation.scale;
   const { u, v } = this.moduleFormationLocal(x, z);
-  return u > -2.2 * S - margin && u < 9.3 * S + margin && v > -6.8 * S - margin && v < 1.9 * S + margin;
+  return u > -6.6 * S - margin && u < 1.6 * S + margin && v > -4.6 * S - margin && v < 6.6 * S + margin;
  }
 
  moduleFormationBlocksSegment(fromX, fromZ, toX, toZ) {
@@ -184,13 +189,15 @@ export class IslandTerrain {
   const a = this.moduleFormationLocal(fromX, fromZ);
   const b = this.moduleFormationLocal(toX, toZ);
 
-  const crossedWest = (a.u <= 0 && b.u > 0) || (a.u >= 0 && b.u < 0);
-  const westMidV = (a.v + b.v) * .5;
-  if (crossedWest && westMidV > f.westCliffNorthUnits * S && westMidV < -.25 * S) return true;
+  const crossedEast = (a.u <= 0 && b.u > 0) || (a.u >= 0 && b.u < 0);
+  const eastMidV = (a.v + b.v) * .5;
+  if (crossedEast && eastMidV > .45 * S && eastMidV < f.eastCliffNorthUnits * S) return true;
 
   const crossedSouth = (a.v <= 0 && b.v > 0) || (a.v >= 0 && b.v < 0);
   const southMidU = (a.u + b.u) * .5;
-  if (crossedSouth && southMidU > .25 * S && southMidU < f.southCliffEastUnits * S) return true;
+  const onWestCliff = southMidU > f.southCliffWestUnits * S && southMidU < f.rampWestUnits * S;
+  const onCornerCliff = southMidU > f.rampEastUnits * S && southMidU < -.35 * S;
+  if (crossedSouth && (onWestCliff || onCornerCliff)) return true;
 
   return false;
  }
