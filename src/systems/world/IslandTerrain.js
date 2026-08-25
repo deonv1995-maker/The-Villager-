@@ -324,14 +324,18 @@ export class IslandTerrain {
    }
   }
 
+  // The X/Z grid is generated from south to north. The previous winding
+  // pointed every horizontal triangle downward, so Three.js back-face culling
+  // hid the entire ground when viewed from above. Wind surface triangles
+  // counter-clockwise from above so normals point upward.
   for(let iz=0;iz<segments;iz++){
    for(let ix=0;ix<segments;ix++){
     const a=iz*row+ix;
     const b=a+1;
     const c=(iz+1)*row+ix+1;
     const d=(iz+1)*row+ix;
-    if((ix+iz)%2===0)indices.push(a,b,c,a,c,d);
-    else indices.push(a,b,d,b,c,d);
+    if((ix+iz)%2===0)indices.push(a,c,b,a,d,c);
+    else indices.push(a,d,b,b,d,c);
    }
   }
 
