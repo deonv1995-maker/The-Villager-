@@ -30,6 +30,12 @@ export class EnvironmentPopulation {
  }
  rand(i){const x=Math.sin(i*12.9898+this.seed)*43758.5453;return x-Math.floor(x);}
  slopeAt(x,z){const e=.8,h=this.world.heightAt(x,z);return Math.max(Math.abs(this.world.heightAt(x+e,z)-h),Math.abs(this.world.heightAt(x,z+e)-h))/e;}
+ cliffClearance(x,z){
+  const terrain=this.world.terrain;
+  if(!terrain?.cliffProfileAt)return {blocked:false,profile:null};
+  const profile=terrain.cliffProfileAt(x,z);
+  return {blocked:profile.active&&Math.abs(profile.signed)<3.2,profile};
+ }
  async loadObj(path,type){
   const res=await fetch(path);if(!res.ok)throw new Error(`${path}: ${res.status}`);
   const obj=this.loader.parse(await res.text());
@@ -108,7 +114,8 @@ export class EnvironmentPopulation {
    const a=this.rand(i*13+2)*Math.PI*2;
    const r=24+Math.sqrt(this.rand(i*13+3))*106;
    const x=Math.cos(a)*r,z=Math.sin(a)*r,y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
-   if(y<.1||s<.22||s>.9||Math.hypot(x,z)<15)continue;
+   const clearance=this.cliffClearance(x,z);
+   if(y<.1||s<.22||s>.9||Math.hypot(x,z)<15||clearance.blocked)continue;
    if(this.rand(i*13+4)>.58)continue;
    if(this.placeObject('rock',x,y-.08,z,startIndex+i,1.18+.55*Math.min(s,.7)))placed++;
   }
@@ -119,7 +126,8 @@ export class EnvironmentPopulation {
   for(let i=0;i<1100;i++){
    const a=this.rand(i*4)*Math.PI*2,r=13+Math.sqrt(this.rand(i*4+1))*116;
    const x=Math.cos(a)*r,z=Math.sin(a)*r,y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
-   if(y<.12||s>.78||Math.hypot(x,z)<12)continue;
+   const clearance=this.cliffClearance(x,z);
+   if(y<.12||s>.78||Math.hypot(x,z)<12||clearance.blocked)continue;
    const forestBias=Math.max(0,1-r/125),roll=this.rand(i*4+2);let type;
    if(s>.33){type='rock';}
    else if(roll<(.44+.18*forestBias)){type=this.rand(i*17+11)<.055?'bareTree':'tree';}
