@@ -1,6 +1,6 @@
 import { IslandTerrain } from './world/IslandTerrain.js?v=516';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=515';
-import { TerrainFeatures } from './world/TerrainFeatures.js?v=518';
+import { TerrainFeatures } from './world/TerrainFeatures.js?v=519';
 
 export class WorldManager {
  constructor(THREE, scene) {
@@ -9,8 +9,9 @@ export class WorldManager {
   this.terrain = new IslandTerrain(THREE);
   this.environment = null;
   this.features = null;
-  this.maxStepUp = .62;
-  this.steepSlopeLimit = 1.28;
+  this.maxStepUp = .68;
+  this.cliffBarrierHalfWidth = 1.7;
+  this.cliffSlopeLimit = .58;
  }
 
  initialize() {
@@ -26,24 +27,47 @@ export class WorldManager {
   return this.terrain.heightAt(x, z);
  }
 
- surfaceHeightAt(x, z, currentY = null) {
-  const terrainY = this.terrain.heightAt(x, z);
-  if (!this.features?.walkableHeightAt) return terrainY;
-  return this.features.walkableHeightAt(x, z, currentY, terrainY);
+ surfaceHeightAt(x, z) {
+  // The procedural terrain remains the single walkable-ground authority.
+  // Cliff prefabs are fitted over this surface visually instead of creating
+  // a second competing height source.
+  return this.terrain.heightAt(x, z);
+ }
+
+ cliffMovementProfile(x, z) {
+  const nearest = this.terrain.nearestCliffFrame(x, z);
+  const feature = this.terrain.cliffFeatureProfile(nearest.t);
+  const dx = x - feature.x;
+  const dz = z - feature.z;
+  return {
+   signed: dx * feature.nx + dz * feature.nz,
+   distance: nearest.dist,
+   t: nearest.t,
+   drop: feature.drop,
+   active: feature.drop > 1.15 && nearest.t > .015 && nearest.t < .985
+  };
  }
 
  resolveMovement(fromX, fromZ, currentY, toX, toZ) {
-  const ground = this.surfaceHeightAt(toX, toZ, currentY);
+  const ground = this.surfaceHeightAt(toX, toZ);
   const rise = ground - currentY;
-  const onWalkable = this.features?.hasReachableWalkableAt?.(toX, toZ, currentY) || false;
 
   if (rise > this.maxStepUp) {
    return { allowed: false, ground, reason: 'step' };
   }
 
-  const slope = this.terrain.slopeAt(toX, toZ);
-  if (!onWalkable && slope > this.steepSlopeLimit && rise > .10) {
-   return { allowed: false, ground, reason: 'steep' };
+  const from = this.cliffMovementProfile(fromX, fromZ);
+  const to = this.cliffMovementProfile(toX, toZ);
+  const deltaNormal = to.signed - from.signed;
+  const enteringBarrier = Math.abs(to.signed) < this.cliffBarrierHalfWidth && Math.abs(to.signed) <= Math.abs(from.signed) + .03;
+
+  if (
+   to.active &&
+   enteringBarrier &&
+   Math.abs(deltaNormal) > .012 &&
+   this.terrain.slopeAt(toX, toZ) > this.cliffSlopeLimit
+  ) {
+   return { allowed: false, ground, reason: 'cliff' };
   }
 
   return { allowed: true, ground, reason: null };
