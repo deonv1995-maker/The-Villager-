@@ -5,23 +5,23 @@ export class IslandTerrain {
   this.seaLevel = -2;
   this.seabedLevel = -5.2;
 
-  // One shared terrain definition drives the visible ground, procedural rock
-  // wall, environment clearance and player blocking. No prefab placement data
-  // is used here.
+  // Shared formation data drives ground height, cliff geometry, ramp access,
+  // environment clearance and movement blocking. The cliff is no longer a
+  // separate prefab or a separate render mesh.
   this.cliffFormation = {
    cx: -20,
    cz: -18,
    yaw: .24,
    uMin: -19,
    uMax: 20,
-   drop: 5.15,
-   cliffSeam: .48,
-   highDepth: 13.5,
-   lowDepth: 9.5,
-   rampCenter: 12.4,
-   rampHalfWidth: 3.25,
-   rampBlend: 1.35,
-   rampHalfDepth: 5.4
+   drop: 5.05,
+   cliffSeam: .12,
+   highDepth: 15,
+   lowDepth: 10.5,
+   rampCenter: 11.7,
+   rampHalfWidth: 3.45,
+   rampBlend: 1.5,
+   rampHalfDepth: 5.8
   };
  }
 
@@ -29,6 +29,11 @@ export class IslandTerrain {
   if (a === b) return x >= b ? 1 : 0;
   const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
   return t * t * (3 - 2 * t);
+ }
+
+ hash(n) {
+  const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
  }
 
  angularDistance(a, b) {
@@ -106,11 +111,29 @@ export class IslandTerrain {
  }
 
  cliffEdgeV(u) {
-  const broad = Math.sin((u + 4.5) * .18) * 2.15;
-  const detail = Math.sin((u - 1.2) * .43) * .82 + Math.cos((u + 8) * .29) * .42;
-  const shoulder = 1.45 * Math.exp(-Math.pow((u + 10.2) / 3.7, 2));
-  const bite = -1.25 * Math.exp(-Math.pow((u - 3.8) / 2.9, 2));
-  return -1.1 + broad + detail + shoulder + bite + u * .025;
+  const broad = Math.sin((u + 4.4) * .17) * 2.3;
+  const secondary = Math.sin((u - 1.1) * .39) * .92;
+  const detail = Math.cos((u + 7.6) * .61) * .34 + Math.sin(u * .83) * .20;
+  const shoulderA = 1.55 * Math.exp(-Math.pow((u + 10.4) / 3.6, 2));
+  const shoulderB = .85 * Math.exp(-Math.pow((u - 6.2) / 2.4, 2));
+  const bite = -1.45 * Math.exp(-Math.pow((u - 2.9) / 2.7, 2));
+  return -1.05 + broad + secondary + detail + shoulderA + shoulderB + bite + u * .018;
+ }
+
+ cliffEndFade(u) {
+  const f = this.cliffFormation;
+  return this.smoothstep(f.uMin - 1.6, f.uMin + 2.5, u)
+   * (1 - this.smoothstep(f.uMax - 2.5, f.uMax + 1.6, u));
+ }
+
+ cliffDropAt(u) {
+  const f = this.cliffFormation;
+  const variation = .90
+   + Math.sin((u + 3.5) * .19) * .10
+   + Math.cos((u - 5.0) * .37) * .07
+   + .16 * Math.exp(-Math.pow((u + 8.5) / 4.0, 2))
+   - .12 * Math.exp(-Math.pow((u - 4.2) / 3.2, 2));
+  return f.drop * Math.max(.62, variation) * this.cliffEndFade(u);
  }
 
  cliffRampMask(u) {
@@ -134,16 +157,16 @@ export class IslandTerrain {
   const vWeight = this.smoothstep(-f.lowDepth - 3.0, -f.lowDepth, signed)
    * (1 - this.smoothstep(f.highDepth, f.highDepth + 3.0, signed));
   const weight = uWeight * vWeight;
-  const raised = highFactor * weight;
+  const drop = this.cliffDropAt(u);
+  const rise = drop * highFactor * weight;
 
   return {
-   u,v,edgeV,signed,rampMask,transitionHalfWidth,weight,raised,
-   isCliffSeam: Math.abs(signed) < Math.max(.72,transitionHalfWidth*1.25) && rampMask < .35
+   u,v,edgeV,signed,rampMask,transitionHalfWidth,weight,drop,rise,
+   isCliffSeam: Math.abs(signed) < Math.max(.58,transitionHalfWidth*1.15) && rampMask < .35
   };
  }
 
- // Compatibility boundary used by environment population. It now describes
- // the procedural formation rather than the retired modular prefab showcase.
+ // Compatibility boundary used by environment population.
  moduleFormationContains(x, z, margin = 0) {
   const f = this.cliffFormation;
   const p = this.cliffFormationProfileAt(x,z);
@@ -159,16 +182,17 @@ export class IslandTerrain {
   const sb = b.v - this.cliffEdgeV(b.u);
   if (sa === 0 || sb === 0 || sa * sb > 0) return false;
   const midU = (a.u + b.u) * .5;
-  if (midU < f.uMin || midU > f.uMax) return false;
+  if (midU < f.uMin - .7 || midU > f.uMax + .7) return false;
   if (this.cliffRampMask(midU) > .32) return false;
+  if (this.cliffDropAt(midU) < 1.15) return false;
   return true;
  }
 
  cliffWallSpans() {
   const f = this.cliffFormation;
-  const gapStart = f.rampCenter - f.rampHalfWidth - f.rampBlend * .8;
-  const gapEnd = f.rampCenter + f.rampHalfWidth + f.rampBlend * .8;
-  return [[f.uMin + .5,gapStart],[gapEnd,f.uMax - .4]];
+  const gapStart = f.rampCenter - f.rampHalfWidth - f.rampBlend * .82;
+  const gapEnd = f.rampCenter + f.rampHalfWidth + f.rampBlend * .82;
+  return [[f.uMin - .6,gapStart],[gapEnd,f.uMax + .6]];
  }
 
  rawHeightAt(x, z) {
@@ -176,7 +200,7 @@ export class IslandTerrain {
   if (d >= 1) return this.seabedLevel;
   const natural = this.regionalHeightAt(x, z);
   const formation = this.cliffFormationProfileAt(x,z);
-  const interior = natural + this.cliffFormation.drop * formation.raised;
+  const interior = natural + formation.rise;
   return this.coastHeight(x, z, interior);
  }
 
@@ -193,63 +217,159 @@ export class IslandTerrain {
   ) / e;
  }
 
- createLandMaterial(geometry) {
-  const T = this.T;
-  const p = geometry.attributes.position;
-  const colors = new Float32Array(p.count * 3);
-  const grass = new T.Color(0x7fb64e);
-  const grassDark = new T.Color(0x6da246);
-  const grassLight = new T.Color(0x8cc65b);
-  const soil = new T.Color(0x786a4d);
-  const stone = new T.Color(0x7d8681);
-  const stoneDark = new T.Color(0x69736f);
-  const seabed = new T.Color(0x64745e);
+ surfaceColorAt(x,y,z) {
+  const T=this.T;
+  const d=this.islandMetric(x,z);
+  const s=this.slopeAt(x,z);
+  const formation=this.cliffFormationProfileAt(x,z);
+  if(d>=1)return new T.Color(0x64745e);
+  if(d>.955)return new T.Color(0x786a4d);
+  if(formation.weight>.15 && formation.isCliffSeam)return new T.Color(0x6d7773);
+  if(s>1.22)return new T.Color(0x737d79);
+  if(s>.88)return new T.Color(0x71866b);
+  if(y>7.5)return new T.Color(0x8cc65b);
+  if(y<1.1)return new T.Color(0x6da246);
+  return new T.Color(0x7fb64e);
+ }
 
-  for (let i = 0; i < p.count; i++) {
-   const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-   const d = this.islandMetric(x, z);
-   const s = this.slopeAt(x, z);
-   const formation = this.cliffFormationProfileAt(x,z);
-   let c;
-   if (d >= 1) c = seabed;
-   else if (d > .955) c = soil;
-   else if (formation.weight > .15 && formation.isCliffSeam) c = stoneDark;
-   else if (s > 1.15) c = stone;
-   else if (y > 7.5) c = grassLight;
-   else if (y < 1.1) c = grassDark;
-   else c = grass;
-   colors[i * 3] = c.r;
-   colors[i * 3 + 1] = c.g;
-   colors[i * 3 + 2] = c.b;
+ cliffRockColor(seed,row) {
+  const T=this.T;
+  const roll=this.hash(seed);
+  if(row===0 && roll>.88){
+   const dirt=[0x766b55,0x6d6555,0x806f54];
+   return new T.Color(dirt[Math.floor(this.hash(seed+3)*dirt.length)%dirt.length]);
+  }
+  const rocks=[0x5f6b68,0x697572,0x737e7a,0x7d8782,0x68736f,0x848d87];
+  return new T.Color(rocks[Math.floor(this.hash(seed+7)*rocks.length)%rocks.length]);
+ }
+
+ appendTriangle(positions,colors,indices,a,b,c,colorA,colorB=colorA,colorC=colorA) {
+  const base=positions.length/3;
+  for(const p of [a,b,c])positions.push(p.x,p.y,p.z);
+  for(const color of [colorA,colorB,colorC])colors.push(color.r,color.g,color.b);
+  indices.push(base,base+1,base+2);
+ }
+
+ appendCliffSpan(positions,colors,indices,u0,u1,segments,seedOffset) {
+  const T=this.T;
+  const rows=[];
+
+  for(let i=0;i<=segments;i++){
+   const t=i/segments;
+   const u=u0+(u1-u0)*t;
+   const edgeV=this.cliffEdgeV(u);
+   const highWorld=this.cliffFormationWorld(u,edgeV+.72);
+   const lowWorld=this.cliffFormationWorld(u,edgeV-1.65);
+   const topY=this.heightAt(highWorld.x,highWorld.z)-.045;
+   const bottomY=this.heightAt(lowWorld.x,lowWorld.z)-.025;
+   const drop=Math.max(.15,topY-bottomY);
+   const ledgeBias=this.hash(seedOffset+i*47)>.66 ? .48 : 0;
+   const rowFractions=[0,.20,.45,.72,1];
+   const sample=[];
+
+   for(let r=0;r<rowFractions.length;r++){
+    const seed=seedOffset+i*53+r*13;
+    const jitterU=r===0||r===4?0:(this.hash(seed)-.5)*.48;
+    let outward;
+    if(r===0)outward=.02;
+    else if(r===1)outward=-(.20+this.hash(seed+1)*.42+ledgeBias*.35);
+    else if(r===2)outward=-(.08+this.hash(seed+2)*.48-ledgeBias*.22);
+    else if(r===3)outward=-(.30+this.hash(seed+3)*.58+ledgeBias*.18);
+    else outward=-(.08+this.hash(seed+4)*.24);
+
+    const pu=u+jitterU;
+    const pv=this.cliffEdgeV(pu)+outward;
+    const w=this.cliffFormationWorld(pu,pv);
+    let y=topY-drop*rowFractions[r];
+    if(r>0&&r<4)y+=(this.hash(seed+5)-.5)*drop*.10;
+    if(r===4)y=bottomY+.015;
+    sample.push(new T.Vector3(w.x,y,w.z));
+   }
+   rows.push(sample);
   }
 
-  geometry.setAttribute('color', new T.BufferAttribute(colors, 3));
-  return new T.MeshStandardMaterial({ vertexColors: true, roughness: .95, metalness: 0, flatShading: true });
+  for(let i=0;i<segments;i++){
+   for(let r=0;r<4;r++){
+    const a=rows[i][r],b=rows[i+1][r],c=rows[i+1][r+1],d=rows[i][r+1];
+    const c1=this.cliffRockColor(seedOffset+i*71+r*17,r);
+    const c2=this.cliffRockColor(seedOffset+i*71+r*17+9,r);
+    if((i+r)%2===0){
+     this.appendTriangle(positions,colors,indices,a,b,c,c1,c2,c1);
+     this.appendTriangle(positions,colors,indices,a,c,d,c2,c1,c2);
+    }else{
+     this.appendTriangle(positions,colors,indices,a,b,d,c1,c2,c2);
+     this.appendTriangle(positions,colors,indices,b,c,d,c2,c1,c1);
+    }
+   }
+  }
+ }
+
+ buildUnifiedLandGeometry() {
+  const T=this.T;
+  const size=this.radius*2.42;
+  const segments=240;
+  const row=segments+1;
+  const positions=[];
+  const colors=[];
+  const indices=[];
+
+  for(let iz=0;iz<=segments;iz++){
+   const z=-size*.5+size*(iz/segments);
+   for(let ix=0;ix<=segments;ix++){
+    const x=-size*.5+size*(ix/segments);
+    const y=this.heightAt(x,z);
+    const c=this.surfaceColorAt(x,y,z);
+    positions.push(x,y,z);
+    colors.push(c.r,c.g,c.b);
+   }
+  }
+
+  for(let iz=0;iz<segments;iz++){
+   for(let ix=0;ix<segments;ix++){
+    const a=iz*row+ix;
+    const b=a+1;
+    const c=(iz+1)*row+ix+1;
+    const d=(iz+1)*row+ix;
+    if((ix+iz)%2===0)indices.push(a,b,c,a,c,d);
+    else indices.push(a,b,d,b,c,d);
+   }
+  }
+
+  this.cliffWallSpans().forEach((span,index)=>{
+   const length=Math.max(1,span[1]-span[0]);
+   const wallSegments=Math.max(10,Math.round(length/1.1));
+   this.appendCliffSpan(positions,colors,indices,span[0],span[1],wallSegments,1200+index*4000);
+  });
+
+  const geo=new T.BufferGeometry();
+  geo.setAttribute('position',new T.Float32BufferAttribute(positions,3));
+  geo.setAttribute('color',new T.Float32BufferAttribute(colors,3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
  }
 
  create() {
-  const T = this.T;
-  const root = new T.Group();
-  root.name = 'IslandWorld';
-  const size = this.radius * 2.42;
-  const geo = new T.PlaneGeometry(size, size, 240, 240);
-  geo.rotateX(-Math.PI / 2);
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) p.setY(i, this.heightAt(p.getX(i), p.getZ(i)));
-  geo.computeVertexNormals();
-  const land = new T.Mesh(geo, this.createLandMaterial(geo));
-  land.name = 'AsymmetricIslandLand';
-  land.receiveShadow = true;
+  const T=this.T;
+  const root=new T.Group();
+  root.name='IslandWorld';
+
+  const geo=this.buildUnifiedLandGeometry();
+  const land=new T.Mesh(geo,new T.MeshStandardMaterial({vertexColors:true,roughness:.95,metalness:0,flatShading:true}));
+  land.name='UnifiedProceduralIslandLand';
+  land.receiveShadow=true;
+  land.castShadow=false;
   root.add(land);
 
-  const oceanGeo = new T.PlaneGeometry(700, 700, 1, 1);
-  oceanGeo.rotateX(-Math.PI / 2);
-  const ocean = new T.Mesh(oceanGeo, new T.MeshPhongMaterial({
-   color: 0x43b7d5, shininess: 55, specular: 0x9fe7ef,
-   depthWrite: true, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1
+  const oceanGeo=new T.PlaneGeometry(700,700,1,1);
+  oceanGeo.rotateX(-Math.PI/2);
+  const ocean=new T.Mesh(oceanGeo,new T.MeshPhongMaterial({
+   color:0x43b7d5,shininess:55,specular:0x9fe7ef,
+   depthWrite:true,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1
   }));
-  ocean.name = 'OceanSurface';
-  ocean.position.y = this.seaLevel;
+  ocean.name='OceanSurface';
+  ocean.position.y=this.seaLevel;
   root.add(ocean);
   return root;
  }
