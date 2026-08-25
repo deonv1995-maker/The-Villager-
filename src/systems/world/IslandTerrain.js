@@ -6,8 +6,7 @@ export class IslandTerrain {
   this.seabedLevel = -5.2;
 
   // Shared formation data drives ground height, cliff geometry, ramp access,
-  // environment clearance and movement blocking. The cliff is no longer a
-  // separate prefab or a separate render mesh.
+  // environment clearance and movement blocking.
   this.cliffFormation = {
    cx: -20,
    cz: -18,
@@ -224,9 +223,15 @@ export class IslandTerrain {
   const formation=this.cliffFormationProfileAt(x,z);
   if(d>=1)return new T.Color(0x64745e);
   if(d>.955)return new T.Color(0x786a4d);
-  if(formation.weight>.15 && formation.isCliffSeam)return new T.Color(0x6d7773);
-  if(s>1.22)return new T.Color(0x737d79);
-  if(s>.88)return new T.Color(0x71866b);
+
+  // The playable plateau owns the grass surface. Keep the high side green
+  // right up to the lip; exposed stone belongs to the wall and low side.
+  if(formation.weight>.15 && formation.isCliffSeam){
+   if(formation.signed>=-.03)return new T.Color(0x7fb64e);
+   return new T.Color(0x6d7773);
+  }
+  if(s>1.22 && !(formation.weight>.15 && formation.signed>0))return new T.Color(0x737d79);
+  if(s>.88 && !(formation.weight>.15 && formation.signed>0))return new T.Color(0x71866b);
   if(y>7.5)return new T.Color(0x8cc65b);
   if(y<1.1)return new T.Color(0x6da246);
   return new T.Color(0x7fb64e);
@@ -241,6 +246,14 @@ export class IslandTerrain {
   }
   const rocks=[0x5f6b68,0x697572,0x737e7a,0x7d8782,0x68736f,0x848d87];
   return new T.Color(rocks[Math.floor(this.hash(seed+7)*rocks.length)%rocks.length]);
+ }
+
+ cliffCapColor(seed,row) {
+  const T=this.T;
+  const grasses=[0x7fb64e,0x84bc51,0x79ae49,0x8ac258];
+  let index=Math.floor(this.hash(seed+row*17)*grasses.length)%grasses.length;
+  if(row>=3 && this.hash(seed+91)>.72)index=0;
+  return new T.Color(grasses[index]);
  }
 
  appendTriangle(positions,colors,indices,a,b,c,colorA,colorB=colorA,colorC=colorA) {
@@ -304,6 +317,59 @@ export class IslandTerrain {
   }
  }
 
+ appendCliffTopCapSpan(positions,colors,indices,u0,u1,segments,seedOffset) {
+  const T=this.T;
+  const rows=[];
+  // The cap is deliberately wide enough to cover the coarse height-field
+  // transition, then melts back into the ordinary plateau several metres in.
+  const inwardOffsets=[.02,.78,1.65,3.0,4.8];
+
+  for(let i=0;i<=segments;i++){
+   const t=i/segments;
+   const u=u0+(u1-u0)*t;
+   const edgeV=this.cliffEdgeV(u);
+   const highSample=this.cliffFormationWorld(u,edgeV+.72);
+   const lipY=this.heightAt(highSample.x,highSample.z)-.035;
+   const sample=[];
+
+   for(let r=0;r<inwardOffsets.length;r++){
+    const pv=edgeV+inwardOffsets[r];
+    const w=this.cliffFormationWorld(u,pv);
+    let y;
+    if(r===0){
+     // This vertex is the actual grassy rim and shares the rock wall's top
+     // height, so there is no floating shelf or missing strip.
+     y=lipY+.012;
+    }else{
+     y=this.heightAt(w.x,w.z)+.025;
+    }
+    sample.push(new T.Vector3(w.x,y,w.z));
+   }
+   rows.push(sample);
+  }
+
+  for(let i=0;i<segments;i++){
+   for(let r=0;r<inwardOffsets.length-1;r++){
+    const a=rows[i][r];
+    const b=rows[i+1][r];
+    const c=rows[i+1][r+1];
+    const d=rows[i][r+1];
+    const c1=this.cliffCapColor(seedOffset+i*37+r*11,r);
+    const c2=this.cliffCapColor(seedOffset+i*37+r*11+5,r);
+
+    // Local +u x +v points down, so reverse the surface winding to keep the
+    // grassy top upward-facing and visible with normal back-face culling.
+    if((i+r)%2===0){
+     this.appendTriangle(positions,colors,indices,a,c,b,c1,c2,c1);
+     this.appendTriangle(positions,colors,indices,a,d,c,c1,c1,c2);
+    }else{
+     this.appendTriangle(positions,colors,indices,a,d,b,c1,c2,c1);
+     this.appendTriangle(positions,colors,indices,b,d,c,c1,c2,c2);
+    }
+   }
+  }
+ }
+
  buildUnifiedLandGeometry() {
   const T=this.T;
   const size=this.radius*2.42;
@@ -324,9 +390,7 @@ export class IslandTerrain {
    }
   }
 
-  // The X/Z grid is generated from south to north. The previous winding
-  // pointed every horizontal triangle downward, so Three.js back-face culling
-  // hid the entire ground when viewed from above. Wind surface triangles
+  // The X/Z grid is generated from south to north. Wind surface triangles
   // counter-clockwise from above so normals point upward.
   for(let iz=0;iz<segments;iz++){
    for(let ix=0;ix<segments;ix++){
@@ -343,6 +407,7 @@ export class IslandTerrain {
    const length=Math.max(1,span[1]-span[0]);
    const wallSegments=Math.max(10,Math.round(length/1.1));
    this.appendCliffSpan(positions,colors,indices,span[0],span[1],wallSegments,1200+index*4000);
+   this.appendCliffTopCapSpan(positions,colors,indices,span[0],span[1],wallSegments,8200+index*4000);
   });
 
   const geo=new T.BufferGeometry();
