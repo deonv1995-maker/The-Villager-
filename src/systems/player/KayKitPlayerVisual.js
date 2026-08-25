@@ -1,4 +1,4 @@
-import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/loaders/GLTFLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 export class KayKitPlayerVisual{
   constructor(THREE,{modelUrl,movementUrl,generalUrl,targetHeight=2.7,facingYaw=Math.PI}){
