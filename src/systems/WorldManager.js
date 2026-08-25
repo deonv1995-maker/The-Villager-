@@ -1,4 +1,4 @@
-import { IslandTerrain } from './world/IslandTerrain.js?v=532';
+import { IslandTerrain } from './world/IslandTerrain.js?v=533';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=520';
 import { TerrainFeatures } from './world/TerrainFeatures.js?v=527';
 
