@@ -1,4 +1,4 @@
-import { WorldManager } from './WorldManager.js?v=519';
+import { WorldManager } from './WorldManager.js?v=520';
 import { MobileControls } from './input/MobileControls.js';
 import { PlayerController } from './player/PlayerController.js?v=519';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js';
@@ -55,7 +55,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.19 · stable cliff polish · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.20 · terrain kit showcase · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -68,7 +68,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.19 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.20 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -89,11 +89,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.19 · Ranger · stable cliff polish'
-    :'Clean rebuild 0.5.19 · Ranger · stable cliff polish · animations pending';
+    ?'Clean rebuild 0.5.20 · Ranger · terrain kit showcase'
+    :'Clean rebuild 0.5.20 · Ranger · terrain kit showcase · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.19 · stable cliff polish · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.20 · terrain kit showcase · Ranger model unavailable';
   }
  }
 }
