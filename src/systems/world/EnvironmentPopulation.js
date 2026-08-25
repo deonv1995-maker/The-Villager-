@@ -7,11 +7,14 @@ export class EnvironmentPopulation{
  bush(){const T=this.T,m=new T.Mesh(new T.DodecahedronGeometry(.55,0),new T.MeshLambertMaterial({color:0x57964b,flatShading:true}));m.scale.set(1.25,.7,1);m.position.y=.35;return m;}
  initialize(){
   this.scene.add(this.root);let placed=0;
-  for(let i=0;i<360;i++){
-   const a=this.rand(i*4)*Math.PI*2,r=12+Math.sqrt(this.rand(i*4+1))*70,x=Math.cos(a)*r,z=Math.sin(a)*r,y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
-   if(y<.15||s>.72||Math.hypot(x,z)<11)continue;
-   const roll=this.rand(i*4+2);let o;if(roll<.38&&s<.42)o=this.tree();else if(roll<.66)o=this.rock();else o=this.bush();
-   const scale=.72+this.rand(i*4+3)*.75;o.scale.multiplyScalar(scale);o.rotation.y=this.rand(i*7+3)*Math.PI*2;o.position.set(x,y,z);this.root.add(o);placed++;
+  for(let i=0;i<920;i++){
+   const a=this.rand(i*4)*Math.PI*2,r=13+Math.sqrt(this.rand(i*4+1))*116,x=Math.cos(a)*r,z=Math.sin(a)*r,y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
+   if(y<.12||s>.78||Math.hypot(x,z)<12)continue;
+   const forestBias=Math.max(0,1-r/125),roll=this.rand(i*4+2);let o;
+   if(roll<(.48+.16*forestBias)&&s<.48)o=this.tree();
+   else if(roll<.78)o=this.rock();
+   else o=this.bush();
+   const scale=.82+this.rand(i*4+3)*.95;o.scale.multiplyScalar(scale);o.rotation.y=this.rand(i*7+3)*Math.PI*2;o.position.set(x,y,z);this.root.add(o);placed++;
   }
   return placed;
  }
