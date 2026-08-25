@@ -1,6 +1,6 @@
-import { IslandTerrain } from './world/IslandTerrain.js?v=523';
+import { IslandTerrain } from './world/IslandTerrain.js?v=526';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=520';
-import { TerrainFeatures } from './world/TerrainFeatures.js?v=525';
+import { TerrainFeatures } from './world/TerrainFeatures.js?v=526';
 
 export class WorldManager {
  constructor(THREE, scene) {
@@ -34,7 +34,7 @@ export class WorldManager {
   const rise = ground - currentY;
 
   if (this.terrain.moduleFormationBlocksSegment(fromX, fromZ, toX, toZ)) {
-   return { allowed: false, ground, reason: 'module-cliff' };
+   return { allowed: false, ground, reason: 'procedural-cliff' };
   }
 
   if (rise > this.maxStepUp) {
