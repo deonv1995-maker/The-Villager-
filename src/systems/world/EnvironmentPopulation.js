@@ -21,12 +21,9 @@ export class EnvironmentPopulation {
  createVariantCatalog(){
   return {
    tree:[
-    {name:'standard',scale:[1,1,1]},
-    {name:'tall',scale:[.82,1.34,.82]},
-    {name:'broad',scale:[1.28,.9,1.18]},
-    {name:'young',scale:[.7,.72,.7]},
-    {name:'old',scale:[1.15,1.12,1.15],lean:.045},
-    {name:'narrow',scale:[.7,1.12,.72]}
+    {name:'natural',scale:[1,1,1]},
+    {name:'young',scale:[.82,.86,.82]},
+    {name:'mature',scale:[1.12,1.08,1.12]}
    ],
    rock:[
     {name:'boulder',scale:[1.35,1.05,1.25]},
@@ -80,19 +77,32 @@ export class EnvironmentPopulation {
  async loadKayKit(){
   if(this.loading)return this.loading;
   this.loading=Promise.all([
+   this.loadObj('./assets/kaykit/forest/Tree_1_A_Color1.obj','tree'),
    this.loadObj('./assets/kaykit/forest/Tree_2_A_Color1.obj','tree'),
+   this.loadObj('./assets/kaykit/forest/Tree_4_A_Color1.obj','tree'),
    this.loadObj('./assets/kaykit/forest/Rock_1_A_Color1.obj','rock'),
    this.loadObj('./assets/kaykit/forest/Bush_1_A_Color1.obj','bush'),
    this.loadObj('./assets/kaykit/forest/Grass_1_A_Color1.obj','grass')
-  ]).then(([tree,rock,bush,grass])=>{this.prototypes={tree,rock,bush,grass};return this.prototypes;});
+  ]).then(([tree1,tree2,tree4,rock,bush,grass])=>{
+   this.prototypes={tree:[tree1,tree2,tree4],rock,bush,grass};
+   return this.prototypes;
+  });
   return this.loading;
  }
- clone(type){return this.prototypes[type]?.clone(true)||null;}
- applyVariant(o,type,index,baseScale,seed){
+ clone(type,seed=0){
+  const source=this.prototypes[type];
+  if(Array.isArray(source)){
+   if(!source.length)return null;
+   const index=Math.floor(this.rand(seed)*source.length)%source.length;
+   const clone=source[index].clone(true);
+   clone.userData.environmentSpecies=`${type}_${index+1}`;
+   return clone;
+  }
+  return source?.clone(true)||null;
+ }
+ applyVariant(o,type,index,baseScale){
   const list=this.variants[type],v=list[index%list.length];
-  const sx=v.scale[0],sy=v.scale[1],sz=v.scale[2];
-  o.scale.set(baseScale*sx,baseScale*sy,baseScale*sz);
-  if(v.lean){o.rotation.z=(this.rand(seed+17)-.5)*v.lean*2;o.rotation.x=(this.rand(seed+23)-.5)*v.lean;}
+  o.scale.set(baseScale*v.scale[0],baseScale*v.scale[1],baseScale*v.scale[2]);
   o.userData.environmentType=type;o.userData.environmentVariant=v.name;
  }
  populate(){
@@ -106,14 +116,14 @@ export class EnvironmentPopulation {
    else if(roll<.68)type='rock';
    else if(roll<.86)type='bush';
    else type='grass';
-   const o=this.clone(type);if(!o)continue;
+   const o=this.clone(type,i*19+7);if(!o)continue;
    let scale=.78+this.rand(i*4+3)*.88;
-   if(type==='tree')scale*=1.16;
+   if(type==='tree')scale*=1.12;
    else if(type==='rock')scale*=2.15;
    else if(type==='bush')scale*=4.15;
    else scale*=2.15;
    const variantIndex=Math.floor(this.rand(i*11+5)*this.variants[type].length);
-   this.applyVariant(o,type,variantIndex,scale,i*31);
+   this.applyVariant(o,type,variantIndex,scale);
    o.rotation.y=this.rand(i*7+3)*Math.PI*2;o.position.set(x,y,z);
    this.root.add(o);placed++;
   }
