@@ -2,6 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 
 const COTTAGE_NAME='VillageCottage046';
 const PANEL_PREFIX='VillageCottageGable';
+const RELEASE_VERSION='3D-0.6.38';
 
 function createUpperWedge(width,rise,depth){
   const shape=new THREE.Shape();
@@ -36,7 +37,6 @@ function installSolidUpper(cottage){
   const rise=2.06;
   const depth=4.48;
   const eave=4.18;
-
   const material=new THREE.MeshStandardMaterial({
     color:0xd8bd83,
     roughness:.88,
@@ -45,9 +45,6 @@ function installSolidUpper(cottage){
     side:THREE.DoubleSide
   });
 
-  // One continuous solid prism fills the entire triangular upper storey from
-  // front wall to back wall. This avoids detached face panels, z-fighting,
-  // back-face issues and gaps when the camera rotates around the house.
   const upper=new THREE.Mesh(createUpperWedge(width,rise,depth),material);
   upper.name=`${PANEL_PREFIX}-SolidUpper`;
   upper.position.set(0,eave,0);
@@ -55,7 +52,7 @@ function installSolidUpper(cottage){
   upper.receiveShadow=true;
   upper.userData.isBuildingOccluder=true;
   cottage.add(upper);
-
+  document.getElementById('version')?.replaceChildren(RELEASE_VERSION);
   return true;
 }
 
