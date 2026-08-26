@@ -1,4 +1,4 @@
-import { WorldManager } from './WorldManager.js?v=552';
+import { WorldManager } from './WorldManager.js?v=584';
 import { MobileControls } from './input/MobileControls.js?v=563';
 import { PlayerController } from './player/PlayerController.js?v=569';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
@@ -157,7 +157,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.83 · solid floor sides · solid stair stringers · smooth stair climbing · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.84 · larger harvestable trees · thicker trunks · log-scale forest proportions · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -180,7 +180,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.83 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.84 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -201,11 +201,11 @@ export class GameBootstrap{
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.83 · Ranger · floors block from below and sides · stair rails block side entry · climb path stays smooth'
-    :'Clean rebuild 0.5.83 · Ranger · construction side collision · animations pending';
+    ?'Clean rebuild 0.5.84 · Ranger · larger trees · thicker trunks · three harvested logs feel proportional'
+    :'Clean rebuild 0.5.84 · Ranger · larger forest proportions · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.83 · construction side collision · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.84 · larger forest proportions · Ranger model unavailable';
   }
  }
 }
