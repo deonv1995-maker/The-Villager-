@@ -1,6 +1,6 @@
 import { WorldManager } from './WorldManager.js?v=552';
 import { MobileControls } from './input/MobileControls.js?v=563';
-import { PlayerController } from './player/PlayerController.js?v=568';
+import { PlayerController } from './player/PlayerController.js?v=569';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
 import { PlayerVisual } from './player/PlayerVisual.js?v=538';
 import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552';
@@ -10,7 +10,7 @@ import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSyst
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=565';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=565';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=567';
-import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=568';
+import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=569';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
 
@@ -98,8 +98,9 @@ export class GameBootstrap {
    });
    this.buildModes.initialize();
 
-   // Construction floors are traversal surfaces, not rock colliders. This keeps
-   // their rectangular footprint stable at seams/corners and supports fast falls.
+   // Construction owns both floor support and narrow frame/wall collision. This
+   // replaces the oversized rock-style construction colliders that could overlap
+   // and trap the Ranger inside a small structure.
    this.constructionTraversal=new ConstructionTraversalSystem({
     world:this.world,
     buildingModes:this.buildModes
@@ -150,7 +151,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.68 · stable construction floors · seam-safe traversal · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.69 · escape-safe structures · narrow wall/frame collision · stable floors · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -171,7 +172,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.68 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.69 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -193,11 +194,11 @@ export class GameBootstrap {
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.68 · Ranger · stable floor walking · seam-safe landing · green build ghosts'
-    :'Clean rebuild 0.5.68 · Ranger · stable construction floors · animations pending';
+    ?'Clean rebuild 0.5.69 · Ranger · escape-safe structures · stable floors · green build ghosts'
+    :'Clean rebuild 0.5.69 · Ranger · construction collision fix · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.68 · stable construction floors · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.69 · construction collision fix · Ranger model unavailable';
   }
  }
 }
