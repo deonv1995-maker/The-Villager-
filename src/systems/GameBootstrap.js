@@ -10,6 +10,7 @@ import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSyst
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=570';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=570';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
+import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=575';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=570';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
@@ -83,6 +84,17 @@ export class GameBootstrap{
    });
    this.buildModes.initialize();
 
+   // The first floor fixes the construction level. Additional snapped floors keep
+   // that level; this system only excavates terrain that rises above it. Downhill
+   // terrain is deliberately left untouched so the floor can overhang as a deck.
+   this.foundationTerrain=new FoundationTerrainSystem(T,{
+    world:this.world,
+    scene:this.scene,
+    buildingModes:this.buildModes,
+    fineGrass:this.fineGrassFields
+   });
+   this.foundationTerrain.initialize();
+
    this.constructionTraversal=new ConstructionTraversalSystem({
     world:this.world,buildingModes:this.buildModes
    });
@@ -118,13 +130,14 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.74 · square frame bays · centred raw beams · seamless stacked frames · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.75 · level floor datum · uphill terrain grading · downhill deck overhang · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
     this.constructionTraversal.update(dt);
     this.playerController.update(dt);
     this.buildModes.update(dt);
+    this.foundationTerrain.update(dt);
     this.harvesting.update(dt);
     this.reactions.update(dt);
     this.survivalInteraction.update(dt);
@@ -139,7 +152,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.74 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.75 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -160,11 +173,11 @@ export class GameBootstrap{
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.74 · Ranger · equal frame spacing · beams seated through posts · seamless upper frames'
-    :'Clean rebuild 0.5.74 · Ranger · structural joint polish · animations pending';
+    ?'Clean rebuild 0.5.75 · Ranger · floors cut into uphill ground · downhill sides stay decked'
+    :'Clean rebuild 0.5.75 · Ranger · foundation terrain grading · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.74 · structural joint polish · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.75 · foundation terrain grading · Ranger model unavailable';
   }
  }
 }
