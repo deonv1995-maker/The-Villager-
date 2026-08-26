@@ -1,17 +1,11 @@
-import { RockDressedTerrain } from './RockDressedTerrain.js?v=548';
+import { RockDressedTerrain } from './RockDressedTerrain.js?v=549';
 
 // Lightweight grass presentation layer.
 //
-// IMPORTANT: terrain height sampling is deliberately NOT filtered here.
-// The previous 0.5.47 pass averaged multiple neighbouring height queries for
-// every terrain sample. On the 240x240 island mesh, surface colour/slope checks
-// multiplied that into millions of extra terrain evaluations and could leave
-// mobile devices sitting on the native loading screen before the first frame.
-//
-// RockDressedTerrain remains the single authority for geography, collision,
-// ramps and player grounding. Visual smoothing is done only through shared
-// vertex normals on the main land mesh, which keeps traversal and rendering in
-// perfect agreement and has no recurring runtime cost.
+// Terrain height sampling is deliberately NOT filtered here. RockDressedTerrain
+// remains the single authority for geography, collision, ramps and player
+// grounding. Visual smoothing is done only through shared vertex normals on the
+// main land mesh, keeping traversal and rendering in agreement at mobile cost.
 export class PolishedGrassTerrain extends RockDressedTerrain {
  constructor(THREE){
   super(THREE);
