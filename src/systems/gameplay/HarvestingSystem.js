@@ -14,7 +14,7 @@ export class HarvestingSystem{
   this.currentTarget=null;
   this.targetRefreshTimer=0;
   this.targetRefreshInterval=.08;
-  this.hitCooldown=.26;
+  this.hitCooldown=.54;
   this.hitCooldownTimer=0;
   this.tempPosition=new THREE.Vector3();
   this.falling=[];
@@ -70,7 +70,7 @@ export class HarvestingSystem{
     z:this.tempPosition.z,
     active:true,
     fallTime:0,
-    fallDuration:.92,
+    fallDuration:.98,
     fallAxis:'z',
     fallSign:1,
     fallStart:0,
@@ -144,6 +144,11 @@ export class HarvestingSystem{
   return (n-Math.floor(n))>.5?1:-1;
  }
 
+ deterministicNoise(entry,index,salt=0){
+  const n=Math.sin(entry.x*(1.37+salt*.07)+entry.z*(.83+salt*.11)+index*12.9898+salt*4.17)*43758.5453;
+  return n-Math.floor(n);
+ }
+
  beginTreeFall(entry){
   entry.state='falling';
   entry.health=0;
@@ -166,14 +171,37 @@ export class HarvestingSystem{
   const yaw=this.fallenDirection(entry);
   const dx=Math.cos(yaw);
   const dz=-Math.sin(yaw);
+  const sideX=-dz,sideZ=dx;
   const count=3;
-  const spacing=(this.materials?.logLength??2.90)*.68;
+  const logLength=this.materials?.logLength??2.90;
+  const spacing=logLength*.88;
+
+  // The three physical logs occupy consecutive sections of the fallen trunk,
+  // beginning just beyond the stump. They inherit forward impact momentum and a
+  // small asymmetric kick, then WorldMaterialSystem handles gravity/rolling.
   for(let i=0;i<count;i++){
-   const along=(i-(count-1)/2)*spacing;
-   const side=(i%2?1:-1)*.14;
-   const x=entry.x+dx*along-dz*side;
-   const z=entry.z+dz*along+dx*side;
-   this.materials.spawnLog(x,z,yaw+(i-1)*.035);
+   const along=(i+.58)*spacing;
+   const side=(this.deterministicNoise(entry,i,1)-.5)*.34;
+   const x=entry.x+dx*along+sideX*side;
+   const z=entry.z+dz*along+sideZ*side;
+   const ground=this.world?.heightAt?.(x,z)??0;
+   const lift=.72+this.deterministicNoise(entry,i,2)*.48;
+   const forwardSpeed=.92+i*.18+this.deterministicNoise(entry,i,3)*.34;
+   const lateral=(this.deterministicNoise(entry,i,4)-.5)*.78;
+
+   this.materials.spawnPhysicalLog(
+    x,
+    ground+(this.materials?.logRadius??.27)+lift,
+    z,
+    yaw+(this.deterministicNoise(entry,i,5)-.5)*.07,
+    {
+     vx:dx*forwardSpeed+sideX*lateral,
+     vy:1.05+this.deterministicNoise(entry,i,6)*.82,
+     vz:dz*forwardSpeed+sideZ*lateral,
+     spinY:(this.deterministicNoise(entry,i,7)-.5)*1.15,
+     rollSpeed:(this.deterministicNoise(entry,i,8)-.5)*7.2
+    }
+   );
   }
  }
 
@@ -205,11 +233,14 @@ export class HarvestingSystem{
   this.hitCooldownTimer=this.hitCooldown;
 
   if(target.profile.kind==='tree'){
+   // Trigger the Ranger's full-body/procedural chop before applying the hit so
+   // repeated taps remain paced to the visible swing rather than machine-gunning.
+   this.world?.playerVisual?.triggerChop?.();
    target.health=Math.max(0,target.health-1);
    this.pulse(target);
    if(target.health<=0){
     this.beginTreeFall(target);
-    return {message:'Tree falling into logs'};
+    return {message:'Tree falling into physical logs'};
    }
    return {message:`Tree ${target.health} chops from falling`};
   }
