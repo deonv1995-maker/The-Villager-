@@ -7,9 +7,10 @@ import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552'
 import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=560';
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
-import { InventorySystem } from './gameplay/InventorySystem.js?v=563';
-import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=563';
-import { BuildingSystem } from './gameplay/BuildingSystem.js?v=563';
+import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=564';
+import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=564';
+import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
+import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=564';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -77,37 +78,47 @@ export class GameBootstrap {
    });
    this.fineGrassFields.initialize();
 
-   // Inventory owns resource quantities. Harvesting and building consume the
-   // same API, keeping resource balance independent from either gameplay loop.
-   this.inventory=new InventorySystem({
-    hudRoot:document.getElementById('resource-hud')
-   });
-
-   this.harvesting=new HarvestingSystem(T,{
-    world:this.world,
-    player:this.player,
-    inventory:this.inventory,
-    actionButton:document.getElementById('action-button'),
-    feedbackElement:document.getElementById('gameplay-feedback')
-   });
-   this.harvesting.initialize();
-
-   this.building=new BuildingSystem(T,{
+   // Raw building materials remain physical world objects instead of becoming a
+   // numerical wood/stone currency. This is the authority for carry/place state.
+   this.materials=new WorldMaterialSystem(T,{
     world:this.world,
     scene:this.scene,
     player:this.player,
-    inventory:this.inventory,
+    hudRoot:document.getElementById('material-hud')
+   });
+   this.materials.initialize();
+
+   // Harvesting changes resources through physical stages: standing tree ->
+   // fallen trunk -> individual logs, and intact rock -> loose stones.
+   this.harvesting=new HarvestingSystem(T,{
+    world:this.world,
+    player:this.player,
+    materials:this.materials
+   });
+   this.harvesting.initialize();
+
+   // Construction is recognized from what the player actually places. No recipe
+   // spawns a finished prefab into the world.
+   this.reactions=new ConstructionReactionSystem(T,{
+    world:this.world,
+    scene:this.scene,
+    player:this.player,
+    materials:this.materials
+   });
+   this.reactions.initialize();
+
+   // One contextual interaction button routes chopping, taking, placing and
+   // lighting so multiple gameplay systems never fight over mobile input.
+   this.survivalInteraction=new SurvivalInteractionSystem({
+    player:this.player,
+    materials:this.materials,
     harvesting:this.harvesting,
+    reactions:this.reactions,
     actionButton:document.getElementById('action-button'),
-    buildButton:document.getElementById('build-button'),
-    menuRoot:document.getElementById('build-menu'),
     feedbackElement:document.getElementById('gameplay-feedback')
    });
-   this.building.initialize();
+   this.survivalInteraction.initialize();
 
-   // World shadows are cached until their static window changes; the Ranger has
-   // a lightweight real-time contact shadow so animation never forces an
-   // expensive shadow-map render every frame.
    this.renderPerformance=new RenderingPerformanceSystem(T,{
     renderer:this.renderer,
     scene:this.scene,
@@ -126,13 +137,14 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.63 · harvesting · inventory · starter building · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.64 · physical harvesting · raw-material construction · reactive fire · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
     this.playerController.update(dt);
     this.harvesting.update(dt);
-    this.building.update(dt);
+    this.reactions.update(dt);
+    this.survivalInteraction.update(dt);
     this.grassInteraction.update(dt);
     this.fineGrassFields.update(dt);
     this.playerVisual.update(dt,this.playerController.moveAmount,this.playerController.locomotionState);
@@ -144,7 +156,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.63 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.64 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -166,11 +178,11 @@ export class GameBootstrap {
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.63 · Ranger · harvesting · inventory · starter building'
-    :'Clean rebuild 0.5.63 · Ranger · harvesting · starter building · animations pending';
+    ?'Clean rebuild 0.5.64 · Ranger · falling trees · physical logs and stones · material-built fires'
+    :'Clean rebuild 0.5.64 · Ranger · physical harvesting · raw construction · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.63 · harvesting · starter building · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.64 · physical harvesting · raw construction · Ranger model unavailable';
   }
  }
 }
