@@ -5,7 +5,7 @@ import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
 import { PlayerVisual } from './player/PlayerVisual.js?v=538';
 import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552';
 import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=556';
-import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=557';
+import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=558';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -52,15 +52,12 @@ export class GameBootstrap {
    this.cameraController=new ThirdPersonCamera(T,{camera:this.camera,target:this.player,input:this.input,world:this.world});
    this.playerController=new PlayerController(T,{player:this.player,input:this.input,cameraController:this.cameraController,world:this.world,groundOffset:0});
 
-   // Larger authored grass plants keep their existing interaction system.
    this.grassInteraction=new GrassInteractionSystem(T,{
     world:this.world,
     player:this.player
    });
    this.grassInteraction.initialize();
 
-   // Fine instanced field grass owns its own representation-specific response.
-   // Only nearby instances animate, preserving the field as a presentation layer.
    this.fineGrassFields=new FineGrassFieldDecorator(T,{
     world:this.world,
     scene:this.scene,
@@ -68,12 +65,11 @@ export class GameBootstrap {
    });
    this.fineGrassFields.initialize();
 
-   // Soil and sand are a separate visual dressing layer that conforms to the
-   // authoritative terrain without changing collision, height or grass logic.
    this.groundSurface=new GroundSurfaceDecorator(T,{
     world:this.world,
     scene:this.scene
    });
+   this.world.groundSurface=this.groundSurface;
    this.groundSurface.initialize();
 
    this.cameraController.update(1/60);
@@ -84,7 +80,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.57 · dense reactive grass · soil and sand ground diversity · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.58 · dense reactive grass · broad soil and sand terrain variation · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -99,7 +95,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.57 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.58 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -120,11 +116,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.57 · Ranger · dense reactive grass · soil and sand ground diversity'
-    :'Clean rebuild 0.5.57 · Ranger · dense reactive grass · soil and sand ground diversity · animations pending';
+    ?'Clean rebuild 0.5.58 · Ranger · dense reactive grass · broad soil and sand terrain variation'
+    :'Clean rebuild 0.5.58 · Ranger · dense reactive grass · broad soil and sand terrain variation · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.57 · soil and sand ground diversity · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.58 · broad soil and sand terrain variation · Ranger model unavailable';
   }
  }
 }
