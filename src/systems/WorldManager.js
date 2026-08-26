@@ -1,14 +1,16 @@
-import { SafeRimTerrain } from './world/SafeRimTerrain.js?v=545';
+import { RockDressedTerrain } from './world/RockDressedTerrain.js?v=546';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=542';
 import { TerrainFeatures } from './world/TerrainFeatures.js?v=541';
+import { CliffRockDecorator } from './world/CliffRockDecorator.js?v=546';
 
 export class WorldManager {
  constructor(THREE, scene) {
   this.THREE = THREE;
   this.scene = scene;
-  this.terrain = new SafeRimTerrain(THREE);
+  this.terrain = new RockDressedTerrain(THREE);
   this.environment = null;
   this.features = null;
+  this.cliffRocks = null;
 
   // Central traversal policy. Keep these rules here so the player controller,
   // future NPCs and other walkers can all use the same terrain authority.
@@ -23,10 +25,22 @@ export class WorldManager {
  initialize() {
   const root = this.terrain.create();
   this.scene.add(root);
+
   this.features = new TerrainFeatures(this.THREE, { world: this, scene: this.scene });
   this.features.initialize();
+
   this.environment = new EnvironmentPopulation(this.THREE, { world: this, scene: this.scene });
   this.environment.initialize();
+
+  // Visual cliff dressing is deliberately downstream of terrain authority.
+  // It reuses the environment's already-loaded KayKit rock prototypes, while
+  // movement/collision continues to read only the stable terrain profiles.
+  this.cliffRocks = new CliffRockDecorator(this.THREE, {
+   world: this,
+   scene: this.scene,
+   environment: this.environment
+  });
+  this.cliffRocks.initialize();
  }
 
  heightAt(x, z) {
