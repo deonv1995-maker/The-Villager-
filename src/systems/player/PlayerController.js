@@ -24,6 +24,7 @@ export class PlayerController {
   this.isGrounded=true;
   this.jumpStartedThisFrame=false;
   this.landedThisFrame=false;
+  this.groundLeaveTolerance=.48;
 
   this.forward=new THREE.Vector3();
   this.right=new THREE.Vector3();
@@ -129,20 +130,35 @@ export class PlayerController {
  }
 
  updateVertical(dt){
-  const ground=this.groundHeight();
+  // Capture the landing surface before integrating velocity. If a fast fall
+  // crosses a rock top within one frame we still land on it instead of
+  // tunnelling through the simplified collider.
+  let ground=this.groundHeight();
 
   if(this.isGrounded){
-    this.verticalVelocity=0;
-    this.player.position.y=ground;
-    return;
+    const currentFootY=this.player.position.y-this.groundOffset;
+    const targetFootY=ground-this.groundOffset;
+
+    // Walking off a rock should start a real fall rather than teleporting the
+    // Ranger directly to the terrain below. Normal terrain descent stays
+    // snapped because horizontal traversal already limits per-step drops.
+    if(currentFootY-targetFootY>this.groundLeaveTolerance){
+      this.isGrounded=false;
+      this.verticalVelocity=Math.min(0,this.verticalVelocity);
+    }else{
+      this.verticalVelocity=0;
+      this.player.position.y=ground;
+      return;
+    }
   }
 
   this.verticalVelocity=Math.max(this.verticalVelocity-this.gravity*dt,-this.maxFallSpeed);
   this.player.position.y+=this.verticalVelocity*dt;
 
-  // Terrain is the current landing surface. A future platform system can feed
-  // an additional surface candidate into this same landing stage.
-  if(this.player.position.y<=ground){
+  // Only descending motion can land. Rock tops are supplied by WorldManager's
+  // compact collision registry while ordinary ground still comes directly
+  // from the authoritative terrain height service.
+  if(this.verticalVelocity<=0&&this.player.position.y<=ground){
     this.player.position.y=ground;
     this.verticalVelocity=0;
     this.isGrounded=true;
@@ -152,9 +168,20 @@ export class PlayerController {
  }
 
  groundHeight(){
-  const ground=this.world?.surfaceHeightAt
-   ?this.world.surfaceHeightAt(this.player.position.x,this.player.position.z)
-   :this.world?.heightAt?.(this.player.position.x,this.player.position.z)??0;
+  const footY=this.player.position.y-this.groundOffset;
+  let ground;
+  if(this.world?.landingSurfaceHeightAt){
+   ground=this.world.landingSurfaceHeightAt(
+    this.player.position.x,
+    this.player.position.z,
+    footY,
+    this.isGrounded
+   );
+  }else{
+   ground=this.world?.surfaceHeightAt
+    ?this.world.surfaceHeightAt(this.player.position.x,this.player.position.z)
+    :this.world?.heightAt?.(this.player.position.x,this.player.position.z)??0;
+  }
   return ground+this.groundOffset;
  }
 
