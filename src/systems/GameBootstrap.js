@@ -1,8 +1,8 @@
 import { WorldManager } from './WorldManager.js?v=537';
-import { MobileControls } from './input/MobileControls.js';
-import { PlayerController } from './player/PlayerController.js?v=537';
+import { MobileControls } from './input/MobileControls.js?v=538';
+import { PlayerController } from './player/PlayerController.js?v=538';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
-import { PlayerVisual } from './player/PlayerVisual.js';
+import { PlayerVisual } from './player/PlayerVisual.js?v=538';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -43,7 +43,8 @@ export class GameBootstrap {
     leftRoot:document.getElementById('move-stick'),
     leftKnob:document.getElementById('move-knob'),
     rightRoot:document.getElementById('look-stick'),
-    rightKnob:document.getElementById('look-knob')
+    rightKnob:document.getElementById('look-knob'),
+    jumpRoot:document.getElementById('jump-button')
    });
    this.cameraController=new ThirdPersonCamera(T,{camera:this.camera,target:this.player,input:this.input,world:this.world});
    this.playerController=new PlayerController(T,{player:this.player,input:this.input,cameraController:this.cameraController,world:this.world,groundOffset:0});
@@ -55,12 +56,12 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.37 · traversal lock · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.38 · Ranger jump · loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
     this.playerController.update(dt);
-    this.playerVisual.update(dt,this.playerController.moveAmount);
+    this.playerVisual.update(dt,this.playerController.moveAmount,this.playerController.locomotionState);
     this.cameraController.update(dt);
     this.renderer.render(this.scene,this.camera);
    };
@@ -68,14 +69,14 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.37 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.38 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
  async tryKayKitRanger(status){
   const T=this.THREE;
   try{
-   const {KayKitPlayerVisual}=await import('./player/KayKitPlayerVisual.js?v=519');
+   const {KayKitPlayerVisual}=await import('./player/KayKitPlayerVisual.js?v=538');
    const ranger=new KayKitPlayerVisual(T,{
     modelUrls:kaykitUrls('Characters/gltf/Ranger.glb'),
     movementUrls:kaykitUrls('Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb'),
@@ -89,11 +90,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.37 · Ranger · traversal lock'
-    :'Clean rebuild 0.5.37 · Ranger · traversal lock · animations pending';
+    ?'Clean rebuild 0.5.38 · Ranger · jump enabled'
+    :'Clean rebuild 0.5.38 · Ranger · jump enabled · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.37 · traversal lock · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.38 · jump enabled · Ranger model unavailable';
   }
  }
 }
