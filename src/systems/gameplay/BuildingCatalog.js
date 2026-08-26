@@ -10,7 +10,8 @@ export const BUILDING_CATALOG=Object.freeze({
   cost:Object.freeze({wood:6}),
   footprintRadius:1.55,
   placementDistance:3.2,
-  maxGroundDelta:.48
+  maxGroundDelta:.48,
+  heightOffset:.09
  }),
  campfire:Object.freeze({
   id:'campfire',
@@ -20,7 +21,8 @@ export const BUILDING_CATALOG=Object.freeze({
   cost:Object.freeze({wood:2,stone:6}),
   footprintRadius:.92,
   placementDistance:2.8,
-  maxGroundDelta:.38
+  maxGroundDelta:.38,
+  heightOffset:.03
  })
 });
 
