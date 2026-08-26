@@ -251,6 +251,10 @@ export class FineGrassFieldDecorator {
   return {density:.7,noise:.5,weights:{grass:.2},total:1,region:{name:'lowlands'}};
  }
 
+ groundGrassDensityAt(x,z){
+  return this.world?.groundSurface?.grassDensityMultiplierAt?.(x,z)??1;
+ }
+
  terrainAllowsGrass(x,z){
   if(this.world?.isWithinPlayableBounds&&!this.world.isWithinPlayableBounds(x,z))return false;
   if(Math.hypot(x,z)<this.spawnClearRadius)return false;
@@ -261,6 +265,7 @@ export class FineGrassFieldDecorator {
   const slope=this.slopeAt(x,z);
   if(slope>this.maxSlope)return false;
   if(this.world?.environment?.terrainClearance?.(x,z))return false;
+  if(this.groundGrassDensityAt(x,z)<.055)return false;
   return true;
  }
 
@@ -270,10 +275,10 @@ export class FineGrassFieldDecorator {
   const grassShare=(ecology.weights?.grass??.18)/Math.max(.001,ecology.total??1);
   const density=ecology.density??.7;
   const noise=ecology.noise??.5;
+  const groundDensity=this.groundGrassDensityAt(x,z);
+  const ecological=density*(.84+grassShare*2.18)*(.90+noise*.30);
 
-  return Math.max(.30,Math.min(1,
-   density*(.84+grassShare*2.18)*(.90+noise*.30)
-  ));
+  return Math.max(.02,Math.min(1,ecological*groundDensity));
  }
 
  instanceKey(ix,iz){return `${ix}:${iz}`;}
@@ -382,8 +387,6 @@ export class FineGrassFieldDecorator {
     (distance-this.innerRadius)/(this.interactionRadius-this.innerRadius)
    );
 
-   // Grass parts away from the Ranger while movement direction adds a trailing
-   // sweep, making running visibly push the field aside rather than just squash it.
    let pushX=outwardX;
    let pushZ=outwardZ;
    if(moveLength>.001){
@@ -493,6 +496,9 @@ export class FineGrassFieldDecorator {
 
     if(!this.terrainAllowsGrass(x,z))continue;
     if(!this.isObstacleClear(x,z,.055))continue;
+
+    const groundDensity=this.groundGrassDensityAt(x,z);
+    if(this.rand(tuftSeed+12)>groundDensity)continue;
 
     // Very soft edge thinning lets neighboring patches merge into a continuous
     // field while still avoiding obviously stamped circles.
