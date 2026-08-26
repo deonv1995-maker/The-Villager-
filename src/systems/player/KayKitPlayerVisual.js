@@ -6,10 +6,19 @@ export class KayKitPlayerVisual{
   this.modelUrls=this.normalize(modelUrls??modelUrl);
   this.movementUrls=this.normalize(movementUrls??movementUrl);
   this.generalUrls=this.normalize(generalUrls??generalUrl);
-  this.targetHeight=targetHeight;this.facingYaw=facingYaw;
-  this.root=new THREE.Group();this.root.name='KayKitRangerVisual';this.mixer=null;this.actions=new Map();this.active=null;this.loaded=false;
+  this.targetHeight=targetHeight;
+  this.facingYaw=facingYaw;
+  this.root=new THREE.Group();
+  this.root.name='KayKitRangerVisual';
+  this.mixer=null;
+  this.actions=new Map();
+  this.active=null;
+  this.loaded=false;
+  this.jumpActionName=null;
  }
+
  normalize(value){return (Array.isArray(value)?value:[value]).filter(Boolean);}
+
  async loadFirst(loader,urls,label,required=true){
   let last=null;
   for(const url of urls){
@@ -18,36 +27,88 @@ export class KayKitPlayerVisual{
   if(required)throw new Error(`${label} unavailable: ${last?.message||'no working source'}`);
   return null;
  }
+
  async load(){
   const loader=new GLTFLoader();
   const character=await this.loadFirst(loader,this.modelUrls,'Ranger model',true);
   const model=character.scene;
-  model.rotation.y=this.facingYaw;model.updateMatrixWorld(true);
-  const box=new this.T.Box3().setFromObject(model),size=new this.T.Vector3();box.getSize(size);
+  model.rotation.y=this.facingYaw;
+  model.updateMatrixWorld(true);
+
+  const box=new this.T.Box3().setFromObject(model),size=new this.T.Vector3();
+  box.getSize(size);
   if(!Number.isFinite(size.y)||size.y<=0)throw new Error('KayKit Ranger has invalid bounds');
-  const scale=this.targetHeight/size.y;model.scale.setScalar(scale);model.updateMatrixWorld(true);
-  const scaled=new this.T.Box3().setFromObject(model);model.position.y-=scaled.min.y;
+  const scale=this.targetHeight/size.y;
+  model.scale.setScalar(scale);
+  model.updateMatrixWorld(true);
+  const scaled=new this.T.Box3().setFromObject(model);
+  model.position.y-=scaled.min.y;
   model.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
-  this.root.add(model);this.mixer=new this.T.AnimationMixer(model);
+  this.root.add(model);
+  this.mixer=new this.T.AnimationMixer(model);
 
   const [movement,general]=await Promise.all([
    this.loadFirst(loader,this.movementUrls,'movement animations',false),
    this.loadFirst(loader,this.generalUrls,'general animations',false)
   ]);
   const clips=[...(character.animations||[]),...(general?.animations||[]),...(movement?.animations||[])];
-  for(const clip of clips){if(!this.actions.has(clip.name))this.actions.set(clip.name,this.mixer.clipAction(clip));}
+  for(const clip of clips){
+   if(!this.actions.has(clip.name))this.actions.set(clip.name,this.mixer.clipAction(clip));
+  }
+
+  this.jumpActionName=this.findJumpAction();
+  if(this.jumpActionName){
+   const jump=this.actions.get(this.jumpActionName);
+   jump.setLoop(this.T.LoopOnce,1);
+   jump.clampWhenFinished=true;
+  }
+
   this.loaded=true;
-  const idle=this.actions.has('Idle_A')?'Idle_A':(this.actions.has('Idle')?'Idle':null);if(idle)this.play(idle,0);
+  const idle=this.actions.has('Idle_A')?'Idle_A':(this.actions.has('Idle')?'Idle':null);
+  if(idle)this.play(idle,0);
   return this;
  }
- play(name,fade=.16,timeScale=1){const next=this.actions.get(name);if(!next||next===this.active){if(next)next.setEffectiveTimeScale(timeScale);return;}if(this.active)this.active.fadeOut(fade);next.reset().setEffectiveTimeScale(timeScale).fadeIn(fade).play();this.active=next;}
- update(dt,moveAmount=0){
-  if(!this.loaded)return;
-  if(this.actions.size){
-   if(moveAmount<.06)this.play(this.actions.has('Idle_A')?'Idle_A':'Idle');
-   else if(moveAmount>.72&&this.actions.has('Running_A'))this.play('Running_A',.14,.88+moveAmount*.18);
-   else this.play(this.actions.has('Walking_A')?'Walking_A':'Walking',.16,.65+moveAmount*.45);
+
+ findJumpAction(){
+  const names=[...this.actions.keys()];
+  const preferred=[
+   'Jump_Full','Jump','Jump_A','Jumping','Jump_Start'
+  ];
+  for(const wanted of preferred){
+   const exact=names.find(name=>name.toLowerCase()===wanted.toLowerCase());
+   if(exact)return exact;
   }
+  return names.find(name=>name.toLowerCase().includes('jump'))||null;
+ }
+
+ play(name,fade=.16,timeScale=1,forceRestart=false){
+  const next=this.actions.get(name);
+  if(!next)return;
+  if(next===this.active&&!forceRestart){
+   next.setEffectiveTimeScale(timeScale);
+   return;
+  }
+  if(this.active&&this.active!==next)this.active.fadeOut(fade);
+  if(forceRestart||next!==this.active)next.reset();
+  next.setEffectiveTimeScale(timeScale).fadeIn(fade).play();
+  this.active=next;
+ }
+
+ update(dt,moveAmount=0,locomotion={}){
+  if(!this.loaded)return;
+
+  if(this.actions.size){
+   if(!locomotion.isGrounded&&this.jumpActionName){
+    this.play(this.jumpActionName,.08,1,!!locomotion.jumpStarted);
+   }else if(moveAmount<.06){
+    this.play(this.actions.has('Idle_A')?'Idle_A':'Idle');
+   }else if(moveAmount>.72&&this.actions.has('Running_A')){
+    this.play('Running_A',.14,.88+moveAmount*.18);
+   }else{
+    this.play(this.actions.has('Walking_A')?'Walking_A':'Walking',.16,.65+moveAmount*.45);
+   }
+  }
+
   this.mixer?.update(dt);
  }
 }
