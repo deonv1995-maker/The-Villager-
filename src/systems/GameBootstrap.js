@@ -1,4 +1,4 @@
-import { WorldManager } from './WorldManager.js?v=533';
+import { WorldManager } from './WorldManager.js?v=534';
 import { MobileControls } from './input/MobileControls.js';
 import { PlayerController } from './player/PlayerController.js?v=519';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
@@ -55,7 +55,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.33 · closed cliff endpoints · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.34 · cliff seam backstop · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -68,7 +68,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.33 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.34 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -89,11 +89,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.33 · Ranger · closed cliff endpoints'
-    :'Clean rebuild 0.5.33 · Ranger · closed cliff endpoints · animations pending';
+    ?'Clean rebuild 0.5.34 · Ranger · cliff seam backstop'
+    :'Clean rebuild 0.5.34 · Ranger · cliff seam backstop · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.33 · closed cliff endpoints · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.34 · cliff seam backstop · Ranger model unavailable';
   }
  }
 }
