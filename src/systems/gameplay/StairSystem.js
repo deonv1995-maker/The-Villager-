@@ -10,11 +10,14 @@ export class StairSystem{
   this.stairSnapRange=2.45;
   this.railPairTolerance=.12;
   this.railDirectionTolerance=.12;
-  this.treadLift=.24;
+  this.railSeatLift=.20;
+  this.treadSurfaceLift=.025;
   this.treadAcrossMargin=.10;
-  this.treadEndMargin=.12;
+  this.treadEndMargin=.10;
+  this.treadsPerLog=2;
+  this.totalTreads=4;
   this.walkSampleSpacing=.12;
-  this.maxWalkRisePerSample=.78;
+  this.maxWalkRisePerSample=.22;
 
   this.originalAngleSnapBase=null;
   this.originalFloorSnapBase=null;
@@ -75,8 +78,7 @@ export class StairSystem{
 
  pointInsideFloor(floor,x,z,margin=.015){
   const b=this.basis(floor.yaw||0);
-  const dx=x-floor.x;
-  const dz=z-floor.z;
+  const dx=x-floor.x,dz=z-floor.z;
   const localX=dx*b.xX+dz*b.xZ;
   const localZ=dx*b.zX+dz*b.zZ;
   const halfLength=(this.buildingModes.floorHalfLength??1.45)+margin;
@@ -127,9 +129,7 @@ export class StairSystem{
      const outsideZ=mz+outward.z*this.edgeProbe;
      const insideX=mx-outward.x*this.edgeProbe;
      const insideZ=mz-outward.z*this.edgeProbe;
-     const outsideFloor=this.floorAt(outsideX,outsideZ,topY);
-     const insideFloor=this.floorAt(insideX,insideZ,topY);
-     if(outsideFloor||!insideFloor)continue;
+     if(this.floorAt(outsideX,outsideZ,topY)||!this.floorAt(insideX,insideZ,topY))continue;
 
      edges.push({
       a,b,topY,
@@ -160,8 +160,7 @@ export class StairSystem{
   for(const rail of this.activeRails()){
    const top=this.railTopPoint(rail);
    if(Math.hypot(top.x-node.x,top.z-node.z)>this.edgeOccupancyRadius)continue;
-   const yaw=this.stairDirectionYaw(rail);
-   if(this.buildingModes.yawDelta(yaw,targetYaw)<=this.railDirectionTolerance)return true;
+   if(this.buildingModes.yawDelta(this.stairDirectionYaw(rail),targetYaw)<=this.railDirectionTolerance)return true;
   }
   return false;
  }
@@ -174,17 +173,17 @@ export class StairSystem{
    const yaw=Math.atan2(edge.inward.x,edge.inward.z);
    for(const node of [edge.a,edge.b]){
     if(this.railAlreadyPlaced(node,edge.inward))continue;
+    const x=node.x+edge.outward.x*halfProjection;
+    const z=node.z+edge.outward.z*halfProjection;
     candidates.push({
-     x:node.x+edge.outward.x*halfProjection,
-     z:node.z+edge.outward.z*halfProjection,
-     yaw,
-     centerY:edge.topY-halfProjection,
-     ground:this.world.heightAt(
-      node.x+edge.outward.x*halfProjection,
-      node.z+edge.outward.z*halfProjection
-     ),
+     x,z,yaw,
+     // The high end of the round log now sits on top of the floor rather than
+     // terminating through the floor edge.
+     centerY:edge.topY+this.railSeatLift-halfProjection,
+     ground:this.world.heightAt(x,z),
      snapKind:'floor-stair-rail',
-     anchorIds:[...edge.floorIds]
+     anchorIds:[...edge.floorIds],
+     stairDeckY:edge.topY
     });
    }
   }
@@ -197,6 +196,8 @@ export class StairSystem{
   if(rail?.snapKind==='floor-stair-rail')return rail;
   return this.originalAngleSnapBase(base);
  }
+
+ pairKey(a,b){return [a.id,b.id].sort((x,y)=>x-y).join(':');}
 
  railPairs(){
   const rails=this.activeRails();
@@ -214,7 +215,10 @@ export class StairSystem{
     const bTop=this.railTopPoint(b);
     const bYaw=this.stairDirectionYaw(b);
     if(this.buildingModes.yawDelta(aYaw,bYaw)>this.railDirectionTolerance)continue;
-    if(Math.abs(aTop.y-bTop.y)>.12)continue;
+
+    const deckAY=Number.isFinite(a.stairDeckY)?a.stairDeckY:aTop.y-this.railSeatLift;
+    const deckBY=Number.isFinite(b.stairDeckY)?b.stairDeckY:bTop.y-this.railSeatLift;
+    if(Math.abs(deckAY-deckBY)>.12)continue;
 
     const dx=bTop.x-aTop.x,dz=bTop.z-aTop.z;
     const distance=Math.hypot(dx,dz);
@@ -222,17 +226,32 @@ export class StairSystem{
     const dot=Math.abs((dx*afx+dz*afz)/Math.max(.001,distance));
     if(dot>.12)continue;
 
-    const topMid={x:(aTop.x+bTop.x)*.5,z:(aTop.z+bTop.z)*.5,y:(aTop.y+bTop.y)*.5};
-    const outward={x:-afx,z:-afz};
-    pairs.push({a,b,topMid,outward,inward:{x:afx,z:afz}});
+    pairs.push({
+     a,b,
+     key:this.pairKey(a,b),
+     topMid:{x:(aTop.x+bTop.x)*.5,z:(aTop.z+bTop.z)*.5},
+     deckY:(deckAY+deckBY)*.5,
+     outward:{x:-afx,z:-afz},
+     inward:{x:afx,z:afz}
+    });
    }
   }
   return pairs;
  }
 
- pairAlreadyHasTreads(pair){
-  const ids=[pair.a.id,pair.b.id].sort((a,b)=>a-b).join(':');
-  return this.activeTreads().some(p=>p.stairPairKey===ids);
+ treadBatchesForPair(pair){
+  return this.activeTreads().filter(t=>t.stairPairKey===pair.key);
+ }
+
+ nextBatchIndex(pair){
+  const used=new Set(this.treadBatchesForPair(pair).map(t=>t.stairBatchIndex));
+  const batchCount=Math.ceil(this.totalTreads/this.treadsPerLog);
+  for(let i=0;i<batchCount;i++)if(!used.has(i))return i;
+  return -1;
+ }
+
+ pairComplete(pair){
+  return this.nextBatchIndex(pair)<0;
  }
 
  treadCandidates(){
@@ -240,21 +259,22 @@ export class StairSystem{
   const halfProjection=this.buildingModes.angleHalfProjection;
 
   for(const pair of this.railPairs()){
-   if(this.pairAlreadyHasTreads(pair))continue;
-   const key=[pair.a.id,pair.b.id].sort((a,b)=>a-b).join(':');
+   const batchIndex=this.nextBatchIndex(pair);
+   if(batchIndex<0)continue;
    const x=pair.topMid.x+pair.outward.x*halfProjection;
    const z=pair.topMid.z+pair.outward.z*halfProjection;
-   const yaw=Math.atan2(pair.outward.x,pair.outward.z);
    candidates.push({
-    x,z,yaw,
-    centerY:pair.topMid.y-halfProjection+this.treadLift,
+    x,z,
+    yaw:Math.atan2(pair.outward.x,pair.outward.z),
+    centerY:pair.deckY-halfProjection,
     ground:this.world.heightAt(x,z),
     snapKind:'stair-treads',
     anchorIds:[pair.a.id,pair.b.id],
-    stairPairKey:key,
+    stairPairKey:pair.key,
+    stairBatchIndex:batchIndex,
     stairTopX:pair.topMid.x,
     stairTopZ:pair.topMid.z,
-    stairTopY:pair.topMid.y,
+    stairDeckY:pair.deckY,
     stairOutX:pair.outward.x,
     stairOutZ:pair.outward.z
    });
@@ -264,11 +284,7 @@ export class StairSystem{
 
  floorSnapBase(base){
   if(!base)return base;
-  const treads=this.buildingModes.chooseCandidate(
-   base,
-   this.treadCandidates(),
-   this.stairSnapRange
-  );
+  const treads=this.buildingModes.chooseCandidate(base,this.treadCandidates(),this.stairSnapRange);
   if(treads?.snapKind==='stair-treads')return treads;
   return this.originalFloorSnapBase(base);
  }
@@ -276,16 +292,22 @@ export class StairSystem{
  makeStairTreads(base){
   const group=new this.buildingModes.T.Group();
   group.name='TwoSplitLogStairTreads';
+
   const fullProjection=this.buildingModes.angleHalfProjection*2;
-  const offset=fullProjection/6;
+  const stepSpacing=fullProjection/this.totalTreads;
+  const firstIndex=base.stairBatchIndex*this.treadsPerLog;
 
-  const upper=this.buildingModes.materials.makeHalfLogVisual();
-  upper.position.set(0,offset,-offset);
-  group.add(upper);
-
-  const lower=this.buildingModes.materials.makeHalfLogVisual();
-  lower.position.set(0,-offset,offset);
-  group.add(lower);
+  for(let localIndex=0;localIndex<this.treadsPerLog;localIndex++){
+   const treadIndex=firstIndex+localIndex;
+   const outwardDistance=(treadIndex+.5)*stepSpacing;
+   const half=this.buildingModes.materials.makeHalfLogVisual();
+   half.position.set(
+    0,
+    this.buildingModes.angleHalfProjection-outwardDistance+this.treadSurfaceLift,
+    outwardDistance-this.buildingModes.angleHalfProjection
+   );
+   group.add(half);
+  }
 
   group.position.set(base.x,base.centerY,base.z);
   group.rotation.y=base.yaw;
@@ -300,11 +322,17 @@ export class StairSystem{
  recordPlacement(mode,object,base,standable=false){
   const actualMode=mode==='floor'&&base?.snapKind==='stair-treads'?'stairTread':mode;
   const placement=this.originalRecordPlacement(actualMode,object,base,actualMode==='floor'?standable:false);
+
+  if(actualMode==='angle'&&base?.snapKind==='floor-stair-rail'){
+   placement.stairDeckY=base.stairDeckY;
+  }
+
   if(actualMode==='stairTread'){
    placement.stairPairKey=base.stairPairKey;
+   placement.stairBatchIndex=base.stairBatchIndex;
    placement.stairTopX=base.stairTopX;
    placement.stairTopZ=base.stairTopZ;
-   placement.stairTopY=base.stairTopY;
+   placement.stairDeckY=base.stairDeckY;
    placement.stairOutX=base.stairOutX;
    placement.stairOutZ=base.stairOutZ;
   }
@@ -323,34 +351,31 @@ export class StairSystem{
   return this.originalActionLabel();
  }
 
- treadSupportAt(tread,x,z){
-  if(!tread||tread.mode!=='stairTread')return -Infinity;
-  const ox=tread.stairOutX,oz=tread.stairOutZ;
-  if(!Number.isFinite(ox)||!Number.isFinite(oz))return -Infinity;
+ completedPairs(){return this.railPairs().filter(pair=>this.pairComplete(pair));}
 
+ rampSupportAt(pair,x,z){
+  const ox=pair.outward.x,oz=pair.outward.z;
   const rx=oz,rz=-ox;
-  const dx=x-tread.stairTopX;
-  const dz=z-tread.stairTopZ;
+  const dx=x-pair.topMid.x,dz=z-pair.topMid.z;
   const outward=dx*ox+dz*oz;
   const across=dx*rx+dz*rz;
   const fullProjection=this.buildingModes.angleHalfProjection*2;
   const halfAcross=this.buildingModes.logHalfLength+this.treadAcrossMargin;
 
   if(Math.abs(across)>halfAcross)return -Infinity;
-  if(outward<-.08||outward>fullProjection+this.treadEndMargin)return -Infinity;
+  if(outward<-.06||outward>fullProjection+this.treadEndMargin)return -Infinity;
 
-  // One floor log is split into its two halves. Those halves become two broad,
-  // flat stair treads resting across the paired 45-degree side rails.
-  if(outward<=fullProjection*.50){
-   return tread.stairTopY-fullProjection/3+this.treadLift+.02;
-  }
-  return tread.stairTopY-fullProjection*2/3+this.treadLift+.02;
+  // The visible treads are discrete, but locomotion follows their continuous
+  // 45-degree envelope. This removes the hop/stutter between individual steps
+  // while keeping the staircase visually constructed from four timber treads.
+  const d=Math.max(0,Math.min(fullProjection,outward));
+  return pair.deckY-d+this.treadSurfaceLift;
  }
 
- treadHeightAt(x,z){
+ rampHeightAt(x,z){
   let best=-Infinity;
-  for(const tread of this.activeTreads()){
-   const support=this.treadSupportAt(tread,x,z);
+  for(const pair of this.completedPairs()){
+   const support=this.rampSupportAt(pair,x,z);
    if(support>best)best=support;
   }
   return best;
@@ -358,33 +383,32 @@ export class StairSystem{
 
  staticConstructionHeightAt(x,z){
   const floor=this.originalSurfaceHeightAt(x,z,Infinity,false);
-  const tread=this.treadHeightAt(x,z);
-  return Math.max(floor,tread);
+  return Math.max(floor,this.rampHeightAt(x,z));
  }
 
  surfaceHeightAt(x,z,currentFootY=Infinity,isGrounded=false){
   const floor=this.originalSurfaceHeightAt(x,z,currentFootY,isGrounded);
-  let tread=this.treadHeightAt(x,z);
-  if(Number.isFinite(tread)&&Number.isFinite(currentFootY)){
-   const tolerance=isGrounded?.82:.24;
-   if(currentFootY<tread-tolerance)tread=-Infinity;
+  let stair=this.rampHeightAt(x,z);
+  if(Number.isFinite(stair)&&Number.isFinite(currentFootY)){
+   const tolerance=isGrounded?.72:.24;
+   if(currentFootY<stair-tolerance)stair=-Infinity;
   }
-  return Math.max(floor,tread);
+  return Math.max(floor,stair);
  }
 
  surfaceHeightForSweep(x,z,fromFootY,toFootY){
   const floor=this.originalSurfaceHeightForSweep(x,z,fromFootY,toFootY);
-  const tread=this.treadHeightAt(x,z);
-  if(!Number.isFinite(tread))return floor;
-  const crossed=fromFootY>=tread-.07&&toFootY<=tread+.05;
-  return crossed?Math.max(floor,tread):floor;
+  const stair=this.rampHeightAt(x,z);
+  if(!Number.isFinite(stair))return floor;
+  const crossed=fromFootY>=stair-.07&&toFootY<=stair+.05;
+  return crossed?Math.max(floor,stair):floor;
  }
 
  supportsWalkSegment(fromX,fromZ,currentFootY,toX,toZ){
   if(this.originalSupportsWalkSegment(fromX,fromZ,currentFootY,toX,toZ))return true;
 
   const start=this.staticConstructionHeightAt(fromX,fromZ);
-  if(!Number.isFinite(start)||Math.abs(currentFootY-start)>.84)return false;
+  if(!Number.isFinite(start)||Math.abs(currentFootY-start)>.72)return false;
 
   const distance=Math.hypot(toX-fromX,toZ-fromZ);
   const samples=Math.max(1,Math.ceil(distance/this.walkSampleSpacing));
