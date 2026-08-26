@@ -11,7 +11,8 @@ import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=570';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=570';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=576';
-import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=570';
+import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
+import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=577';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
 
@@ -92,6 +93,14 @@ export class GameBootstrap{
    });
    this.foundationTerrain.initialize();
 
+   this.floorSupports=new FloorSupportSystem(T,{
+    world:this.world,
+    buildingModes:this.buildModes,
+    foundationTerrain:this.foundationTerrain,
+    materials:this.materials
+   });
+   this.floorSupports.initialize();
+
    this.constructionTraversal=new ConstructionTraversalSystem({
     world:this.world,buildingModes:this.buildModes
    });
@@ -127,7 +136,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.76 · graded vegetation · clear floor footprints · downhill deck overhang · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.77 · automatic deck supports · graded vegetation · downhill overhangs · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -135,6 +144,7 @@ export class GameBootstrap{
     this.playerController.update(dt);
     this.buildModes.update(dt);
     this.foundationTerrain.update(dt);
+    this.floorSupports.update(dt);
     this.harvesting.update(dt);
     this.reactions.update(dt);
     this.survivalInteraction.update(dt);
@@ -149,7 +159,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.76 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.77 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -170,11 +180,11 @@ export class GameBootstrap{
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.76 · Ranger · vegetation follows graded ground · floor footprints stay clear'
-    :'Clean rebuild 0.5.76 · Ranger · foundation vegetation sync · animations pending';
+    ?'Clean rebuild 0.5.77 · Ranger · overhanging floors gain automatic timber supports'
+    :'Clean rebuild 0.5.77 · Ranger · automatic deck supports · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.76 · foundation vegetation sync · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.77 · automatic deck supports · Ranger model unavailable';
   }
  }
 }
