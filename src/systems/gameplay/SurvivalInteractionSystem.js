@@ -1,9 +1,10 @@
 export class SurvivalInteractionSystem{
- constructor({player,materials,harvesting,reactions,actionButton=null,feedbackElement=null}){
+ constructor({player,materials,harvesting,reactions,buildingModes=null,actionButton=null,feedbackElement=null}){
   this.player=player;
   this.materials=materials;
   this.harvesting=harvesting;
   this.reactions=reactions;
+  this.buildingModes=buildingModes;
   this.actionButton=actionButton;
   this.feedbackElement=feedbackElement;
   this.refreshTimer=0;
@@ -37,6 +38,9 @@ export class SurvivalInteractionSystem{
 
  resolve(){
   if(this.materials?.carried){
+   if(this.materials.carried.type==='log'&&this.buildingModes){
+    return {type:'place-log',label:this.buildingModes.actionLabel()};
+   }
    return {type:'place',label:`PLACE ${this.materials.carried.type.toUpperCase()}`};
   }
 
@@ -83,6 +87,19 @@ export class SurvivalInteractionSystem{
     this.updateButton();
     return true;
    }
+   return false;
+  }
+
+  if(interaction.type==='place-log'){
+   const placed=this.buildingModes.placeCarriedLog();
+   if(placed){
+    const mode=this.buildingModes.mode;
+    this.showFeedback(mode==='raw'?'Log placed':`${this.buildingModes.modeLabel(mode)} placed`);
+    this.current=null;
+    this.updateButton();
+    return true;
+   }
+   this.showFeedback('Cannot place here');
    return false;
   }
 
