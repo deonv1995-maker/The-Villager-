@@ -10,10 +10,11 @@ import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSyst
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=570';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=570';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
+import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=579';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=576';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=577';
-import { StairSystem } from './gameplay/StairSystem.js?v=578';
+import { StairSystem } from './gameplay/StairSystem.js?v=579';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
 
@@ -86,6 +87,11 @@ export class GameBootstrap{
    });
    this.buildModes.initialize();
 
+   // Foundation posts are generated from complete one-log square floor bays.
+   // This prevents posts from snapping to every individual split-floor seam.
+   this.frameGrid=new FrameGridSystem({buildingModes:this.buildModes});
+   this.frameGrid.initialize();
+
    this.foundationTerrain=new FoundationTerrainSystem(T,{
     world:this.world,
     scene:this.scene,
@@ -144,7 +150,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.78 · floor-snapped 45° stairs · automatic deck supports · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.79 · square frame bays · stair-first 45° snapping · deck supports · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -167,7 +173,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.78 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.79 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -188,11 +194,11 @@ export class GameBootstrap{
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.78 · Ranger · 45° logs snap to exposed floor edges as walkable stairs'
-    :'Clean rebuild 0.5.78 · Ranger · floor stair snapping · animations pending';
+    ?'Clean rebuild 0.5.79 · Ranger · frames use full square bays · 45° floor stairs win near deck edges'
+    :'Clean rebuild 0.5.79 · Ranger · structural snapping correction · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.78 · floor stair snapping · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.79 · structural snapping correction · Ranger model unavailable';
   }
  }
 }
