@@ -17,9 +17,6 @@ export class BuildingModeSystem{
   this.placeDistance=1.90;
   this.feedbackTimer=null;
 
-  // Construction derives its proportions from the actual harvested log. The new
-  // 2.9 m log puts a FRAME slightly above Ranger head height and gives WALL bays
-  // enough width to read as a proper room instead of a cramped cage.
   this.logLength=this.materials?.logLength??2.90;
   this.logHalfLength=this.logLength*.5;
   this.floorWidth=1.12;
@@ -27,17 +24,19 @@ export class BuildingModeSystem{
   this.floorHalfWidth=this.floorWidth*.5;
   this.frameCenterOffset=this.logHalfLength+.01;
   this.floorSnapRange=1.45;
-  this.frameSnapRange=1.35;
+  this.frameSnapRange=1.45;
   this.wallSnapRange=1.70;
-  this.angleSnapRange=1.75;
+  this.angleSnapRange=1.85;
+  this.rawBeamSnapRange=1.85;
   this.angleHalfProjection=this.logHalfLength*Math.SQRT1_2;
 
-  // Wall courses that share the same snapped span form one vertical stack. Keep
-  // this radius tight so a neighbouring wall bay can never steal the next course.
+  // Frames that share an X/Z position form one structural column. A raw beam can
+  // sit on the top of that column and another frame can then start on the beam.
+  this.frameColumnRadius=.38;
+  this.beamSeatOffset=.28;
   this.wallStackRadius=.34;
+  this.wallHeightTolerance=.08;
 
-  // Do not allow a post or low wall course to materialize through the Ranger.
-  // Elevated wall courses are allowed once their bottom is above his head.
   this.playerBuildClearance=.54;
   this.framePlacementRadius=.30;
   this.wallPlacementHalfThickness=.28;
@@ -146,6 +145,34 @@ export class BuildingModeSystem{
   };
  }
 
+ frameColumns(){
+  const columns=[];
+  for(const frame of this.placements){
+   if(frame.mode!=='frame'||!frame.object?.parent)continue;
+   let column=null;
+   for(const existing of columns){
+    if(Math.hypot(existing.x-frame.x,existing.z-frame.z)<=this.frameColumnRadius){
+     column=existing;
+     break;
+    }
+   }
+   if(!column){
+    column={
+     x:frame.x,z:frame.z,
+     minY:frame.minY,maxY:frame.maxY,
+     bottomId:frame.id,topId:frame.id,
+     frames:[frame]
+    };
+    columns.push(column);
+   }else{
+    column.frames.push(frame);
+    if(frame.minY<column.minY){column.minY=frame.minY;column.bottomId=frame.id;}
+    if(frame.maxY>column.maxY){column.maxY=frame.maxY;column.topId=frame.id;}
+   }
+  }
+  return columns;
+ }
+
  playerClearForPlacement(mode,base){
   if(!this.player||!base)return true;
   if(mode!=='frame'&&mode!=='wall')return true;
@@ -153,14 +180,13 @@ export class BuildingModeSystem{
   const px=this.player.position.x;
   const pz=this.player.position.z;
   if(mode==='frame'){
+   const frameBaseY=Number.isFinite(base.baseY)?base.baseY:base.ground;
+   const playerHeadY=this.player.position.y+(this.world?.playerCollisionHeight??2.15);
+   if(frameBaseY>playerHeadY+.06)return true;
    const radius=this.framePlacementRadius+this.playerBuildClearance;
    return Math.hypot(px-base.x,pz-base.z)>radius;
   }
 
-  // Once a wall course is genuinely above the Ranger it no longer needs a 2D
-  // exclusion bubble around him. This lets the upper courses be completed from
-  // inside or just outside a wall bay without pretending the whole wall is at
-  // ground level.
   const wallCenterY=this.wallBaseHeight(base);
   const wallBottomY=wallCenterY-.28;
   const playerHeadY=this.player.position.y+(this.world?.playerCollisionHeight??2.15);
@@ -175,10 +201,26 @@ export class BuildingModeSystem{
   return Math.abs(localX)>halfX||Math.abs(localZ)>halfZ;
  }
 
+ wallTopOffset(){
+  for(const placement of this.placements){
+   if(placement.mode!=='wall'||!placement.object?.parent)continue;
+   const offset=placement.maxY-placement.object.position.y;
+   if(Number.isFinite(offset)&&offset>.2)return offset;
+  }
+  return .78;
+ }
+
+ wallFitsFrameHeight(base){
+  if(!Number.isFinite(base?.maxWallY))return false;
+  const nextTop=this.wallBaseHeight(base)+this.wallTopOffset();
+  return nextTop<=base.maxWallY+this.wallHeightTolerance;
+ }
+
  placementAllowed(base,mode=this.mode){
   if(!base)return false;
   if(this.world?.isWithinPlayableBounds&&!this.world.isWithinPlayableBounds(base.x,base.z))return false;
-  if(this.world?.environment?.terrainClearance?.(base.x,base.z))return false;
+  if(this.world?.environment?.terrainClearance?.(base.x,base.z)&&!base.snapKind)return false;
+  if(mode==='wall'&&!this.wallFitsFrameHeight(base))return false;
   if(!this.playerClearForPlacement(mode,base))return false;
   return true;
  }
@@ -265,8 +307,59 @@ export class BuildingModeSystem{
   return result;
  }
 
+ beamSupportCandidates(base){
+  const columns=this.frameColumns();
+  const candidates=[];
+
+  // Prefer a beam that bridges two frame columns when their spacing matches one
+  // log. This creates a clean upper-story sill automatically.
+  for(let i=0;i<columns.length;i++){
+   const a=columns[i];
+   for(let j=i+1;j<columns.length;j++){
+    const b=columns[j];
+    const dx=b.x-a.x,dz=b.z-a.z;
+    const distance=Math.hypot(dx,dz);
+    if(distance<this.logLength-.62||distance>this.logLength+.62)continue;
+    if(Math.abs(a.maxY-b.maxY)>.35)continue;
+    const x=(a.x+b.x)*.5;
+    const z=(a.z+b.z)*.5;
+    const yaw=this.snapYaw(Math.atan2(-dz,dx));
+    candidates.push({
+     x,z,yaw,rotationY:yaw,
+     centerY:Math.max(a.maxY,b.maxY)+this.beamSeatOffset,
+     y:Math.max(a.maxY,b.maxY)+this.beamSeatOffset,
+     ground:this.world.heightAt(x,z),
+     snapKind:'frame-pair-top',
+     anchorIds:[a.topId,b.topId]
+    });
+   }
+  }
+
+  // A single frame can also carry a beam. Keeping this fallback makes it possible
+  // to build upward one column at a time.
+  for(const column of columns){
+   candidates.push({
+    x:column.x,z:column.z,
+    yaw:base.yaw,rotationY:base.rotationY??base.yaw,
+    centerY:column.maxY+this.beamSeatOffset,
+    y:column.maxY+this.beamSeatOffset,
+    ground:this.world.heightAt(column.x,column.z),
+    snapKind:'frame-top-beam',
+    anchorIds:[column.topId],
+    penalty:.08
+   });
+  }
+  return candidates;
+ }
+
+ rawSnapBase(base){
+  if(!base)return null;
+  return this.chooseCandidate(base,this.beamSupportCandidates(base),this.rawBeamSnapRange);
+ }
+
  frameSnapBase(base){
   const candidates=[];
+
   for(const placement of this.placements){
    if(placement.mode==='floor'){
     for(const corner of this.floorCornerCandidates(placement)){
@@ -282,6 +375,25 @@ export class BuildingModeSystem{
     }
    }
 
+   if(placement.mode==='beam'){
+    const b=this.basis(placement.yaw);
+    const points=[
+     {x:placement.x,z:placement.z,penalty:.05},
+     {x:placement.x+b.xX*this.logHalfLength,z:placement.z+b.xZ*this.logHalfLength,penalty:0},
+     {x:placement.x-b.xX*this.logHalfLength,z:placement.z-b.xZ*this.logHalfLength,penalty:0}
+    ];
+    for(const point of points){
+     candidates.push({
+      x:this.snapQuarter(point.x),z:this.snapQuarter(point.z),yaw:base.yaw,
+      baseY:placement.maxY,
+      ground:placement.maxY,
+      snapKind:'beam-top',
+      anchorIds:[placement.id],
+      penalty:point.penalty
+     });
+    }
+   }
+
    if(placement.mode==='frame'){
     for(let i=0;i<8;i++){
      const yaw=i*Math.PI/4;
@@ -292,7 +404,7 @@ export class BuildingModeSystem{
       ground:this.world.heightAt(x,z),
       snapKind:'frame-spacing',
       anchorIds:[placement.id],
-      penalty:.06
+      penalty:.12
      });
     }
    }
@@ -301,16 +413,15 @@ export class BuildingModeSystem{
  }
 
  wallPairCandidates(base){
-  const frames=this.placements.filter(p=>p.mode==='frame');
+  const columns=this.frameColumns();
   const candidates=[];
-  for(let i=0;i<frames.length;i++){
-   const a=frames[i];
-   for(let j=i+1;j<frames.length;j++){
-    const b=frames[j];
+  for(let i=0;i<columns.length;i++){
+   const a=columns[i];
+   for(let j=i+1;j<columns.length;j++){
+    const b=columns[j];
     const dx=b.x-a.x,dz=b.z-a.z;
     const distance=Math.hypot(dx,dz);
     if(distance<this.logLength-.62||distance>this.logLength+.62)continue;
-    if(Math.abs(a.maxY-b.maxY)>.78)continue;
 
     const x=(a.x+b.x)*.5;
     const z=(a.z+b.z)*.5;
@@ -320,8 +431,9 @@ export class BuildingModeSystem{
      x,z,
      yaw:this.snapYaw(yaw),
      ground:Math.max(a.minY,b.minY),
+     maxWallY:Math.min(a.maxY,b.maxY),
      snapKind:'between-frames',
-     anchorIds:[a.id,b.id],
+     anchorIds:[a.topId,b.topId],
      penalty:Math.abs(distance-this.logLength)*.30
     });
    }
@@ -335,16 +447,16 @@ export class BuildingModeSystem{
 
   const candidates=[];
   const b=this.basis(base.yaw);
-  for(const frame of this.placements){
-   if(frame.mode!=='frame')continue;
+  for(const column of this.frameColumns()){
    for(const sign of [-1,1]){
-    const x=this.snapQuarter(frame.x+b.xX*this.logHalfLength*sign);
-    const z=this.snapQuarter(frame.z+b.xZ*this.logHalfLength*sign);
+    const x=this.snapQuarter(column.x+b.xX*this.logHalfLength*sign);
+    const z=this.snapQuarter(column.z+b.xZ*this.logHalfLength*sign);
     candidates.push({
      x,z,yaw:base.yaw,
-     ground:frame.minY,
+     ground:column.minY,
+     maxWallY:column.maxY,
      snapKind:'from-frame',
-     anchorIds:[frame.id],
+     anchorIds:[column.topId],
      penalty:.10
     });
    }
@@ -358,17 +470,18 @@ export class BuildingModeSystem{
   const forwardX=Math.sin(directionYaw);
   const forwardZ=Math.cos(directionYaw);
 
-  for(const frame of this.placements){
-   if(frame.mode!=='frame')continue;
-   const x=frame.x+forwardX*this.angleHalfProjection;
-   const z=frame.z+forwardZ*this.angleHalfProjection;
+  // Roof pieces always use the highest frame in a structural column. After a beam
+  // and second frame are added, ANGLE therefore moves up with the building.
+  for(const column of this.frameColumns()){
+   const x=column.x+forwardX*this.angleHalfProjection;
+   const z=column.z+forwardZ*this.angleHalfProjection;
    candidates.push({
     x,z,
     yaw:directionYaw,
     ground:this.world.heightAt(x,z),
-    centerY:frame.maxY+this.angleHalfProjection,
+    centerY:column.maxY+this.angleHalfProjection,
     snapKind:'frame-top',
-    anchorIds:[frame.id]
+    anchorIds:[column.topId]
    });
   }
   return this.chooseCandidate(base,candidates,this.angleSnapRange);
@@ -411,6 +524,15 @@ export class BuildingModeSystem{
   return group;
  }
 
+ makeBeam(base){
+  const group=this.materials.makeLogVisual();
+  group.name='StructuralRawBeam';
+  const y=Number.isFinite(base.centerY)?base.centerY:base.y;
+  group.position.set(base.x,y,base.z);
+  group.rotation.y=base.rotationY??base.yaw??0;
+  return group;
+ }
+
  wallBaseHeight(base){
   let highestTop=-Infinity;
   for(const placement of this.placements){
@@ -420,10 +542,6 @@ export class BuildingModeSystem{
    if(d>this.wallStackRadius)continue;
    if(Number.isFinite(placement.maxY))highestTop=Math.max(highestTop,placement.maxY);
   }
-
-  // Previous builds selected the first wall at this position. Once two sections
-  // existed, every later section reused the second height and was hidden inside it.
-  // Always using the highest existing course makes the stack genuinely unbounded.
   return Number.isFinite(highestTop)?highestTop+.02:base.ground+.26;
  }
 
@@ -471,7 +589,8 @@ export class BuildingModeSystem{
  }
 
  previewBase(){
-  return this.mode==='raw'?this.rawPreviewBase():this.resolvedBase(this.mode);
+  if(this.mode==='raw')return this.rawSnapBase(this.rawPreviewBase());
+  return this.resolvedBase(this.mode);
  }
 
  tintAsPreview(object){
@@ -486,11 +605,8 @@ export class BuildingModeSystem{
 
  createPreview(mode,base){
   let object=null;
-  if(mode==='raw'){
-   object=this.materials.makeLogVisual();
-   object.position.set(base.x,base.y,base.z);
-   object.rotation.y=base.rotationY||0;
-  }else if(mode==='floor')object=this.makeFloor(base);
+  if(mode==='raw')object=this.makeBeam(base);
+  else if(mode==='floor')object=this.makeFloor(base);
   else if(mode==='frame')object=this.makeFrame(base);
   else if(mode==='wall')object=this.makeWall(base);
   else if(mode==='angle')object=this.makeAngle(base);
@@ -515,8 +631,9 @@ export class BuildingModeSystem{
   const object=this.preview;
   if(!object)return;
   if(mode==='raw'){
-   object.position.set(base.x,base.y,base.z);
-   object.rotation.set(0,base.rotationY||0,0);
+   const y=Number.isFinite(base.centerY)?base.centerY:base.y;
+   object.position.set(base.x,y,base.z);
+   object.rotation.set(0,base.rotationY??base.yaw??0,0);
   }else if(mode==='floor'){
    const centerY=Number.isFinite(base.centerY)?base.centerY:base.ground+.275;
    object.position.set(base.x,centerY,base.z);
@@ -564,8 +681,12 @@ export class BuildingModeSystem{
  }
 
  actionLabel(){
-  if(this.mode==='raw')return 'PLACE LOG';
+  if(this.mode==='raw'){
+   const base=this.rawSnapBase(this.rawPreviewBase());
+   return base?.snapKind?'SNAP BEAM':'PLACE LOG';
+  }
   const base=this.resolvedBase(this.mode);
+  if(this.mode==='wall'&&base.snapKind&&!this.wallFitsFrameHeight(base))return 'WALL FULL';
   return `${base.snapKind?'SNAP':'PLACE'} ${this.modeLabel()}`;
  }
 
@@ -574,6 +695,14 @@ export class BuildingModeSystem{
   if(!item||item.type!=='log')return null;
 
   if(this.mode==='raw'){
+   const base=this.rawSnapBase(this.rawPreviewBase());
+   if(base?.snapKind){
+    if(!this.placementAllowed(base,'raw'))return null;
+    const object=this.makeBeam(base);
+    if(!this.consumeCarriedLog())return null;
+    this.destroyPreview();
+    return this.recordPlacement('beam',object,base,false);
+   }
    const placed=this.materials.placeCarried();
    if(placed)this.destroyPreview();
    return placed;
