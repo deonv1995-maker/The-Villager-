@@ -158,9 +158,6 @@ export class HarvestingSystem{
 
  fallenDirection(entry){
   const baseYaw=entry.object.rotation.y||0;
-  // Rotating around local Z tips the trunk broadly along local X; rotating around
-  // local X tips it broadly along local Z. This only needs to position the loose
-  // logs in the same visual direction as the fallen tree, not run rigid-body sim.
   const localYaw=entry.fallAxis==='z'?0:Math.PI/2;
   return baseYaw+localYaw+(entry.fallSign<0?Math.PI:0);
  }
@@ -170,9 +167,10 @@ export class HarvestingSystem{
   const dx=Math.cos(yaw);
   const dz=-Math.sin(yaw);
   const count=3;
+  const spacing=(this.materials?.logLength??2.90)*.68;
   for(let i=0;i<count;i++){
-   const along=(i-(count-1)/2)*1.55;
-   const side=(i%2?1:-1)*.10;
+   const along=(i-(count-1)/2)*spacing;
+   const side=(i%2?1:-1)*.14;
    const x=entry.x+dx*along-dz*side;
    const z=entry.z+dz*along+dx*side;
    this.materials.spawnLog(x,z,yaw+(i-1)*.035);
