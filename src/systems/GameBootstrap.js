@@ -4,7 +4,7 @@ import { PlayerController } from './player/PlayerController.js?v=552';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
 import { PlayerVisual } from './player/PlayerVisual.js?v=538';
 import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552';
-import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=553';
+import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=554';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -74,7 +74,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.53 · full rock collision · reactive clumps · fine grass fields · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.54 · full rock collision · reactive clumps · denser fine grass fields · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -88,7 +88,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.53 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.54 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -109,11 +109,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.53 · Ranger · full rock collision · reactive clumps · fine grass fields'
-    :'Clean rebuild 0.5.53 · Ranger · full rock collision · reactive clumps · fine grass fields · animations pending';
+    ?'Clean rebuild 0.5.54 · Ranger · full rock collision · reactive clumps · denser fine grass fields'
+    :'Clean rebuild 0.5.54 · Ranger · full rock collision · reactive clumps · denser fine grass fields · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.53 · fine grass fields · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.54 · denser fine grass fields · Ranger model unavailable';
   }
  }
 }
