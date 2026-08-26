@@ -14,6 +14,11 @@ export class WorldMaterialSystem{
   this.pickupRange=2.45;
   this.placeDistance=1.65;
 
+  // One authoritative physical log size. Building, harvesting and previews all
+  // derive from this value so a log never changes length between gameplay states.
+  this.logLength=2.90;
+  this.logHalfLength=this.logLength*.5;
+
   this.materials={
    bark:new THREE.MeshStandardMaterial({color:0x6f472c,roughness:.96,metalness:0,flatShading:true}),
    cut:new THREE.MeshStandardMaterial({color:0xb98555,roughness:.92,metalness:0}),
@@ -29,17 +34,21 @@ export class WorldMaterialSystem{
    halfShape.lineTo(Math.cos(a)*halfRadius,Math.sin(a)*halfRadius);
   }
   halfShape.closePath();
-  const halfLog=new THREE.ExtrudeGeometry(halfShape,{depth:2.20,bevelEnabled:false,steps:1});
-  halfLog.translate(0,0,-1.10);
+  const halfLog=new THREE.ExtrudeGeometry(halfShape,{
+   depth:this.logLength,
+   bevelEnabled:false,
+   steps:1
+  });
+  halfLog.translate(0,0,-this.logHalfLength);
   halfLog.rotateY(Math.PI/2);
   halfLog.computeVertexNormals();
 
   this.geometry={
-   log:new THREE.CylinderGeometry(.22,.27,2.20,8,1,false),
+   log:new THREE.CylinderGeometry(.22,.27,this.logLength,8,1,false),
    cut:new THREE.CylinderGeometry(.225,.225,.012,8,1,false),
    stone:new THREE.IcosahedronGeometry(.34,0),
    halfLog,
-   splitFace:new THREE.BoxGeometry(2.20,.018,.52)
+   splitFace:new THREE.BoxGeometry(this.logLength,.018,.52)
   };
   this.tempPosition=new THREE.Vector3();
  }
@@ -60,7 +69,8 @@ export class WorldMaterialSystem{
   trunk.receiveShadow=true;
   group.add(trunk);
 
-  for(const x of [-1.106,1.106]){
+  const capX=this.logHalfLength+.006;
+  for(const x of [-capX,capX]){
    const cut=new T.Mesh(this.geometry.cut,this.materials.cut);
    cut.rotation.z=Math.PI/2;
    cut.position.x=x;
@@ -73,7 +83,6 @@ export class WorldMaterialSystem{
 
  // Shared factory for structural half logs. The rounded bark surface remains on
  // the underside while a thin lighter cut face makes the split visually obvious.
- // Building modes reuse this factory rather than owning duplicate log geometry.
  makeHalfLogVisual(){
   const T=this.T;
   const group=new T.Group();
@@ -114,7 +123,7 @@ export class WorldMaterialSystem{
    type,
    object,
    state:'loose',
-   radius:type==='log'?1.05:.42,
+   radius:type==='log'?this.logLength*.48:.42,
    stackHeight:.46
   };
   this.items.push(item);
@@ -172,7 +181,7 @@ export class WorldMaterialSystem{
   this.carried=item;
 
   if(item.type==='log'){
-   item.object.position.set(0,1.05,.72);
+   item.object.position.set(0,1.10,.78);
    item.object.rotation.set(0,0,0);
   }else{
    item.object.position.set(.48,1.08,.48);
