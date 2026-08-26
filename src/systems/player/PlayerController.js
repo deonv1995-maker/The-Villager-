@@ -44,7 +44,7 @@ export class PlayerController {
   else this.coyoteTimer=Math.max(0,this.coyoteTimer-dt);
 
   if(this.jumpBufferTimer>0&&this.coyoteTimer>0){
-   this.startJump();
+    this.startJump();
   }
 
   this.updateHorizontal(dt);
@@ -214,6 +214,13 @@ export class PlayerController {
  }
 
  canMove(fromX,fromZ,currentY,toX,toZ){
+  // Player-built frames and walls have narrow authored collision. Test those
+  // before terrain so overlapping construction pieces cannot fall back to the
+  // broad rock-collider behaviour that used to trap the Ranger.
+  if(this.world?.constructionTraversal?.blocksMovement?.(
+   fromX,fromZ,currentY,toX,toZ
+  ))return false;
+
   if(!this.world?.resolveMovement)return true;
   const result=this.world.resolveMovement(fromX,fromZ,currentY,toX,toZ);
   if(result.allowed)return true;
