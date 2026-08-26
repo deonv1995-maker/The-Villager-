@@ -11,14 +11,17 @@ export class GroundSurfaceDecorator {
 
   // Presentation-only ground dressing. Terrain remains the sole authority for
   // height, collision and traversal; these patches simply conform to it.
-  this.candidateCount=720;
-  this.maxPatches=210;
-  this.minRadius=2.4;
-  this.maxRadius=7.8;
-  this.minSegments=10;
-  this.maxSegments=15;
-  this.maxSlope=.39;
-  this.surfaceOffset=.026;
+  // Coverage is intentionally broad so the world reads as mixed natural ground
+  // rather than one continuous green surface.
+  this.candidateCount=1650;
+  this.maxPatches=620;
+  this.minRadius=3.8;
+  this.maxRadius=12.6;
+  this.minSegments=11;
+  this.maxSegments=18;
+  this.maxSlope=.46;
+  this.surfaceOffset=.032;
+  this.goldenAngle=Math.PI*(3-Math.sqrt(5));
  }
 
  rand(n){
@@ -33,12 +36,15 @@ export class GroundSurfaceDecorator {
  }
 
  fieldNoise(x,z){
-  const n=
-   Math.sin(x*.047+z*.021)
-   +Math.cos(z*.052-x*.017)
-   +Math.sin((x-z)*.091+.8)*.55
-   +Math.cos((x+z)*.026-1.1)*.72;
-  return Math.max(0,Math.min(1,.5+n/6.1));
+  const broad=
+   Math.sin(x*.031+z*.017)
+   +Math.cos(z*.036-x*.013)
+   +Math.sin((x-z)*.054+.8)*.72
+   +Math.cos((x+z)*.019-1.1)*.82;
+  const detail=
+   Math.sin(x*.118-z*.073)*.28
+   +Math.cos(z*.104+x*.061)*.24;
+  return Math.max(0,Math.min(1,.5+(broad+detail)/7.0));
  }
 
  slopeAt(x,z){
@@ -61,7 +67,7 @@ export class GroundSurfaceDecorator {
  isSurfaceAvailable(x,z){
   if(this.world?.isWithinPlayableBounds&&!this.world.isWithinPlayableBounds(x,z))return false;
   const metric=this.world?.terrain?.islandMetric?.(x,z);
-  if(Number.isFinite(metric)&&metric>.972)return false;
+  if(Number.isFinite(metric)&&metric>.974)return false;
   const y=this.world.heightAt(x,z);
   if(y<-.48)return false;
   if(this.slopeAt(x,z)>this.maxSlope)return false;
@@ -69,36 +75,60 @@ export class GroundSurfaceDecorator {
   return true;
  }
 
- chooseSurfaceType(x,z,seed){
+ surfaceWeightsAt(x,z){
   const terrain=this.world?.terrain;
   const d=terrain?.islandMetric?.(x,z)??0;
   const y=this.world.heightAt(x,z);
   const noise=this.fieldNoise(x,z);
   const region=this.regionAt(x,z).name;
 
-  const lowElevation=1-this.smoothstep(2.0,5.3,y);
-  const coast=this.smoothstep(.73,.955,d)*lowElevation;
+  const lowElevation=1-this.smoothstep(2.2,6.2,y);
+  const shoreBand=this.smoothstep(.69,.965,d)*lowElevation;
+  const dry=1-noise;
+  const rich=noise;
 
-  let sandBoost=1;
-  if(region==='easternShelf')sandBoost=1.28;
-  else if(region==='southernBasin')sandBoost=1.10;
-  else if(region==='westernHighland')sandBoost=.62;
+  let sand=.05+shoreBand*.88+this.smoothstep(.57,.78,dry)*.22*lowElevation;
+  let soil=.18+this.smoothstep(.45,.74,rich)*.50;
 
-  let soilBoost=1;
-  if(region==='southernBasin')soilBoost=1.34;
-  else if(region==='westernValley')soilBoost=1.30;
-  else if(region==='centralSaddle')soilBoost=1.18;
-  else if(region==='northernRidge')soilBoost=.72;
+  if(region==='easternShelf')sand*=1.30;
+  else if(region==='southernBasin')sand*=1.12;
+  else if(region==='westernHighland')sand*=.58;
+  else if(region==='northernRidge')sand*=.70;
 
-  const dryPocket=this.smoothstep(.18,.43,1-noise)*lowElevation;
-  const richPocket=this.smoothstep(.52,.79,noise);
-  const sandChance=Math.min(.92,(coast*.86+dryPocket*.18)*sandBoost);
-  const soilChance=Math.min(.72,(richPocket*.54+.10)*soilBoost*(1-coast*.68));
+  if(region==='southernBasin')soil*=1.42;
+  else if(region==='westernValley')soil*=1.38;
+  else if(region==='centralSaddle')soil*=1.24;
+  else if(region==='westernHighland')soil*=.82;
+
+  // Coastal sand should win over inland soil near the waterline.
+  soil*=1-shoreBand*.72;
+
+  return {
+   sand:Math.max(0,Math.min(.97,sand)),
+   soil:Math.max(0,Math.min(.88,soil)),
+   noise,
+   shoreBand
+  };
+ }
+
+ chooseSurfaceType(x,z,seed){
+  const w=this.surfaceWeightsAt(x,z);
   const roll=this.rand(seed+7);
-
-  if(roll<sandChance)return 'sand';
-  if(this.rand(seed+11)<soilChance)return 'soil';
+  if(roll<w.sand)return 'sand';
+  if(this.rand(seed+11)<w.soil)return 'soil';
   return null;
+ }
+
+ // Public deterministic query for future foliage/path systems. It does not own
+ // gameplay state; it simply exposes the same visual surface field used here.
+ surfaceTypeAt(x,z,seed=0){
+  const w=this.surfaceWeightsAt(x,z);
+  if(w.sand>.66)return 'sand';
+  if(w.soil>.55)return 'soil';
+  const roll=this.rand(Math.floor(x*13.7+z*17.3)+seed+29);
+  if(roll<w.sand*.68)return 'sand';
+  if(roll<w.sand*.68+w.soil*.52)return 'soil';
+  return 'grass';
  }
 
  baseColorAt(x,z){
@@ -113,15 +143,15 @@ export class GroundSurfaceDecorator {
   const c=new T.Color();
   if(type==='sand'){
    c.setHSL(
-    .105+variation*.018,
-    .34+this.rand(seed+2)*.10,
-    .48+this.rand(seed+3)*.10
+    .105+variation*.020,
+    .38+this.rand(seed+2)*.12,
+    .50+this.rand(seed+3)*.11
    );
   }else{
    c.setHSL(
-    .078+variation*.016,
-    .34+this.rand(seed+2)*.11,
-    .31+this.rand(seed+3)*.09
+    .071+variation*.021,
+    .37+this.rand(seed+2)*.13,
+    .29+this.rand(seed+3)*.11
    );
   }
   return c;
@@ -137,7 +167,7 @@ export class GroundSurfaceDecorator {
   const segments=this.minSegments
    +Math.floor(this.rand(seed+1)*(this.maxSegments-this.minSegments+1));
   const yaw=this.rand(seed+2)*Math.PI*2;
-  const stretch=.62+this.rand(seed+3)*.58;
+  const stretch=.58+this.rand(seed+3)*.72;
   const centerY=this.world.heightAt(cx,cz);
   const center=new T.Vector3(cx,centerY+this.surfaceOffset,cz);
   const inner=[];
@@ -145,9 +175,9 @@ export class GroundSurfaceDecorator {
 
   for(let i=0;i<segments;i++){
    const angle=yaw+i/segments*Math.PI*2;
-   const irregular=.74+this.rand(seed+i*17+20)*.34;
+   const irregular=.68+this.rand(seed+i*17+20)*.46;
    const outerRadius=radius*irregular;
-   const innerRadius=outerRadius*(.54+this.rand(seed+i*19+30)*.13);
+   const innerRadius=outerRadius*(.50+this.rand(seed+i*19+30)*.17);
    const dx=Math.cos(angle);
    const dz=Math.sin(angle)*stretch;
 
@@ -160,7 +190,7 @@ export class GroundSurfaceDecorator {
 
    const oy=this.world.heightAt(ox,oz);
    const iy=this.world.heightAt(ix,iz);
-   const maxDelta=Math.max(1.05,radius*.34);
+   const maxDelta=Math.max(1.15,radius*.32);
    if(Math.abs(oy-centerY)>maxDelta||Math.abs(iy-centerY)>maxDelta)return false;
 
    outer.push(new T.Vector3(ox,oy+this.surfaceOffset,oz));
@@ -174,8 +204,6 @@ export class GroundSurfaceDecorator {
    const sectorColor=this.patchColor(type,seed+200+i*31);
    const nextColor=this.patchColor(type,seed+200+next*31);
 
-   // Inner fan creates the strongest soil/sand read. Slight sector-to-sector
-   // shifts give the surface a granular low-poly texture instead of a flat decal.
    this.addTriangle(
     positions,colors,
     center,inner[i],inner[next],
@@ -184,11 +212,11 @@ export class GroundSurfaceDecorator {
 
    const baseA=this.baseColorAt(outer[i].x,outer[i].z);
    const baseB=this.baseColorAt(outer[next].x,outer[next].z);
-   const edgeA=baseA.clone().lerp(sectorColor,.28);
-   const edgeB=baseB.clone().lerp(nextColor,.28);
+   const edgeA=baseA.clone().lerp(sectorColor,.42);
+   const edgeB=baseB.clone().lerp(nextColor,.42);
 
-   // Transition ring fades back toward the existing grass colour at the edge,
-   // so broad patches merge into the terrain rather than looking painted on.
+   // Wider colour retention at the transition ring makes the material clearly
+   // visible through dense grass while still fading naturally into the terrain.
    this.addTriangle(
     positions,colors,
     inner[i],outer[i],outer[next],
@@ -218,12 +246,18 @@ export class GroundSurfaceDecorator {
   const terrainRadius=Math.max(55,(this.world?.terrain?.radius||135)-8);
   let placed=0;
 
+  // Golden-angle distribution prevents large accidental empty zones. Jitter
+  // keeps the result organic while ensuring the ground diversity is visible
+  // throughout the playable island, including around the current spawn region.
   for(let i=0;i<this.candidateCount&&placed<this.maxPatches;i++){
    const seed=i*83+17;
-   const angle=this.rand(seed)*Math.PI*2;
-   const distance=5+Math.sqrt(this.rand(seed+1))*Math.max(1,terrainRadius-5);
-   const x=Math.cos(angle)*distance;
-   const z=Math.sin(angle)*distance;
+   const normalized=(i+.55)/this.candidateCount;
+   const distance=4+Math.sqrt(normalized)*Math.max(1,terrainRadius-4);
+   const angle=i*this.goldenAngle+(this.rand(seed)-.5)*.72;
+   const radialJitter=(this.rand(seed+1)-.5)*4.8;
+   const r=Math.max(3,distance+radialJitter);
+   const x=Math.cos(angle)*r;
+   const z=Math.sin(angle)*r;
 
    if(!this.isSurfaceAvailable(x,z))continue;
    const type=this.chooseSurfaceType(x,z,seed);
@@ -231,7 +265,10 @@ export class GroundSurfaceDecorator {
 
    const baseRadius=this.minRadius
     +(this.maxRadius-this.minRadius)*this.rand(seed+4);
-   const radius=type==='sand'?baseRadius*1.12:baseRadius;
+   const w=this.surfaceWeightsAt(x,z);
+   let radius=baseRadius;
+   if(type==='sand')radius*=1.12+w.shoreBand*.28;
+   else radius*=.96+w.noise*.18;
 
    if(this.buildPatch(positions,colors,x,z,type,radius,seed))placed++;
   }
@@ -246,19 +283,19 @@ export class GroundSurfaceDecorator {
 
   const material=new T.MeshStandardMaterial({
    vertexColors:true,
-   roughness:.98,
+   roughness:.99,
    metalness:0,
    flatShading:true,
    polygonOffset:true,
    polygonOffsetFactor:-1,
-   polygonOffsetUnits:-1
+   polygonOffsetUnits:-2
   });
 
   const mesh=new T.Mesh(geometry,material);
   mesh.name='GroundSoilSandPatches';
   mesh.castShadow=false;
   mesh.receiveShadow=true;
-  mesh.renderOrder=1;
+  mesh.renderOrder=2;
 
   this.mesh=mesh;
   this.root.add(mesh);
@@ -267,8 +304,6 @@ export class GroundSurfaceDecorator {
 
  initialize(){
   this.scene.add(this.root);
-  // Defer one turn so the authoritative terrain and world decorators are fully
-  // attached before the visual patches sample their surfaces.
   setTimeout(()=>this.populate(),0);
  }
 }
