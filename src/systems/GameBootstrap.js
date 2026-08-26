@@ -14,7 +14,7 @@ import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=579';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=576';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
 import { UpperFloorSystem } from './gameplay/UpperFloorSystem.js?v=582';
-import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=577';
+import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=583';
 import { StairSystem } from './gameplay/StairSystem.js?v=582';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
@@ -157,7 +157,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.82 · extendable 45° stair rails · automatic stair supports · interlocked timber joints · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.83 · solid floor sides · solid stair stringers · smooth stair climbing · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -180,7 +180,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.82 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.83 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -201,11 +201,11 @@ export class GameBootstrap{
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.82 · Ranger · stair rails extend to ground · automatic supports · floors and stair joints interlock'
-    :'Clean rebuild 0.5.82 · Ranger · extended stair framework · animations pending';
+    ?'Clean rebuild 0.5.83 · Ranger · floors block from below and sides · stair rails block side entry · climb path stays smooth'
+    :'Clean rebuild 0.5.83 · Ranger · construction side collision · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.82 · extended stair framework · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.83 · construction side collision · Ranger model unavailable';
   }
  }
 }
