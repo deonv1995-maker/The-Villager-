@@ -28,9 +28,10 @@ export class WorldManager {
   this.airborneTraversalLift = .08;
   this.airborneTerrainClearance = .05;
 
-  // Lightweight rock collision registry. Decorative meshes remain visual-only;
-  // traversal uses compact cylindrical footprints stored in a spatial grid.
-  // This keeps collision predictable and mobile-friendly as the world expands.
+  // Lightweight rock collision registry. Decorative meshes remain render-only;
+  // traversal uses compact body + top-support colliders stored in a spatial grid.
+  // This avoids expensive mesh physics while still making every cliff rock solid
+  // enough to jump onto, stand on and move across safely on mobile.
   this.rockColliders=[];
   this.rockColliderGrid=new Map();
   this.rockColliderCellSize=6;
@@ -52,10 +53,6 @@ export class WorldManager {
    this.rebuildEnvironmentRockColliders();
   })).catch(err=>console.error('[Environment rock colliders]',err));
 
-  // Visual cliff dressing is deliberately downstream of terrain authority.
-  // It reuses the environment's already-loaded KayKit rock prototypes, while
-  // movement/collision continues to read the stable terrain profiles plus
-  // simplified rock footprints rather than raw render meshes.
   this.cliffRocks = new CliffRockDecorator(this.THREE, {
    world: this,
    scene: this.scene,
@@ -74,28 +71,29 @@ export class WorldManager {
   return this.terrain.heightAt(x, z);
  }
 
- // Player landing surfaces are separate from terrain authority. The terrain
- // remains the true world floor, while registered rocks may contribute a top
- // surface only when the player is already at/above that top. This prevents
- // invisible step-up snapping from below while allowing real jump-on gameplay.
+ // Registered rocks contribute a stable support cap independent of the terrain
+ // below them. supportY intentionally sits slightly below the highest AABB tip;
+ // low-poly rocks often have one raised vertex, and using that vertex as the
+ // entire walking plane would make the Ranger appear to float.
  landingSurfaceHeightAt(x,z,currentFootY=Infinity,isGrounded=false){
   const terrainY=this.terrain.heightAt(x,z);
   let surfaceY=terrainY;
   const candidates=this.rockColliderCandidates(x,z,x,z);
   if(!candidates.length)return surfaceY;
 
-  const tolerance=isGrounded?.24:.12;
+  const tolerance=isGrounded?.30:.16;
   for(const collider of candidates){
    if(!collider.standable)continue;
-   if(collider.topY<=terrainY+.08)continue;
+   const supportY=Number.isFinite(collider.supportY)?collider.supportY:collider.topY;
+   if(supportY<=terrainY+.05)continue;
 
    const dx=x-collider.x;
    const dz=z-collider.z;
-   const standRadius=collider.standRadius??collider.radius*.62;
+   const standRadius=collider.standRadius??collider.radius*.72;
    if(dx*dx+dz*dz>standRadius*standRadius)continue;
 
-   if(Number.isFinite(currentFootY)&&currentFootY<collider.topY-tolerance)continue;
-   if(collider.topY>surfaceY)surfaceY=collider.topY;
+   if(Number.isFinite(currentFootY)&&currentFootY<supportY-tolerance)continue;
+   if(supportY>surfaceY)surfaceY=supportY;
   }
   return surfaceY;
  }
@@ -141,15 +139,23 @@ export class WorldManager {
  }
 
  registerRockCollider({
-  x,z,radius,bottomY,topY,owner='world',object=null,
+  x,z,radius,bottomY,topY,supportY=null,owner='world',object=null,
   standable=true,standRadius=null
  }){
   if(![x,z,radius,bottomY,topY].every(Number.isFinite))return null;
   if(radius<=.05||topY<=bottomY+.05)return null;
+
+  const resolvedSupportY=Number.isFinite(supportY)
+   ?Math.max(bottomY+.06,Math.min(topY,supportY))
+   :topY;
+
   const collider={
-   id:this.nextRockColliderId++,x,z,radius,bottomY,topY,owner,object,
+   id:this.nextRockColliderId++,x,z,radius,bottomY,topY,
+   supportY:resolvedSupportY,owner,object,
    standable:!!standable,
-   standRadius:Number.isFinite(standRadius)?Math.max(.08,Math.min(radius,standRadius)):radius*.62
+   standRadius:Number.isFinite(standRadius)
+    ?Math.max(.08,Math.min(radius,standRadius))
+    :radius*.72
   };
   this.rockColliders.push(collider);
   this.addColliderToGrid(collider);
@@ -158,22 +164,35 @@ export class WorldManager {
 
  registerRockColliderFromObject(object,{
   owner='world',radiusScale=.36,minRadius=.30,maxRadius=2.4,verticalInset=.05,
-  standable=true,standRadiusScale=.62
+  standable=true,standRadiusScale=.72,
+  supportInsetScale=.08,minSupportInset=.04,maxSupportInset=.24
  }={}){
   if(!object)return null;
   object.updateWorldMatrix?.(true,true);
   const box=new this.THREE.Box3().setFromObject(object);
   if(box.isEmpty())return null;
+
   const size=new this.THREE.Vector3();
   const center=new this.THREE.Vector3();
   box.getSize(size);
   box.getCenter(center);
-  const radius=Math.max(minRadius,Math.min(maxRadius,Math.max(size.x,size.z)*radiusScale));
+
+  const radius=Math.max(
+   minRadius,
+   Math.min(maxRadius,Math.max(size.x,size.z)*radiusScale)
+  );
   const bottomY=box.min.y+verticalInset;
   const topY=Math.max(bottomY+.12,box.max.y-verticalInset);
+  const supportInset=Math.max(
+   minSupportInset,
+   Math.min(maxSupportInset,size.y*supportInsetScale)
+  );
+  const supportY=Math.max(bottomY+.08,topY-supportInset);
   const standRadius=Math.max(.10,Math.min(radius,radius*standRadiusScale));
+
   return this.registerRockCollider({
-   x:center.x,z:center.z,radius,bottomY,topY,owner,object,standable,standRadius
+   x:center.x,z:center.z,radius,bottomY,topY,supportY,
+   owner,object,standable,standRadius
   });
  }
 
@@ -195,7 +214,7 @@ export class WorldManager {
    object=>object.userData?.environmentType==='rock',
    {
     radiusScale:.36,minRadius:.30,maxRadius:2.35,verticalInset:.06,
-    standable:true,standRadiusScale:.66
+    standable:true,standRadiusScale:.68,supportInsetScale:.08
    }
   );
  }
@@ -209,16 +228,27 @@ export class WorldManager {
   for(const object of root.children){
    if(!Number.isFinite(object.userData?.cliffRockSource))continue;
    const shape=object.userData?.cliffRockShape||'face';
-   const standRadiusScale=shape==='face'?.44:shape==='rim'?.58:.68;
-   const radiusScale=shape==='face'?.27:.31;
+
+   // Cliff dressing uses broad, overlapping collider bodies instead of the old
+   // tiny center footprints. Rim rocks get the widest support cap because they
+   // are the intended stepping/jumping route across a cliff edge. Face and base
+   // rocks remain individually solid too, so the Ranger cannot fall through a
+   // visible rock simply because its centre point missed a narrow old collider.
+   const radiusScale=shape==='face'?.43:shape==='rim'?.48:.46;
+   const standRadiusScale=shape==='face'?.78:shape==='rim'?.92:.88;
+   const supportInsetScale=shape==='face'?.11:shape==='rim'?.08:.09;
+
    if(this.registerRockColliderFromObject(object,{
     owner:'cliff-rocks',
     radiusScale,
-    minRadius:.30,
-    maxRadius:2.20,
-    verticalInset:.08,
+    minRadius:.36,
+    maxRadius:2.55,
+    verticalInset:.06,
     standable:true,
-    standRadiusScale
+    standRadiusScale,
+    supportInsetScale,
+    minSupportInset:.05,
+    maxSupportInset:.26
    }))count++;
   }
   return count;
@@ -269,10 +299,13 @@ export class WorldManager {
   const headY=currentFootY+this.playerCollisionHeight;
 
   for(const collider of candidates){
-   // Once the Ranger's feet are above a rock top, its side wall no longer
-   // blocks horizontal movement. This is what makes a jump onto/over the rock
-   // possible while retaining a solid obstacle when approached from ground.
-   if(currentFootY>=collider.topY-.04)continue;
+   const supportY=Number.isFinite(collider.supportY)?collider.supportY:collider.topY;
+
+   // A Ranger standing on the support cap is allowed to traverse that rock's
+   // top. Below the cap, the same collider behaves as a solid body and blocks
+   // horizontal entry. This keeps jump-on gameplay without trapping the player
+   // inside the rock after landing.
+   if(currentFootY>=supportY-.04)continue;
    if(headY<=collider.bottomY+.04)continue;
 
    const combined=collider.radius+this.playerCollisionRadius;
@@ -282,8 +315,6 @@ export class WorldManager {
    const fromSq=fromDx*fromDx+fromDz*fromDz;
    const toSq=toDx*toDx+toDz*toDz;
 
-   // Never trap a character that starts marginally inside a footprint. Moving
-   // outward is allowed; moving deeper or crossing into a rock is rejected.
    if(fromSq<combinedSq&&toSq>fromSq+1e-5)continue;
 
    if(this.segmentPointDistanceSq(fromX,fromZ,toX,toZ,collider.x,collider.z)<combinedSq){
@@ -302,8 +333,6 @@ export class WorldManager {
   const mz=(fromZ+toZ)*.5;
   const mid=this.cliffProfileAt(mx,mz);
 
-  // Every authored formation exposes a deliberate ramp through the same
-  // profile API, so traversal stays data-driven as more cliffs are added.
   if((from.rampMask>.40&&to.rampMask>.40)||(mid?.rampMask>.48))return false;
 
   const solidProfile=[from,to,mid].some(p=>p&&p.weight>.12&&p.rampMask<.36&&p.drop>1.15);
@@ -321,9 +350,6 @@ export class WorldManager {
  canAirborneClearTerrainSegment(fromX,fromZ,toX,toZ,currentFootY,fromGround,toGround){
   if(!Number.isFinite(currentFootY))return false;
 
-  // Use the same landing-surface service as PlayerController so standing on a
-  // rock is not mistaken for being airborne simply because the terrain below
-  // that rock is lower. The player must actually lift clear of current support.
   const supportY=this.landingSurfaceHeightAt(fromX,fromZ,currentFootY,true);
   if(currentFootY<=supportY+this.airborneTraversalLift)return false;
 
@@ -358,9 +384,6 @@ export class WorldManager {
     px,pz,x,z,currentY,previousGround,ground
    );
 
-   // Render rocks retain their own vertical collision. Clearing the terrain
-   // seam does not phase through a rock: the jump still has to get above that
-   // rock's registered top before horizontal movement is allowed through it.
    if(this.rockBlocksMovement(px,pz,x,z,currentY)){
     return {allowed:false,ground:previousGround,reason:'rock'};
    }
@@ -377,9 +400,6 @@ export class WorldManager {
    const profile=this.cliffProfileAt(x,z);
    const onRamp=profile?.rampMask>.38;
 
-   // Step/slope limits describe grounded walking. While genuinely airborne and
-   // vertically clear of both sampled surfaces, horizontal jump travel should
-   // not be cancelled by the steep edge underneath the Ranger.
    if(!clearsTerrain&&!onRamp&&rise>this.maxSampleStepUp){
     return {allowed:false,ground:previousGround,reason:'step-up'};
    }
