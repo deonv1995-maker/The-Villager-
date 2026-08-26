@@ -12,31 +12,57 @@ export class RenderingPerformanceSystem{
   this.sunTarget.name='PerformanceShadowTarget';
 
   this.sunOffset=new THREE.Vector3(-28,44,24);
-  this.shadowHalfSize=27;
-  this.shadowCasterRefreshInterval=.28;
-  this.shadowCasterRefreshTimer=0;
+  this.shadowHalfSize=28;
+  this.shadowAnchorStep=6.0;
+  this.shadowCasterMoveThreshold=6.0;
   this.lastCasterSignature='';
-  this.frameIndex=0;
-  this.shadowUpdateStride=2;
+  this.lastCasterX=Infinity;
+  this.lastCasterZ=Infinity;
+  this.lastAnchorX=Infinity;
+  this.lastAnchorZ=Infinity;
 
-  // Adaptive resolution is intentionally conservative. It only changes after a
-  // multi-second sample so normal animation spikes do not resize the backbuffer.
+  // The Ranger uses a cheap contact shadow instead of entering the directional
+  // shadow map every frame. This removes the alternating heavy/light render
+  // frames that caused visible vibration on mobile while moving.
+  this.contactShadow=null;
+  this.contactShadowTexture=null;
+  this.presentationReceiversConfigured=false;
+
+  // Conservative adaptive resolution. Changes are deliberately infrequent so
+  // the backbuffer is never resized repeatedly while the player is moving.
   this.devicePixelRatio=Math.max(1,window.devicePixelRatio||1);
-  this.maxPixelRatio=Math.min(this.devicePixelRatio,1.30);
-  this.minPixelRatio=Math.min(1,this.maxPixelRatio);
+  this.maxPixelRatio=Math.min(this.devicePixelRatio,1.20);
+  this.minPixelRatio=Math.min(.90,this.maxPixelRatio);
   this.pixelRatio=this.maxPixelRatio;
   this.performanceTimer=0;
   this.performanceFrames=0;
   this.performanceElapsed=0;
-  this.qualityChanges=0;
+  this.qualityCooldown=0;
+  this.fastWindows=0;
  }
 
  initialize(){
   this.configureRenderer();
   this.configureSun();
   this.scene.add(this.sunTarget);
+  this.createContactShadow();
+  this.configurePlayerShadow();
   this.updateShadowAnchor(true);
   this.syncShadowCasters(true);
+  this.configurePresentationReceivers();
+
+  // Environment assets populate asynchronously. Refresh exactly once when they
+  // become available rather than polling/traversing the whole forest constantly.
+  const environment=this.world?.environment;
+  if(environment?.loadKayKit){
+   environment.loadKayKit().then(()=>{
+    this.syncShadowCasters(true);
+    this.configurePresentationReceivers();
+   }).catch(()=>{});
+  }
+  const cliffInit=this.world?.cliffRocks?.initializePromise;
+  cliffInit?.then?.(()=>this.syncShadowCasters(true)).catch?.(()=>{});
+
   this.renderer.shadowMap.needsUpdate=true;
  }
 
@@ -45,6 +71,9 @@ export class RenderingPerformanceSystem{
   this.renderer.setPixelRatio(this.pixelRatio);
   this.renderer.shadowMap.enabled=true;
   this.renderer.shadowMap.type=T.PCFShadowMap;
+
+  // World geometry is static, so render the directional shadow map only when
+  // its player-centred window or caster set actually changes.
   this.renderer.shadowMap.autoUpdate=false;
   this.renderer.shadowMap.needsUpdate=true;
  }
@@ -54,37 +83,99 @@ export class RenderingPerformanceSystem{
   this.sun.castShadow=true;
   shadow.mapSize.set(1024,1024);
   shadow.camera.near=.5;
-  shadow.camera.far=105;
+  shadow.camera.far=108;
   shadow.camera.left=-this.shadowHalfSize;
   shadow.camera.right=this.shadowHalfSize;
   shadow.camera.top=this.shadowHalfSize;
   shadow.camera.bottom=-this.shadowHalfSize;
   shadow.camera.updateProjectionMatrix();
-  shadow.bias=-.00035;
-  shadow.normalBias=.035;
-  shadow.radius=1.45;
+  shadow.bias=-.00032;
+  shadow.normalBias=.040;
+  shadow.radius=1.35;
   this.sun.target=this.sunTarget;
  }
 
- setCastShadow(object,enabled){
+ createContactShadowTexture(){
+  const canvas=document.createElement('canvas');
+  canvas.width=64;
+  canvas.height=64;
+  const ctx=canvas.getContext('2d');
+  if(!ctx)return null;
+  const gradient=ctx.createRadialGradient(32,32,4,32,32,31);
+  gradient.addColorStop(0,'rgba(0,0,0,0.72)');
+  gradient.addColorStop(.48,'rgba(0,0,0,0.42)');
+  gradient.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=gradient;
+  ctx.fillRect(0,0,64,64);
+  const texture=new this.T.CanvasTexture(canvas);
+  texture.generateMipmaps=false;
+  texture.minFilter=this.T.LinearFilter;
+  texture.magFilter=this.T.LinearFilter;
+  texture.needsUpdate=true;
+  return texture;
+ }
+
+ createContactShadow(){
+  const T=this.T;
+  this.contactShadowTexture=this.createContactShadowTexture();
+  const material=new T.MeshBasicMaterial({
+   color:0x11140f,
+   map:this.contactShadowTexture,
+   transparent:true,
+   opacity:.34,
+   depthWrite:false,
+   toneMapped:false,
+   side:T.DoubleSide,
+   polygonOffset:true,
+   polygonOffsetFactor:-1,
+   polygonOffsetUnits:-2
+  });
+  const geometry=new T.PlaneGeometry(1.65,1.10,1,1);
+  geometry.rotateX(-Math.PI/2);
+  const mesh=new T.Mesh(geometry,material);
+  mesh.name='RangerContactShadow';
+  mesh.castShadow=false;
+  mesh.receiveShadow=false;
+  mesh.frustumCulled=false;
+  mesh.renderOrder=4;
+  this.scene.add(mesh);
+  this.contactShadow=mesh;
+  this.updateContactShadow();
+ }
+
+ setShadowState(object,{cast=false,receive=true}={}){
   if(!object)return;
-  if(object.userData?.performanceShadowCaster===enabled)return;
-  object.userData.performanceShadowCaster=enabled;
+  const key=`${cast?1:0}:${receive?1:0}`;
+  if(object.userData?.performanceShadowState===key)return;
+  object.userData.performanceShadowState=key;
   object.traverse?.(child=>{
    if(!child.isMesh)return;
-   child.castShadow=enabled;
-   // Receiving a single directional shadow is much cheaper than casting one and
-   // prevents nearby rocks/trees from looking detached from the terrain.
-   child.receiveShadow=true;
+   child.castShadow=cast;
+   child.receiveShadow=receive;
   });
  }
 
  configurePlayerShadow(){
+  // Animated skinned meshes no longer invalidate the 1024px world shadow map.
+  // The Ranger still receives world shadows, while the contact decal supplies a
+  // smooth real-time grounding shadow under his feet.
   this.player?.traverse?.(object=>{
    if(!object.isMesh)return;
-   object.castShadow=true;
+   object.castShadow=false;
    object.receiveShadow=true;
   });
+ }
+
+ configurePresentationReceivers(){
+  // Dense instanced grass already has lighting variation and would otherwise
+  // pay a shadow lookup for every blade fragment. Let the ground beneath it show
+  // tree/rock shadows instead.
+  const fine=this.scene.getObjectByName?.('FineGrassFieldInstances');
+  if(fine){
+   fine.castShadow=false;
+   fine.receiveShadow=false;
+   this.presentationReceiversConfigured=true;
+  }
  }
 
  casterDistanceSquared(object){
@@ -100,33 +191,37 @@ export class RenderingPerformanceSystem{
   for(const object of root.children){
    const type=object.userData?.environmentType;
    let radius=0;
-   if(type==='tree'||type==='bareTree')radius=31;
-   else if(type==='rock')radius=25;
+   if(type==='tree'||type==='bareTree')radius=32;
+   else if(type==='rock')radius=26;
    else if(type==='bush')radius=18;
-   // Fine/large grass never casts a shadow map silhouette. The ground still
-   // receives tree, rock, cliff and character shadows underneath it.
+
+   if(type==='grass'){
+    this.setShadowState(object,{cast:false,receive:false});
+    continue;
+   }
+
    const enabled=radius>0&&this.casterDistanceSquared(object)<=radius*radius;
-   this.setCastShadow(object,enabled);
+   this.setShadowState(object,{cast:enabled,receive:true});
   }
  }
 
  syncCliffCasters(){
   const root=this.world?.cliffRocks?.root;
   if(!root)return;
-  const radius=31;
+  const radius=32;
   for(const object of root.children){
    const enabled=this.casterDistanceSquared(object)<=radius*radius;
-   this.setCastShadow(object,enabled);
+   this.setShadowState(object,{cast:enabled,receive:true});
   }
  }
 
  syncFeatureCasters(){
   const root=this.world?.features?.root;
   if(!root)return;
-  const radius=22;
+  const radius=23;
   for(const object of root.children){
    const enabled=this.casterDistanceSquared(object)<=radius*radius;
-   this.setCastShadow(object,enabled);
+   this.setShadowState(object,{cast:enabled,receive:true});
   }
  }
 
@@ -141,67 +236,116 @@ export class RenderingPerformanceSystem{
 
  syncShadowCasters(force=false){
   const signature=this.casterSignature();
-  if(!force&&signature===this.lastCasterSignature&&this.shadowCasterRefreshTimer<this.shadowCasterRefreshInterval)return;
+  const px=this.player?.position?.x??0;
+  const pz=this.player?.position?.z??0;
+  const dx=px-this.lastCasterX;
+  const dz=pz-this.lastCasterZ;
+  const moved=dx*dx+dz*dz>=this.shadowCasterMoveThreshold*this.shadowCasterMoveThreshold;
+
+  if(!force&&signature===this.lastCasterSignature&&!moved)return false;
+
   this.lastCasterSignature=signature;
-  this.shadowCasterRefreshTimer=0;
+  this.lastCasterX=px;
+  this.lastCasterZ=pz;
   this.configurePlayerShadow();
   this.syncEnvironmentCasters();
   this.syncCliffCasters();
   this.syncFeatureCasters();
   this.renderer.shadowMap.needsUpdate=true;
+  return true;
  }
 
  updateShadowAnchor(force=false){
-  if(!this.player||!this.sun)return;
+  if(!this.player||!this.sun)return false;
   const px=this.player.position.x;
-  const py=this.player.position.y;
   const pz=this.player.position.z;
-  const dx=px-this.sunTarget.position.x;
-  const dz=pz-this.sunTarget.position.z;
-  if(!force&&dx*dx+dz*dz<1.4*1.4)return;
+  const dx=px-this.lastAnchorX;
+  const dz=pz-this.lastAnchorZ;
+  if(!force&&dx*dx+dz*dz<this.shadowAnchorStep*this.shadowAnchorStep)return false;
 
-  // Move both light and target together so the sun direction never changes while
-  // the high-resolution shadow window follows the playable area around Ranger.
-  this.sunTarget.position.set(px,py+1.0,pz);
+  // Snap the shadow window to a coarse world grid. Static tree/rock shadows then
+  // stay perfectly still between updates instead of swimming across the ground
+  // with every tiny player movement.
+  const anchorX=Math.round(px/this.shadowAnchorStep)*this.shadowAnchorStep;
+  const anchorZ=Math.round(pz/this.shadowAnchorStep)*this.shadowAnchorStep;
+  const anchorY=this.world?.heightAt?.(anchorX,anchorZ)??this.player.position.y;
+
+  this.lastAnchorX=anchorX;
+  this.lastAnchorZ=anchorZ;
+  this.sunTarget.position.set(anchorX,anchorY+1.0,anchorZ);
   this.sun.position.set(
-   px+this.sunOffset.x,
-   py+this.sunOffset.y,
-   pz+this.sunOffset.z
+   anchorX+this.sunOffset.x,
+   anchorY+this.sunOffset.y,
+   anchorZ+this.sunOffset.z
   );
   this.sun.target.updateMatrixWorld?.();
   this.renderer.shadowMap.needsUpdate=true;
+  return true;
+ }
+
+ contactSupportHeight(){
+  const x=this.player.position.x;
+  const z=this.player.position.z;
+  const footY=this.player.position.y;
+  if(this.world?.landingSurfaceHeightAt){
+   return this.world.landingSurfaceHeightAt(x,z,footY,false);
+  }
+  return this.world?.surfaceHeightAt?.(x,z)
+   ??this.world?.heightAt?.(x,z)
+   ??0;
+ }
+
+ updateContactShadow(){
+  if(!this.contactShadow||!this.player)return;
+  const supportY=this.contactSupportHeight();
+  const height=Math.max(0,this.player.position.y-supportY);
+  const strength=Math.max(0,Math.min(1,1-height/3.6));
+  const scale=1+Math.min(.28,height*.065);
+
+  this.contactShadow.position.set(
+   this.player.position.x,
+   supportY+.035,
+   this.player.position.z
+  );
+  this.contactShadow.scale.set(scale,scale,1);
+  this.contactShadow.material.opacity=.34*strength;
+  this.contactShadow.visible=strength>.025;
  }
 
  applyPixelRatio(next){
   next=Math.max(this.minPixelRatio,Math.min(this.maxPixelRatio,next));
   next=Math.round(next*20)/20;
-  if(Math.abs(next-this.pixelRatio)<.025)return;
+  if(Math.abs(next-this.pixelRatio)<.025)return false;
   this.pixelRatio=next;
   this.renderer.setPixelRatio(this.pixelRatio);
   this.renderer.setSize(innerWidth,innerHeight,false);
-  this.renderer.shadowMap.needsUpdate=true;
-  this.qualityChanges++;
+  this.qualityCooldown=6;
+  return true;
  }
 
  updateAdaptiveQuality(dt){
+  this.qualityCooldown=Math.max(0,this.qualityCooldown-dt);
   this.performanceTimer+=dt;
   this.performanceElapsed+=dt;
   this.performanceFrames++;
-  if(this.performanceTimer<2.5)return;
+  if(this.performanceTimer<4.0)return;
 
   const averageMs=this.performanceFrames>0
    ?this.performanceElapsed/this.performanceFrames*1000
    :16.7;
 
-  // Prioritise a stable mobile frame rate. First reduce fill-rate pressure, then
-  // reduce shadow refresh frequency if the device is still struggling.
-  if(averageMs>22.5){
-   if(this.pixelRatio>this.minPixelRatio+.02)this.applyPixelRatio(this.pixelRatio-.10);
-   else this.shadowUpdateStride=3;
-  }else if(averageMs<17.2){
-   if(this.shadowUpdateStride>2)this.shadowUpdateStride=2;
-   else if(this.pixelRatio<this.maxPixelRatio-.02&&this.qualityChanges<5){
-    this.applyPixelRatio(this.pixelRatio+.05);
+  if(this.qualityCooldown<=0){
+   if(averageMs>23.5){
+    this.fastWindows=0;
+    this.applyPixelRatio(this.pixelRatio-.10);
+   }else if(averageMs<17.0){
+    this.fastWindows++;
+    if(this.fastWindows>=3){
+     this.applyPixelRatio(this.pixelRatio+.05);
+     this.fastWindows=0;
+    }
+   }else{
+    this.fastWindows=0;
    }
   }
 
@@ -211,17 +355,14 @@ export class RenderingPerformanceSystem{
  }
 
  update(dt){
-  this.frameIndex++;
-  this.shadowCasterRefreshTimer+=dt;
+  this.updateContactShadow();
   this.updateShadowAnchor(false);
   this.syncShadowCasters(false);
+  if(!this.presentationReceiversConfigured)this.configurePresentationReceivers();
   this.updateAdaptiveQuality(dt);
 
-  // Animated character shadows do not need a full shadow-map render every frame
-  // on a phone. Updating at half rate is visually smooth while roughly halving
-  // dynamic shadow-map work; slower devices can automatically drop to one-third.
-  if(this.frameIndex%this.shadowUpdateStride===0){
-   this.renderer.shadowMap.needsUpdate=true;
-  }
+  // No periodic shadow refresh here. Static world shadows only rerender when the
+  // shadow window or nearby caster set changes, eliminating the frame-to-frame
+  // GPU cost oscillation that made the Ranger appear to vibrate while running.
  }
 }
