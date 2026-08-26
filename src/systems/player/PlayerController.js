@@ -95,10 +95,6 @@ export class PlayerController {
  moveOneStep(step){
   const ox=this.player.position.x;
   const oz=this.player.position.z;
-
-  // Pass the Ranger's actual foot height to world traversal. Grounded movement
-  // therefore behaves exactly as before, while a jump can genuinely clear low
-  // rock colliders instead of remaining blocked by a ground-height proxy.
   const oy=this.player.position.y-this.groundOffset;
   const nx=ox+this.move.x*step;
   const nz=oz+this.move.z*step;
@@ -107,9 +103,6 @@ export class PlayerController {
 
   if(this.tryMove(ox,oz,oy,nx,nz))return true;
 
-  // Preserve natural wall sliding without allowing diagonal tunnelling through
-  // a cliff or registered rock footprint. Each axis is independently validated
-  // by the same world traversal authority.
   const xOnly=ox+this.move.x*step;
   const zOnly=oz+this.move.z*step;
   const canX=Math.abs(this.move.x)>.001
@@ -130,40 +123,55 @@ export class PlayerController {
  }
 
  updateVertical(dt){
-  // Capture the landing surface before integrating velocity. If a fast fall
-  // crosses a rock top within one frame we still land on it instead of
-  // tunnelling through the simplified collider.
   let ground=this.groundHeight();
 
   if(this.isGrounded){
-    const currentFootY=this.player.position.y-this.groundOffset;
-    const targetFootY=ground-this.groundOffset;
+   const currentFootY=this.player.position.y-this.groundOffset;
+   const targetFootY=ground-this.groundOffset;
 
-    // Walking off a rock should start a real fall rather than teleporting the
-    // Ranger directly to the terrain below. Normal terrain descent stays
-    // snapped because horizontal traversal already limits per-step drops.
-    if(currentFootY-targetFootY>this.groundLeaveTolerance){
-      this.isGrounded=false;
-      this.verticalVelocity=Math.min(0,this.verticalVelocity);
-    }else{
-      this.verticalVelocity=0;
-      this.player.position.y=ground;
-      return;
-    }
+   if(currentFootY-targetFootY>this.groundLeaveTolerance){
+    this.isGrounded=false;
+    this.verticalVelocity=Math.min(0,this.verticalVelocity);
+   }else{
+    this.verticalVelocity=0;
+    this.player.position.y=ground;
+    return;
+   }
   }
 
-  this.verticalVelocity=Math.max(this.verticalVelocity-this.gravity*dt,-this.maxFallSpeed);
-  this.player.position.y+=this.verticalVelocity*dt;
+  const fromFootY=this.player.position.y-this.groundOffset;
+  this.verticalVelocity=Math.max(
+   this.verticalVelocity-this.gravity*dt,
+   -this.maxFallSpeed
+  );
+  const toFootY=fromFootY+this.verticalVelocity*dt;
+  this.player.position.y=toFootY+this.groundOffset;
 
-  // Only descending motion can land. Rock tops are supplied by WorldManager's
-  // compact collision registry while ordinary ground still comes directly
-  // from the authoritative terrain height service.
-  if(this.verticalVelocity<=0&&this.player.position.y<=ground){
-    this.player.position.y=ground;
-    this.verticalVelocity=0;
-    this.isGrounded=true;
-    this.landedThisFrame=true;
-    this.coyoteTimer=this.coyoteDuration;
+  if(this.verticalVelocity>0)return;
+
+  // Descending uses a swept support query. If the Ranger crosses the top of a
+  // registered rock between two frames, he lands on that support instead of
+  // passing through it. Terrain remains the fallback surface.
+  let landingFootY;
+  if(this.world?.landingSurfaceHeightForSweep){
+   landingFootY=this.world.landingSurfaceHeightForSweep(
+    this.player.position.x,
+    this.player.position.z,
+    fromFootY,
+    toFootY
+   );
+  }else{
+   landingFootY=this.world?.surfaceHeightAt
+    ?this.world.surfaceHeightAt(this.player.position.x,this.player.position.z)
+    :this.world?.heightAt?.(this.player.position.x,this.player.position.z)??0;
+  }
+
+  if(fromFootY>=landingFootY-.06&&toFootY<=landingFootY){
+   this.player.position.y=landingFootY+this.groundOffset;
+   this.verticalVelocity=0;
+   this.isGrounded=true;
+   this.landedThisFrame=true;
+   this.coyoteTimer=this.coyoteDuration;
   }
  }
 
