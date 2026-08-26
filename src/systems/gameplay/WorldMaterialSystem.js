@@ -19,10 +19,27 @@ export class WorldMaterialSystem{
    cut:new THREE.MeshStandardMaterial({color:0xb98555,roughness:.92,metalness:0}),
    stone:new THREE.MeshStandardMaterial({color:0x747d78,roughness:.97,metalness:0,flatShading:true})
   };
+
+  const halfShape=new THREE.Shape();
+  const halfRadius=.26;
+  halfShape.moveTo(-halfRadius,0);
+  halfShape.lineTo(halfRadius,0);
+  for(let i=0;i<=10;i++){
+   const a=-i/10*Math.PI;
+   halfShape.lineTo(Math.cos(a)*halfRadius,Math.sin(a)*halfRadius);
+  }
+  halfShape.closePath();
+  const halfLog=new THREE.ExtrudeGeometry(halfShape,{depth:2.20,bevelEnabled:false,steps:1});
+  halfLog.translate(0,0,-1.10);
+  halfLog.rotateY(Math.PI/2);
+  halfLog.computeVertexNormals();
+
   this.geometry={
    log:new THREE.CylinderGeometry(.22,.27,2.20,8,1,false),
    cut:new THREE.CylinderGeometry(.225,.225,.012,8,1,false),
-   stone:new THREE.IcosahedronGeometry(.34,0)
+   stone:new THREE.IcosahedronGeometry(.34,0),
+   halfLog,
+   splitFace:new THREE.BoxGeometry(2.20,.018,.52)
   };
   this.tempPosition=new THREE.Vector3();
  }
@@ -51,6 +68,26 @@ export class WorldMaterialSystem{
    cut.receiveShadow=true;
    group.add(cut);
   }
+  return group;
+ }
+
+ // Shared factory for structural half logs. The rounded bark surface remains on
+ // the underside while a thin lighter cut face makes the split visually obvious.
+ // Building modes reuse this factory rather than owning duplicate log geometry.
+ makeHalfLogVisual(){
+  const T=this.T;
+  const group=new T.Group();
+  group.name='SplitHalfLog';
+  const half=new T.Mesh(this.geometry.halfLog,this.materials.bark);
+  half.castShadow=false;
+  half.receiveShadow=true;
+  group.add(half);
+
+  const face=new T.Mesh(this.geometry.splitFace,this.materials.cut);
+  face.position.y=.008;
+  face.castShadow=false;
+  face.receiveShadow=true;
+  group.add(face);
   return group;
  }
 
@@ -154,8 +191,6 @@ export class WorldMaterialSystem{
    ?Math.round(yaw/(Math.PI/4))*(Math.PI/4)
    :yaw;
 
-  // Stones may stack directly when deliberately placed close to another stone.
-  // This is the primitive needed for hand-built hearths, walls and furnaces.
   if(item.type==='stone'){
    let stack=null,stackDistance=.62;
    for(const other of this.placedItems('stone')){
