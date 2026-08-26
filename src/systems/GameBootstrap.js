@@ -4,7 +4,7 @@ import { PlayerController } from './player/PlayerController.js?v=552';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
 import { PlayerVisual } from './player/PlayerVisual.js?v=538';
 import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552';
-import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=554';
+import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=555';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -51,15 +51,12 @@ export class GameBootstrap {
    this.cameraController=new ThirdPersonCamera(T,{camera:this.camera,target:this.player,input:this.input,world:this.world});
    this.playerController=new PlayerController(T,{player:this.player,input:this.input,cameraController:this.cameraController,world:this.world,groundOffset:0});
 
-   // Existing larger grass clumps remain the close interactive foliage layer.
    this.grassInteraction=new GrassInteractionSystem(T,{
     world:this.world,
     player:this.player
    });
    this.grassInteraction.initialize();
 
-   // Fine grass fields are a separate static presentation layer. They reuse the
-   // environment ecology rules but stay out of traversal and interaction logic.
    this.fineGrassFields=new FineGrassFieldDecorator(T,{
     world:this.world,
     scene:this.scene
@@ -74,7 +71,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.54 · full rock collision · reactive clumps · denser fine grass fields · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.55 · full rock collision · reactive clumps · curved dense grass fields · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -88,7 +85,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.54 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.55 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -109,11 +106,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.54 · Ranger · full rock collision · reactive clumps · denser fine grass fields'
-    :'Clean rebuild 0.5.54 · Ranger · full rock collision · reactive clumps · denser fine grass fields · animations pending';
+    ?'Clean rebuild 0.5.55 · Ranger · full rock collision · reactive clumps · curved dense grass fields'
+    :'Clean rebuild 0.5.55 · Ranger · full rock collision · reactive clumps · curved dense grass fields · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.54 · denser fine grass fields · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.55 · curved dense grass fields · Ranger model unavailable';
   }
  }
 }
