@@ -15,14 +15,15 @@ export class MobileControls{
     this.bindKeyboard();
   }
 
-  isJumpTarget(target){
-    return !!(this.jumpRoot&&(target===this.jumpRoot||this.jumpRoot.contains?.(target)));
+  isUiTarget(target){
+    if(this.jumpRoot&&(target===this.jumpRoot||this.jumpRoot.contains?.(target)))return true;
+    return !!target?.closest?.('[data-game-ui]');
   }
 
   bindScreenZones(){
     const onDown=e=>{
       if(e.pointerType==='mouse'&&e.button!==0)return;
-      if(this.isJumpTarget(e.target))return;
+      if(this.isUiTarget(e.target))return;
 
       const stick=e.clientX<window.innerWidth*.5?this.left:this.right;
       if(stick.pointerId!==null)return;
