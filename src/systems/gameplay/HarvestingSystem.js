@@ -72,9 +72,9 @@ export class HarvestingSystem{
     fallTime:0,
     fallDuration:.92,
     fallAxis:'z',
+    fallSign:1,
     fallStart:0,
-    fallTarget:0,
-    trunkCutsRemaining:0
+    fallTarget:0
    };
    this.entries.push(entry);
    this.addToGrid(entry);
@@ -100,7 +100,7 @@ export class HarvestingSystem{
 
  actionLabelFor(entry){
   if(!entry)return 'USE';
-  if(entry.profile.kind==='tree')return entry.state==='fallen'?'CHOP TRUNK':'CHOP';
+  if(entry.profile.kind==='tree')return 'CHOP';
   if(entry.profile.kind==='rock')return 'BREAK ROCK';
   return 'USE';
  }
@@ -149,29 +149,40 @@ export class HarvestingSystem{
   entry.health=0;
   entry.fallTime=0;
   entry.fallAxis=Math.abs(Math.sin(entry.x*.31+entry.z*.47))>.5?'z':'x';
+  entry.fallSign=this.deterministicSign(entry);
   entry.fallStart=entry.object.rotation[entry.fallAxis];
-  entry.fallTarget=entry.fallStart+this.deterministicSign(entry)*1.48;
+  entry.fallTarget=entry.fallStart+entry.fallSign*1.48;
   this.falling.push(entry);
   if(this.currentTarget===entry)this.currentTarget=null;
  }
 
+ fallenDirection(entry){
+  const baseYaw=entry.object.rotation.y||0;
+  // Rotating around local Z tips the trunk broadly along local X; rotating around
+  // local X tips it broadly along local Z. This only needs to position the loose
+  // logs in the same visual direction as the fallen tree, not run rigid-body sim.
+  const localYaw=entry.fallAxis==='z'?0:Math.PI/2;
+  return baseYaw+localYaw+(entry.fallSign<0?Math.PI:0);
+ }
+
+ spawnLogsFromTree(entry){
+  const yaw=this.fallenDirection(entry);
+  const dx=Math.cos(yaw);
+  const dz=-Math.sin(yaw);
+  const count=3;
+  for(let i=0;i<count;i++){
+   const along=(i-(count-1)/2)*1.55;
+   const side=(i%2?1:-1)*.10;
+   const x=entry.x+dx*along-dz*side;
+   const z=entry.z+dz*along+dx*side;
+   this.materials.spawnLog(x,z,yaw+(i-1)*.035);
+  }
+ }
+
  finishTreeFall(entry){
-  entry.state='fallen';
-  entry.health=3;
-  entry.trunkCutsRemaining=3;
- }
-
- spawnLogFromFallen(entry){
-  const index=3-entry.trunkCutsRemaining;
-  const yaw=entry.object.rotation.y+(index%2?Math.PI*.08:-Math.PI*.08);
-  const side=(index-1)*.48;
-  const x=entry.x+Math.cos(yaw)*side;
-  const z=entry.z-Math.sin(yaw)*side;
-  this.materials.spawnLog(x,z,yaw);
- }
-
- finishTree(entry){
+  this.spawnLogsFromTree(entry);
   entry.active=false;
+  entry.state='depleted';
   entry.object?.parent?.remove(entry.object);
   if(this.currentTarget===entry)this.currentTarget=null;
  }
@@ -196,27 +207,13 @@ export class HarvestingSystem{
   this.hitCooldownTimer=this.hitCooldown;
 
   if(target.profile.kind==='tree'){
-   if(target.state==='standing'){
-    target.health=Math.max(0,target.health-1);
-    this.pulse(target);
-    if(target.health<=0){
-     this.beginTreeFall(target);
-     return {message:'Tree is falling'};
-    }
-    return {message:`Tree ${target.health} chops from falling`};
+   target.health=Math.max(0,target.health-1);
+   this.pulse(target);
+   if(target.health<=0){
+    this.beginTreeFall(target);
+    return {message:'Tree falling into logs'};
    }
-
-   if(target.state==='fallen'){
-    this.spawnLogFromFallen(target);
-    target.trunkCutsRemaining=Math.max(0,target.trunkCutsRemaining-1);
-    target.health=target.trunkCutsRemaining;
-    this.pulse(target);
-    if(target.trunkCutsRemaining<=0){
-     this.finishTree(target);
-     return {message:'Trunk cut into logs'};
-    }
-    return {message:`Log cut free · ${target.trunkCutsRemaining} sections left`};
-   }
+   return {message:`Tree ${target.health} chops from falling`};
   }
 
   if(target.profile.kind==='rock'){
