@@ -1,4 +1,4 @@
-import { NaturalCliffTerrain } from './world/NaturalCliffTerrain.js?v=544';
+import { SafeRimTerrain } from './world/SafeRimTerrain.js?v=545';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=542';
 import { TerrainFeatures } from './world/TerrainFeatures.js?v=541';
 
@@ -6,7 +6,7 @@ export class WorldManager {
  constructor(THREE, scene) {
   this.THREE = THREE;
   this.scene = scene;
-  this.terrain = new NaturalCliffTerrain(THREE);
+  this.terrain = new SafeRimTerrain(THREE);
   this.environment = null;
   this.features = null;
 
