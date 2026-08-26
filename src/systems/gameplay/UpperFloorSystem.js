@@ -1,6 +1,9 @@
 export class UpperFloorSystem{
- constructor({buildingModes}){
+ constructor({buildingModes,foundationTerrain=null,floorSupports=null}){
   this.buildingModes=buildingModes;
+  this.foundationTerrain=foundationTerrain;
+  this.floorSupports=floorSupports;
+
   this.snapRange=2.35;
   this.heightTolerance=.18;
   this.columnPositionTolerance=.14;
@@ -11,6 +14,8 @@ export class UpperFloorSystem{
 
   this.originalFloorSnapBase=null;
   this.originalActionLabel=null;
+  this.originalRegisterFloor=null;
+  this.originalSupportFloors=null;
  }
 
  initialize(){
@@ -22,6 +27,25 @@ export class UpperFloorSystem{
 
   this.originalActionLabel=this.buildingModes.actionLabel.bind(this.buildingModes);
   this.buildingModes.actionLabel=()=>this.actionLabel();
+
+  // Upper-storey floors rest on the timber framework. They must not excavate the
+  // terrain below or spawn automatic deck posts all the way down to the ground.
+  if(this.foundationTerrain?.registerFloor){
+   this.originalRegisterFloor=this.foundationTerrain.registerFloor.bind(this.foundationTerrain);
+   this.foundationTerrain.registerFloor=floor=>{
+    if(floor?.snapKind==='upper-floor-beam'){
+     this.foundationTerrain.processedPlacements?.add?.(floor.id);
+     return false;
+    }
+    return this.originalRegisterFloor(floor);
+   };
+  }
+
+  if(this.floorSupports?.activeFloors){
+   this.originalSupportFloors=this.floorSupports.activeFloors.bind(this.floorSupports);
+   this.floorSupports.activeFloors=()=>
+    this.originalSupportFloors().filter(floor=>floor.snapKind!=='upper-floor-beam');
+  }
  }
 
  columns(){return this.buildingModes.frameColumns();}
@@ -34,9 +58,7 @@ export class UpperFloorSystem{
 
  beamMap(){
   const map=new Map();
-  for(const beam of this.beams()){
-   map.set(this.pairKey(beam.anchorIds[0],beam.anchorIds[1]),beam);
-  }
+  for(const beam of this.beams())map.set(this.pairKey(beam.anchorIds[0],beam.anchorIds[1]),beam);
   return map;
  }
 
@@ -89,16 +111,13 @@ export class UpperFloorSystem{
      const ac=this.vector(a,c);
      if(!this.perpendicular(ab,ac))continue;
 
-     const d=this.findColumnNear(
-      columns,
-      b.x+c.x-a.x,
-      b.z+c.z-a.z,
-      a.maxY
-     );
+     const d=this.findColumnNear(columns,b.x+c.x-a.x,b.z+c.z-a.z,a.maxY);
      if(!d||d===a||d===b||d===c)continue;
-     const bd=this.connected(beams,b,d);
-     const cd=this.connected(beams,c,d);
-     if(!bd||!cd)continue;
+     const abBeam=this.connected(beams,a,b);
+     const acBeam=this.connected(beams,a,c);
+     const bdBeam=this.connected(beams,b,d);
+     const cdBeam=this.connected(beams,c,d);
+     if(!abBeam||!acBeam||!bdBeam||!cdBeam)continue;
 
      const ids=[a.topId,b.topId,c.topId,d.topId].sort((x,y)=>x-y);
      const key=ids.join(':');
@@ -107,26 +126,16 @@ export class UpperFloorSystem{
 
      const ux=ab.x/ab.length,uz=ab.z/ab.length;
      let vx=ac.x/ac.length,vz=ac.z/ac.length;
-     const cross=ux*vz-uz*vx;
-     if(cross<0){vx*=-1;vz*=-1;}
-
-     const centerX=(a.x+b.x+c.x+d.x)*.25;
-     const centerZ=(a.z+b.z+c.z+d.z)*.25;
-     const beamCenterY=(
-      this.connected(beams,a,b).centerY+
-      this.connected(beams,a,c).centerY+
-      bd.centerY+cd.centerY
-     )*.25;
-     const yaw=Math.atan2(-uz,ux);
+     if(ux*vz-uz*vx<0){vx*=-1;vz*=-1;}
 
      bays.push({
-      key,centerX,centerZ,ux,uz,vx,vz,yaw,
-      beamCenterY,
-      beamIds:[
-       this.connected(beams,a,b).id,
-       this.connected(beams,a,c).id,
-       bd.id,cd.id
-      ]
+      key,
+      centerX:(a.x+b.x+c.x+d.x)*.25,
+      centerZ:(a.z+b.z+c.z+d.z)*.25,
+      ux,uz,vx,vz,
+      yaw:Math.atan2(-uz,ux),
+      beamCenterY:(abBeam.centerY+acBeam.centerY+bdBeam.centerY+cdBeam.centerY)*.25,
+      beamIds:[abBeam.id,acBeam.id,bdBeam.id,cdBeam.id]
      });
     }
    }
@@ -147,8 +156,6 @@ export class UpperFloorSystem{
   const width=this.buildingModes.floorWidth;
 
   for(const bay of this.frameworkBays()){
-   // The raw beam runs through the post centre. The upper floor rests on the
-   // outside of that beam instead of replacing the lower floor beneath it.
    const centerY=bay.beamCenterY+this.beamRadius+this.floorBodyDepth;
    for(const offset of [-width,0,width]){
     const x=bay.centerX+bay.vx*offset;
