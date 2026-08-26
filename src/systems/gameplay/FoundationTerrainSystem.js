@@ -16,13 +16,26 @@ export class FoundationTerrainSystem{
   this.processedPlacements=new Set();
   this.baseHeightAt=null;
 
-  // A placed floor is the construction datum. Higher terrain is cut back to the
-  // floor level with a soft earthen shoulder. Lower terrain is never filled, so
-  // the downhill edge remains a genuine deck/overhang.
+  // The first placed floor remains the construction datum. Terrain above that
+  // level is excavated; terrain below it is never filled, so downhill pieces can
+  // remain genuine deck overhangs.
   this.floorClearance=.09;
   this.coreMargin=.58;
   this.blendDistance=2.15;
   this.soilColor=new THREE.Color(0x795d3f);
+
+  // Vegetation follows the same terrain authority as the visible/collision
+  // surface. Ground cover inside the actual floor footprint is removed, while
+  // vegetation in the graded shoulder is lowered with the new terrain.
+  this.floorVegetationPadding=.10;
+  this.vegetationBlendPadding=.42;
+  this.reprojectTypes=new Set(['grass','bush','tree','bareTree']);
+  this.clearUnderFloorTypes=new Set(['grass','bush']);
+
+  // Environment and fine-grass populations load asynchronously. These markers
+  // let existing foundation cuts be replayed once those populations appear.
+  this.lastEnvironmentChildCount=-1;
+  this.lastFineGrassMesh=null;
  }
 
  initialize(){
@@ -43,6 +56,8 @@ export class FoundationTerrainSystem{
    terrain.heightAt=(x,z)=>this.heightAt(x,z);
   }
 
+  this.lastEnvironmentChildCount=this.world?.environment?.root?.children?.length??0;
+  this.lastFineGrassMesh=this.fineGrass?.mesh??null;
   this.world.foundationTerrain=this;
  }
 
@@ -62,6 +77,17 @@ export class FoundationTerrainSystem{
   };
  }
 
+ insideRect(local,halfX,halfZ){
+  return Math.abs(local.x)<=halfX&&Math.abs(local.z)<=halfZ;
+ }
+
+ floorFootprint(){
+  return {
+   halfX:(this.buildingModes?.floorHalfLength??1.45)+this.floorVegetationPadding,
+   halfZ:(this.buildingModes?.floorHalfWidth??.5)+this.floorVegetationPadding
+  };
+ }
+
  outsideDistance(cut,x,z){
   const p=this.localPoint(cut,x,z);
   const ox=Math.max(Math.abs(p.x)-cut.halfX,0);
@@ -71,7 +97,7 @@ export class FoundationTerrainSystem{
 
  cutHeightAt(cut,x,z,naturalY){
   // Never raise the downhill side. Only terrain that would cover the floor gets
-  // excavated; this is what allows the opposite side to hang free like a deck.
+  // excavated; this preserves the requested deck behavior on lower ground.
   if(naturalY<=cut.cutY)return naturalY;
 
   const distance=this.outsideDistance(cut,x,z);
@@ -82,7 +108,10 @@ export class FoundationTerrainSystem{
  }
 
  heightAt(x,z){
-  const natural=this.baseHeightAt?this.baseHeightAt(x,z):this.world?.terrain?.rawHeightAt?.(x,z)??0;
+  const natural=this.baseHeightAt
+   ?this.baseHeightAt(x,z)
+   :this.world?.terrain?.rawHeightAt?.(x,z)??0;
+
   let result=natural;
   for(const cut of this.cuts){
    const candidate=this.cutHeightAt(cut,x,z,natural);
@@ -106,7 +135,7 @@ export class FoundationTerrainSystem{
   };
  }
 
- applyCutToTerrain(cut){
+ applyCutsToTerrain(activeCut=null){
   if(!this.positionAttribute||!this.originalPositions)return false;
 
   const positions=this.positionAttribute.array;
@@ -117,65 +146,153 @@ export class FoundationTerrainSystem{
    const x=this.originalPositions[i];
    const z=this.originalPositions[i+2];
    const naturalY=this.originalPositions[i+1];
-   const nextY=this.cutHeightAt(cut,x,z,naturalY);
-   if(nextY>=positions[i+1]-.002)continue;
+   const nextY=this.heightAt(x,z);
 
-   positions[i+1]=nextY;
-   changed=true;
-
-   if(colors&&this.originalColors){
-    const lowered=naturalY-nextY;
-    const distance=this.outsideDistance(cut,x,z);
-    const edge=1-this.smoothstep01(distance/cut.blendDistance);
-    const strength=Math.min(.78,lowered/1.35)*(.55+.45*edge);
-    const oi=i;
-    colors[oi]=this.originalColors[oi]+(this.soilColor.r-this.originalColors[oi])*strength;
-    colors[oi+1]=this.originalColors[oi+1]+(this.soilColor.g-this.originalColors[oi+1])*strength;
-    colors[oi+2]=this.originalColors[oi+2]+(this.soilColor.b-this.originalColors[oi+2])*strength;
+   if(Math.abs(nextY-positions[i+1])>.002){
+    positions[i+1]=nextY;
+    changed=true;
    }
+
+   if(colors&&this.originalColors&&nextY<naturalY-.002){
+    const lowered=naturalY-nextY;
+    const distance=activeCut?this.outsideDistance(activeCut,x,z):0;
+    const edge=activeCut
+     ?1-this.smoothstep01(distance/activeCut.blendDistance)
+     :1;
+    const strength=Math.min(.78,lowered/1.35)*(.55+.45*edge);
+    colors[i]=this.originalColors[i]+(this.soilColor.r-this.originalColors[i])*strength;
+    colors[i+1]=this.originalColors[i+1]+(this.soilColor.g-this.originalColors[i+1])*strength;
+    colors[i+2]=this.originalColors[i+2]+(this.soilColor.b-this.originalColors[i+2])*strength;
+   }
+  }
+
+  if(changed&&this.terrainMesh?.geometry){
+   this.positionAttribute.needsUpdate=true;
+   if(this.colorAttribute)this.colorAttribute.needsUpdate=true;
+   this.terrainMesh.geometry.computeVertexNormals();
+   this.terrainMesh.geometry.computeBoundingSphere();
   }
 
   return changed;
  }
 
- clearAuthoredGrass(cut){
+ ensureTerrainOffset(object,worldX,worldY,worldZ){
+  if(object.userData?.foundationTerrainOffsetReady)return;
+  const natural=this.baseHeightAt?this.baseHeightAt(worldX,worldZ):worldY;
+  object.userData.foundationTerrainOffset=worldY-natural;
+  object.userData.foundationTerrainOffsetReady=true;
+ }
+
+ setObjectWorldY(object,y){
+  const p=new this.T.Vector3();
+  object.getWorldPosition(p);
+  p.y=y;
+
+  if(object.parent){
+   const local=object.parent.worldToLocal(p.clone());
+   object.position.copy(local);
+  }else{
+   object.position.copy(p);
+  }
+
+  object.updateMatrix?.();
+  object.updateWorldMatrix?.(true,true);
+ }
+
+ syncEnvironmentForCut(cut){
   const root=this.world?.environment?.root;
   if(!root)return;
-  const p=new this.T.Vector3();
-  const halfX=cut.halfX+.20;
-  const halfZ=cut.halfZ+.20;
+
+  const worldPos=new this.T.Vector3();
+  const footprint=this.floorFootprint();
 
   for(const object of root.children){
-   if(object.userData?.environmentType!=='grass'||object.visible===false)continue;
-   object.getWorldPosition(p);
-   const local=this.localPoint({...cut,halfX,halfZ},p.x,p.z);
-   if(Math.abs(local.x)<=halfX&&Math.abs(local.z)<=halfZ)object.visible=false;
+   const type=object.userData?.environmentType;
+   if(!this.reprojectTypes.has(type)||object.visible===false)continue;
+
+   object.getWorldPosition(worldPos);
+   const local=this.localPoint(cut,worldPos.x,worldPos.z);
+
+   // Grass and bushes disappear only under the true timber footprint. Trees stay
+   // physical resources/obstacles and are never silently deleted by construction.
+   if(this.clearUnderFloorTypes.has(type)
+    &&this.insideRect(local,footprint.halfX,footprint.halfZ)){
+    object.visible=false;
+    continue;
+   }
+
+   const distance=this.outsideDistance(cut,worldPos.x,worldPos.z);
+   if(distance>cut.blendDistance+this.vegetationBlendPadding)continue;
+
+   this.ensureTerrainOffset(object,worldPos.x,worldPos.y,worldPos.z);
+   const offset=object.userData.foundationTerrainOffset??0;
+   const nextY=this.heightAt(worldPos.x,worldPos.z)+offset;
+
+   // Foundation grading only lowers terrain. Avoid any upward vegetation popping
+   // when several adjacent floor cuts overlap.
+   if(nextY>=worldPos.y-.002)continue;
+   this.setObjectWorldY(object,nextY);
   }
  }
 
- clearFineGrass(cut){
+ hideFineGrassEntry(grass,entry,cut){
+  entry.foundationHidden=true;
+  entry.bendX=0;
+  entry.bendZ=0;
+  entry.compression=0;
+
+  // Do not use a zero-scale transform: singular instance matrices can produce
+  // the black star-shaped artifacts seen around the floor. Move the hidden tuft
+  // safely below the foundation instead while retaining a valid transform.
+  entry.y=Math.min(entry.y,cut.cutY-6);
+  grass.active?.delete?.(entry);
+  grass.writeEntryMatrix(entry);
+ }
+
+ syncFineGrassForCut(cut){
   const grass=this.fineGrass;
   if(!grass?.mesh||!grass.entries?.length||!grass.writeEntryMatrix)return;
 
-  const halfX=cut.halfX+.18;
-  const halfZ=cut.halfZ+.18;
+  const footprint=this.floorFootprint();
   let changed=false;
 
   for(const entry of grass.entries){
+   const local=this.localPoint(cut,entry.x,entry.z);
+
+   if(this.insideRect(local,footprint.halfX,footprint.halfZ)){
+    if(!entry.foundationHidden){
+     this.hideFineGrassEntry(grass,entry,cut);
+     changed=true;
+    }
+    continue;
+   }
+
    if(entry.foundationHidden)continue;
-   const local=this.localPoint({...cut,halfX,halfZ},entry.x,entry.z);
-   if(Math.abs(local.x)>halfX||Math.abs(local.z)>halfZ)continue;
-   entry.foundationHidden=true;
-   entry.scaleY=0;
-   entry.bendX=0;
-   entry.bendZ=0;
-   entry.compression=0;
-   grass.active?.delete?.(entry);
+
+   const distance=this.outsideDistance(cut,entry.x,entry.z);
+   if(distance>cut.blendDistance+this.vegetationBlendPadding)continue;
+
+   const nextY=this.heightAt(entry.x,entry.z)+.016;
+   if(nextY>=entry.y-.002)continue;
+   entry.y=nextY;
    grass.writeEntryMatrix(entry);
    changed=true;
   }
 
-  if(changed)grass.mesh.instanceMatrix.needsUpdate=true;
+  if(changed){
+   grass.mesh.instanceMatrix.needsUpdate=true;
+   grass.mesh.computeBoundingSphere?.();
+  }
+ }
+
+ syncAllEnvironment(){
+  if(!this.cuts.length)return;
+  for(const cut of this.cuts)this.syncEnvironmentForCut(cut);
+ }
+
+ syncAllFineGrass(){
+  if(!this.cuts.length)return;
+  for(const cut of this.cuts)this.syncFineGrassForCut(cut);
  }
 
  registerFloor(floor){
@@ -185,24 +302,33 @@ export class FoundationTerrainSystem{
   const cut=this.makeCutFromFloor(floor);
   this.cuts.push(cut);
 
-  const changed=this.applyCutToTerrain(cut);
-  this.clearAuthoredGrass(cut);
-  this.clearFineGrass(cut);
-
-  if(changed&&this.terrainMesh?.geometry){
-   this.positionAttribute.needsUpdate=true;
-   if(this.colorAttribute)this.colorAttribute.needsUpdate=true;
-   this.terrainMesh.geometry.computeVertexNormals();
-   this.terrainMesh.geometry.computeBoundingSphere();
-  }
+  this.applyCutsToTerrain(cut);
+  this.syncEnvironmentForCut(cut);
+  this.syncFineGrassForCut(cut);
   return true;
+ }
+
+ refreshAsyncVegetation(){
+  const environmentCount=this.world?.environment?.root?.children?.length??0;
+  if(environmentCount!==this.lastEnvironmentChildCount){
+   this.lastEnvironmentChildCount=environmentCount;
+   this.syncAllEnvironment();
+  }
+
+  const fineGrassMesh=this.fineGrass?.mesh??null;
+  if(fineGrassMesh!==this.lastFineGrassMesh){
+   this.lastFineGrassMesh=fineGrassMesh;
+   this.syncAllFineGrass();
+  }
  }
 
  update(){
   const placements=this.buildingModes?.placements;
-  if(!placements?.length)return;
-  for(const placement of placements){
-   if(placement.mode==='floor')this.registerFloor(placement);
+  if(placements?.length){
+   for(const placement of placements){
+    if(placement.mode==='floor')this.registerFloor(placement);
+   }
   }
+  this.refreshAsyncVegetation();
  }
 }
