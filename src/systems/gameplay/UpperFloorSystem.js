@@ -9,8 +9,7 @@ export class UpperFloorSystem{
   this.columnPositionTolerance=.14;
   this.perpendicularTolerance=.12;
   this.occupancyTolerance=.16;
-  this.beamRadius=.27;
-  this.floorBodyDepth=.26;
+  this.floorSeatInset=.10;
 
   this.originalFloorSnapBase=null;
   this.originalActionLabel=null;
@@ -156,7 +155,10 @@ export class UpperFloorSystem{
   const width=this.buildingModes.floorWidth;
 
   for(const bay of this.frameworkBays()){
-   const centerY=bay.beamCenterY+this.beamRadius+this.floorBodyDepth;
+   // The split floor logs now pass into the centre zone of the horizontal beam.
+   // This deliberate timber overlap removes the floating stacked-on-top look and
+   // makes the upper deck read as a notched structural joint.
+   const centerY=bay.beamCenterY+this.floorSeatInset;
    for(const offset of [-width,0,width]){
     const x=bay.centerX+bay.vx*offset;
     const z=bay.centerZ+bay.vz*offset;
