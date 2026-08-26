@@ -13,6 +13,7 @@ import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=576';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=577';
+import { StairSystem } from './gameplay/StairSystem.js?v=578';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
 
@@ -106,6 +107,13 @@ export class GameBootstrap{
    });
    this.constructionTraversal.initialize();
 
+   this.stairs=new StairSystem({
+    world:this.world,
+    buildingModes:this.buildModes,
+    constructionTraversal:this.constructionTraversal
+   });
+   this.stairs.initialize();
+
    this.harvesting=new HarvestingSystem(T,{world:this.world,player:this.player,materials:this.materials});
    this.harvesting.initialize();
 
@@ -136,7 +144,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.77 · automatic deck supports · graded vegetation · downhill overhangs · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.78 · floor-snapped 45° stairs · automatic deck supports · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -159,7 +167,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.77 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.78 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -180,11 +188,11 @@ export class GameBootstrap{
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.77 · Ranger · overhanging floors gain automatic timber supports'
-    :'Clean rebuild 0.5.77 · Ranger · automatic deck supports · animations pending';
+    ?'Clean rebuild 0.5.78 · Ranger · 45° logs snap to exposed floor edges as walkable stairs'
+    :'Clean rebuild 0.5.78 · Ranger · floor stair snapping · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.77 · automatic deck supports · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.78 · floor stair snapping · Ranger model unavailable';
   }
  }
 }
