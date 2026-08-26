@@ -3,9 +3,6 @@ export class ConstructionTraversalSystem{
   this.world=world;
   this.buildingModes=buildingModes;
 
-  // Floors are walkable oriented rectangles, not rock-shaped ellipses. A small
-  // edge margin closes numerical seams between snapped pieces without making the
-  // Ranger appear to stand far beyond the visible wood.
   this.floorEdgeMargin=.10;
   this.groundedStepTolerance=.52;
   this.airborneSupportTolerance=.18;
@@ -13,15 +10,13 @@ export class ConstructionTraversalSystem{
   this.walkSampleSpacing=.16;
   this.samePlaneTolerance=.075;
 
-  // Frames and walls use their own narrow construction collision instead of the
-  // broad rock-collider approximation. This prevents overlapping posts/walls from
-  // trapping the player inside a newly built structure.
   this.playerRadius=this.world?.playerCollisionRadius??.42;
   this.playerHeight=this.world?.playerCollisionHeight??2.15;
   this.frameRadius=.27;
-  this.wallHalfLength=(this.buildingModes?.logLength??2.20)*.5;
+  this.wallHalfLength=(this.buildingModes?.logLength??2.90)*.5;
   this.wallHalfThickness=.26;
   this.collisionPadding=.035;
+  this.escapeEpsilon=.003;
   this.lastColliderCount=-1;
  }
 
@@ -35,8 +30,7 @@ export class ConstructionTraversalSystem{
  }
 
  solidPlacements(){
-  // Angled logs are intentionally excluded for now: they are roof/stair primitives
-  // and should not create a full-height invisible wall underneath their projection.
+  // Angled pieces stay non-blocking until stairs/roof traversal gets its own shape.
   return this.buildingModes?.placements?.filter(p=>
    (p.mode==='frame'||p.mode==='wall')&&p.object?.parent
   )||[];
@@ -50,7 +44,7 @@ export class ConstructionTraversalSystem{
  }
 
  containsFloorPoint(floor,x,z,margin=this.floorEdgeMargin){
-  const halfLength=(this.buildingModes?.floorHalfLength??1.10)+margin;
+  const halfLength=(this.buildingModes?.floorHalfLength??1.45)+margin;
   const halfWidth=(this.buildingModes?.floorHalfWidth??.56)+margin;
   const b=this.basis(floor.yaw||0);
   const dx=x-floor.x;
@@ -163,13 +157,39 @@ export class ConstructionTraversalSystem{
   return true;
  }
 
+ overlapDepth(placement,x,z,currentFootY){
+  if(!this.verticalOverlap(placement,currentFootY))return 0;
+
+  if(placement.mode==='frame'){
+   const radius=this.frameRadius+this.playerRadius+this.collisionPadding;
+   const d=Math.hypot(x-placement.x,z-placement.z);
+   return Math.max(0,radius-d);
+  }
+
+  if(placement.mode==='wall'){
+   const halfX=this.wallHalfLength+this.playerRadius+this.collisionPadding;
+   const halfZ=this.wallHalfThickness+this.playerRadius+this.collisionPadding;
+   const p=this.toLocal(placement,x,z);
+   if(!this.pointInRect(p,halfX,halfZ))return 0;
+   return Math.max(0,Math.min(halfX-Math.abs(p.x),halfZ-Math.abs(p.z)));
+  }
+
+  return 0;
+ }
+
+ totalOverlapDepth(x,z,currentFootY){
+  let total=0;
+  for(const placement of this.solidPlacements()){
+   total+=this.overlapDepth(placement,x,z,currentFootY);
+  }
+  return total;
+ }
+
  obstacleBlocks(placement,fromX,fromZ,currentFootY,toX,toZ){
   if(!this.verticalOverlap(placement,currentFootY))return false;
 
   if(placement.mode==='frame'){
    const radius=this.frameRadius+this.playerRadius+this.collisionPadding;
-   const fromInside=this.circleContains(fromX,fromZ,placement.x,placement.z,radius);
-   if(fromInside)return false; // always let a player already overlapping escape.
    return this.segmentHitsCircle(fromX,fromZ,toX,toZ,placement.x,placement.z,radius);
   }
 
@@ -178,7 +198,6 @@ export class ConstructionTraversalSystem{
    const halfZ=this.wallHalfThickness+this.playerRadius+this.collisionPadding;
    const from=this.toLocal(placement,fromX,fromZ);
    const to=this.toLocal(placement,toX,toZ);
-   if(this.pointInRect(from,halfX,halfZ))return false;
    return this.segmentHitsRect(from,to,halfX,halfZ);
   }
 
@@ -186,6 +205,16 @@ export class ConstructionTraversalSystem{
  }
 
  blocksMovement(fromX,fromZ,currentFootY,toX,toZ){
+  // If multiple posts/walls overlap around the Ranger, judge the whole cluster as
+  // one collision field. While inside it, any move that does not increase total
+  // penetration is allowed. This guarantees a path out of tight construction
+  // corners instead of one obstacle allowing escape while its neighbour blocks it.
+  const fromDepth=this.totalOverlapDepth(fromX,fromZ,currentFootY);
+  if(fromDepth>0){
+   const toDepth=this.totalOverlapDepth(toX,toZ,currentFootY);
+   return toDepth>fromDepth+this.escapeEpsilon;
+  }
+
   for(const placement of this.solidPlacements()){
    if(this.obstacleBlocks(placement,fromX,fromZ,currentFootY,toX,toZ))return true;
   }
@@ -197,9 +226,6 @@ export class ConstructionTraversalSystem{
   if(!Array.isArray(world?.rockColliders))return;
 
   const before=world.rockColliders.length;
-  // All player-built pieces are now handled here: floors as support rectangles,
-  // frames/walls as narrow authored obstacles. Keeping their old AABB ellipses in
-  // the rock grid creates oversized overlapping collision volumes and traps players.
   world.rockColliders=world.rockColliders.filter(collider=>
    collider.owner!=='player-construction'
   );
