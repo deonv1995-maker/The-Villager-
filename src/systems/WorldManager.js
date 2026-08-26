@@ -1,4 +1,4 @@
-import { PolishedGrassTerrain } from './world/PolishedGrassTerrain.js?v=547';
+import { PolishedGrassTerrain } from './world/PolishedGrassTerrain.js?v=548';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=547';
 import { TerrainFeatures } from './world/TerrainFeatures.js?v=541';
 import { CliffRockDecorator } from './world/CliffRockDecorator.js?v=547';
