@@ -7,8 +7,8 @@ import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552'
 import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=560';
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
-import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=570';
-import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=570';
+import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=585';
+import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=585';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=579';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=576';
@@ -54,6 +54,7 @@ export class GameBootstrap{
    this.scene.add(this.player);
    this.playerVisual=new PlayerVisual(T);
    this.player.add(this.playerVisual.root);
+   this.world.playerVisual=this.playerVisual;
 
    this.input=new MobileControls({
     leftRoot:document.getElementById('move-stick'),
@@ -157,12 +158,13 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.84 · larger harvestable trees · thicker trunks · log-scale forest proportions · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.85 · chopping motion · two-handed log carry · rolling harvested logs · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
     this.constructionTraversal.update(dt);
     this.playerController.update(dt);
+    this.materials.update(dt);
     this.buildModes.update(dt);
     this.foundationTerrain.update(dt);
     this.floorSupports.update(dt);
@@ -171,6 +173,7 @@ export class GameBootstrap{
     this.survivalInteraction.update(dt);
     this.grassInteraction.update(dt);
     this.fineGrassFields.update(dt);
+    this.playerVisual.setCarrying?.(this.materials?.carried?.type||null);
     this.playerVisual.update(dt,this.playerController.moveAmount,this.playerController.locomotionState);
     this.cameraController.update(dt);
     this.renderPerformance.update(dt);
@@ -180,14 +183,14 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.84 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.85 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
  async tryKayKitRanger(status){
   const T=this.THREE;
   try{
-   const {KayKitPlayerVisual}=await import('./player/KayKitPlayerVisual.js?v=538');
+   const {KayKitPlayerVisual}=await import('./player/KayKitPlayerVisual.js?v=585');
    const ranger=new KayKitPlayerVisual(T,{
     modelUrls:kaykitUrls('Characters/gltf/Ranger.glb'),
     movementUrls:kaykitUrls('Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb'),
@@ -199,13 +202,14 @@ export class GameBootstrap{
    this.player.add(ranger.root);
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
+   this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.84 · Ranger · larger trees · thicker trunks · three harvested logs feel proportional'
-    :'Clean rebuild 0.5.84 · Ranger · larger forest proportions · animations pending';
+    ?'Clean rebuild 0.5.85 · Ranger · chopping animation · two-handed log carry · physical rolling logs'
+    :'Clean rebuild 0.5.85 · Ranger · physical harvested logs · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.84 · larger forest proportions · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.85 · rolling harvested logs · Ranger model unavailable';
   }
  }
 }
