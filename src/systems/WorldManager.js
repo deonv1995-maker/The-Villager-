@@ -1,6 +1,6 @@
-import { RegionalIslandTerrain } from './world/RegionalIslandTerrain.js?v=540';
+import { RegionalIslandTerrain } from './world/RegionalIslandTerrain.js?v=541';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=520';
-import { TerrainFeatures } from './world/TerrainFeatures.js?v=536';
+import { TerrainFeatures } from './world/TerrainFeatures.js?v=541';
 
 export class WorldManager {
  constructor(THREE, scene) {
@@ -56,17 +56,18 @@ export class WorldManager {
   const mz=(fromZ+toZ)*.5;
   const mid=this.cliffProfileAt(mx,mz);
 
-  // The authored ramp is deliberately traversable in both directions.
+  // Every authored formation exposes a deliberate ramp through the same
+  // profile API, so traversal stays data-driven as more cliffs are added.
   if((from.rampMask>.40&&to.rampMask>.40)||(mid?.rampMask>.48))return false;
 
   const solidProfile=[from,to,mid].some(p=>p&&p.weight>.12&&p.rampMask<.36&&p.drop>1.15);
   if(!solidProfile)return false;
 
-  if(from.signed*to.signed<0)return true;
+  if(from.formationId===to.formationId&&from.signed*to.signed<0)return true;
 
   const fromDistance=Math.abs(from.signed);
   const toDistance=Math.abs(to.signed);
-  if(toDistance<this.cliffPlayerClearance&&toDistance<fromDistance-.001)return true;
+  if(to.formationId===from.formationId&&toDistance<this.cliffPlayerClearance&&toDistance<fromDistance-.001)return true;
 
   return false;
  }
