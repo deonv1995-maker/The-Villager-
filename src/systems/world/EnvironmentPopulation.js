@@ -24,8 +24,15 @@ export class EnvironmentPopulation {
 
  createVariantCatalog(){
   return {
-   tree:[{name:'natural',scale:[1,1,1]},{name:'young',scale:[.84,.88,.84]},{name:'mature',scale:[1.1,1.08,1.1]}],
-   bareTree:[{name:'bare',scale:[1,1,1]},{name:'weathered',scale:[.9,1.12,.9]}],
+   // Harvestable trees are intentionally kept substantial relative to the
+   // 2.7 m Ranger and the 2.9 m logs they produce. Even the young variant now
+   // reads as a real tree rather than a shrub-sized prop.
+   tree:[
+    {name:'natural',scale:[1,1,1]},
+    {name:'young',scale:[.94,.98,.94]},
+    {name:'mature',scale:[1.14,1.18,1.14]}
+   ],
+   bareTree:[{name:'bare',scale:[1,1.04,1]},{name:'weathered',scale:[.94,1.16,.94]}],
    rock:[{name:'natural',scale:[1,1,1]},{name:'small',scale:[.7,.7,.7]},{name:'large',scale:[1.3,1.15,1.25]}],
    bush:[{name:'natural',scale:[1,1,1]},{name:'small',scale:[.75,.75,.75]},{name:'full',scale:[1.22,1.1,1.18]}],
    grass:[{name:'short',scale:[1,.78,1]},{name:'natural',scale:[1,1,1]},{name:'tall',scale:[.9,1.25,.9]}]
@@ -199,8 +206,11 @@ export class EnvironmentPopulation {
  placeObject(type,x,y,z,i,scaleMultiplier=1,regionName='lowlands'){
   const o=this.clone(type,i*19+7);if(!o)return false;
   let scale=(.78+this.rand(i*4+3)*.88)*scaleMultiplier;
-  if(type==='tree')scale*=1.12;
-  else if(type==='bareTree')scale*=1.08;
+  // The previous tree multiplier made several harvestable trees barely taller
+  // than the Ranger while still producing three 2.9 m construction logs. Scale
+  // the entire tree uniformly so trunk thickness and canopy size grow together.
+  if(type==='tree')scale*=1.68;
+  else if(type==='bareTree')scale*=1.58;
   else if(type==='rock')scale*=2.15;
   else if(type==='bush')scale*=4.15;
   else scale*=2.15;
