@@ -6,9 +6,25 @@ export class PlayerController {
   this.cameraController=cameraController;
   this.world=world;
   this.groundOffset=groundOffset;
+
   this.moveSpeed=5.2;
   this.turnSpeed=12;
   this.maxMoveSubstep=.22;
+
+  // Vertical locomotion is owned here so terrain traversal remains the single
+  // authority for horizontal movement while jump/fall state stays independent.
+  this.jumpSpeed=7.7;
+  this.gravity=19.5;
+  this.maxFallSpeed=24;
+  this.jumpBufferDuration=.12;
+  this.coyoteDuration=.10;
+  this.jumpBufferTimer=0;
+  this.coyoteTimer=this.coyoteDuration;
+  this.verticalVelocity=0;
+  this.isGrounded=true;
+  this.jumpStartedThisFrame=false;
+  this.landedThisFrame=false;
+
   this.forward=new THREE.Vector3();
   this.right=new THREE.Vector3();
   this.move=new THREE.Vector3();
@@ -17,6 +33,32 @@ export class PlayerController {
  }
 
  update(dt){
+  this.jumpStartedThisFrame=false;
+  this.landedThisFrame=false;
+
+  if(this.input?.consumeJump?.())this.jumpBufferTimer=this.jumpBufferDuration;
+  else this.jumpBufferTimer=Math.max(0,this.jumpBufferTimer-dt);
+
+  if(this.isGrounded)this.coyoteTimer=this.coyoteDuration;
+  else this.coyoteTimer=Math.max(0,this.coyoteTimer-dt);
+
+  if(this.jumpBufferTimer>0&&this.coyoteTimer>0){
+    this.startJump();
+  }
+
+  this.updateHorizontal(dt);
+  this.updateVertical(dt);
+ }
+
+ startJump(){
+  this.isGrounded=false;
+  this.verticalVelocity=this.jumpSpeed;
+  this.jumpBufferTimer=0;
+  this.coyoteTimer=0;
+  this.jumpStartedThisFrame=true;
+ }
+
+ updateHorizontal(dt){
   const input=this.input?.move||{x:0,y:0};
   let x=input.x,y=input.y;
   const mag=Math.hypot(x,y);
@@ -25,7 +67,6 @@ export class PlayerController {
   if(mag<.06){
    this.isMoving=false;
    this.moveAmount=0;
-   this.snapToGround();
    return;
   }
 
@@ -48,7 +89,6 @@ export class PlayerController {
   delta=Math.atan2(Math.sin(delta),Math.cos(delta));
   this.player.rotation.y+=delta*(1-Math.exp(-this.turnSpeed*dt));
   this.isMoving=true;
-  this.snapToGround();
  }
 
  moveOneStep(step){
@@ -85,6 +125,36 @@ export class PlayerController {
   return false;
  }
 
+ updateVertical(dt){
+  const ground=this.groundHeight();
+
+  if(this.isGrounded){
+    this.verticalVelocity=0;
+    this.player.position.y=ground;
+    return;
+  }
+
+  this.verticalVelocity=Math.max(this.verticalVelocity-this.gravity*dt,-this.maxFallSpeed);
+  this.player.position.y+=this.verticalVelocity*dt;
+
+  // Terrain is the current landing surface. A future platform system can feed
+  // an additional surface candidate into this same landing stage.
+  if(this.player.position.y<=ground){
+    this.player.position.y=ground;
+    this.verticalVelocity=0;
+    this.isGrounded=true;
+    this.landedThisFrame=true;
+    this.coyoteTimer=this.coyoteDuration;
+  }
+ }
+
+ groundHeight(){
+  const ground=this.world?.surfaceHeightAt
+   ?this.world.surfaceHeightAt(this.player.position.x,this.player.position.z)
+   :this.world?.heightAt?.(this.player.position.x,this.player.position.z)??0;
+  return ground+this.groundOffset;
+ }
+
  canMove(fromX,fromZ,currentY,toX,toZ){
   if(!this.world?.resolveMovement)return true;
   return this.world.resolveMovement(fromX,fromZ,currentY,toX,toZ).allowed;
@@ -97,14 +167,14 @@ export class PlayerController {
   return true;
  }
 
- snapToGround(){
-  if(!this.world)return;
-  const ground=(this.world.surfaceHeightAt
-   ?this.world.surfaceHeightAt(this.player.position.x,this.player.position.z)
-   :this.world.heightAt(this.player.position.x,this.player.position.z))+this.groundOffset;
-
-  // There is no jump/fall state yet, so the terrain is authoritative. Exact
-  // grounding avoids accumulated interpolation lag on ramps and cliff lips.
-  this.player.position.y=ground;
+ get locomotionState(){
+  return {
+   isGrounded:this.isGrounded,
+   isJumping:!this.isGrounded&&this.verticalVelocity>0,
+   isFalling:!this.isGrounded&&this.verticalVelocity<=0,
+   verticalVelocity:this.verticalVelocity,
+   jumpStarted:this.jumpStartedThisFrame,
+   landed:this.landedThisFrame
+  };
  }
 }
