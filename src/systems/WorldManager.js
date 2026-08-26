@@ -23,15 +23,13 @@ export class WorldManager {
 
   // A character that has genuinely left its current support surface may cross
   // a steep terrain seam while its feet are above both sides of that seam.
-  // This keeps cliffs solid for normal walking but lets a real jump clear the
-  // KayKit rim rocks / cliff edge instead of hitting an invisible wall.
   this.airborneTraversalLift = .08;
   this.airborneTerrainClearance = .05;
 
-  // Lightweight rock collision registry. Decorative meshes remain render-only;
-  // traversal uses compact body + top-support colliders stored in a spatial grid.
-  // This avoids expensive mesh physics while still making every cliff rock solid
-  // enough to jump onto, stand on and move across safely on mobile.
+  // Rock collision remains intentionally lightweight: each visible rock owns an
+  // AABB-derived elliptical body plus a smaller standable support cap. The broad
+  // phase stays grid-based, so adding more cliffs does not introduce mesh-physics
+  // cost on mobile.
   this.rockColliders=[];
   this.rockColliderGrid=new Map();
   this.rockColliderCellSize=6;
@@ -71,29 +69,61 @@ export class WorldManager {
   return this.terrain.heightAt(x, z);
  }
 
- // Registered rocks contribute a stable support cap independent of the terrain
- // below them. supportY intentionally sits slightly below the highest AABB tip;
- // low-poly rocks often have one raised vertex, and using that vertex as the
- // entire walking plane would make the Ranger appear to float.
+ colliderSupportY(collider){
+  return Number.isFinite(collider?.supportY)?collider.supportY:collider?.topY;
+ }
+
+ pointInsideEllipse(x,z,cx,cz,rx,rz){
+  rx=Math.max(.001,rx);
+  rz=Math.max(.001,rz);
+  const dx=(x-cx)/rx;
+  const dz=(z-cz)/rz;
+  return dx*dx+dz*dz<=1;
+ }
+
+ colliderStandContains(collider,x,z){
+  const rx=collider.standRadiusX??collider.standRadius??collider.radius*.72;
+  const rz=collider.standRadiusZ??collider.standRadius??collider.radius*.72;
+  return this.pointInsideEllipse(x,z,collider.x,collider.z,rx,rz);
+ }
+
+ // Stable support surface used for grounded snapping. Rock support remains
+ // separate from the terrain height authority and only wins while the Ranger is
+ // already at or above that support.
  landingSurfaceHeightAt(x,z,currentFootY=Infinity,isGrounded=false){
   const terrainY=this.terrain.heightAt(x,z);
   let surfaceY=terrainY;
   const candidates=this.rockColliderCandidates(x,z,x,z);
   if(!candidates.length)return surfaceY;
 
-  const tolerance=isGrounded?.30:.16;
+  const tolerance=isGrounded?.34:.18;
   for(const collider of candidates){
    if(!collider.standable)continue;
-   const supportY=Number.isFinite(collider.supportY)?collider.supportY:collider.topY;
-   if(supportY<=terrainY+.05)continue;
-
-   const dx=x-collider.x;
-   const dz=z-collider.z;
-   const standRadius=collider.standRadius??collider.radius*.72;
-   if(dx*dx+dz*dz>standRadius*standRadius)continue;
-
+   const supportY=this.colliderSupportY(collider);
+   if(!Number.isFinite(supportY)||supportY<=terrainY+.05)continue;
+   if(!this.colliderStandContains(collider,x,z))continue;
    if(Number.isFinite(currentFootY)&&currentFootY<supportY-tolerance)continue;
    if(supportY>surfaceY)surfaceY=supportY;
+  }
+  return surfaceY;
+ }
+
+ // Swept landing query for airborne descent. It detects a support top crossed
+ // between two vertical positions, so a frame cannot tunnel through a cliff rock.
+ landingSurfaceHeightForSweep(x,z,fromFootY,toFootY){
+  const terrainY=this.terrain.heightAt(x,z);
+  let surfaceY=terrainY;
+  const candidates=this.rockColliderCandidates(x,z,x,z);
+
+  for(const collider of candidates){
+   if(!collider.standable)continue;
+   const supportY=this.colliderSupportY(collider);
+   if(!Number.isFinite(supportY)||supportY<=terrainY+.05)continue;
+   if(!this.colliderStandContains(collider,x,z))continue;
+
+   const startedAbove=fromFootY>=supportY-.06;
+   const endedAtOrBelow=toFootY<=supportY+.02;
+   if(startedAbove&&endedAtOrBelow&&supportY>surfaceY)surfaceY=supportY;
   }
   return surfaceY;
  }
@@ -112,7 +142,11 @@ export class WorldManager {
 
  addColliderToGrid(collider){
   const cell=this.rockColliderCellSize;
-  const extent=collider.radius+this.playerCollisionRadius;
+  const extent=Math.max(
+   collider.radius||0,
+   collider.radiusX||0,
+   collider.radiusZ||0
+  )+this.playerCollisionRadius;
   const minX=Math.floor((collider.x-extent)/cell);
   const maxX=Math.floor((collider.x+extent)/cell);
   const minZ=Math.floor((collider.z-extent)/cell);
@@ -139,23 +173,38 @@ export class WorldManager {
  }
 
  registerRockCollider({
-  x,z,radius,bottomY,topY,supportY=null,owner='world',object=null,
-  standable=true,standRadius=null
+  x,z,radius,radiusX=null,radiusZ=null,bottomY,topY,supportY=null,
+  owner='world',object=null,standable=true,standRadius=null,
+  standRadiusX=null,standRadiusZ=null
  }){
   if(![x,z,radius,bottomY,topY].every(Number.isFinite))return null;
   if(radius<=.05||topY<=bottomY+.05)return null;
 
+  const resolvedRadiusX=Number.isFinite(radiusX)?Math.max(.05,radiusX):radius;
+  const resolvedRadiusZ=Number.isFinite(radiusZ)?Math.max(.05,radiusZ):radius;
   const resolvedSupportY=Number.isFinite(supportY)
    ?Math.max(bottomY+.06,Math.min(topY,supportY))
    :topY;
+  const fallbackStand=Number.isFinite(standRadius)
+   ?Math.max(.08,standRadius)
+   :radius*.72;
+  const resolvedStandX=Number.isFinite(standRadiusX)
+   ?Math.max(.08,Math.min(resolvedRadiusX,standRadiusX))
+   :Math.min(resolvedRadiusX,fallbackStand);
+  const resolvedStandZ=Number.isFinite(standRadiusZ)
+   ?Math.max(.08,Math.min(resolvedRadiusZ,standRadiusZ))
+   :Math.min(resolvedRadiusZ,fallbackStand);
 
   const collider={
-   id:this.nextRockColliderId++,x,z,radius,bottomY,topY,
-   supportY:resolvedSupportY,owner,object,
+   id:this.nextRockColliderId++,
+   x,z,radius:Math.max(radius,resolvedRadiusX,resolvedRadiusZ),
+   radiusX:resolvedRadiusX,
+   radiusZ:resolvedRadiusZ,
+   bottomY,topY,supportY:resolvedSupportY,owner,object,
    standable:!!standable,
-   standRadius:Number.isFinite(standRadius)
-    ?Math.max(.08,Math.min(radius,standRadius))
-    :radius*.72
+   standRadius:Math.max(resolvedStandX,resolvedStandZ),
+   standRadiusX:resolvedStandX,
+   standRadiusZ:resolvedStandZ
   };
   this.rockColliders.push(collider);
   this.addColliderToGrid(collider);
@@ -177,10 +226,11 @@ export class WorldManager {
   box.getSize(size);
   box.getCenter(center);
 
-  const radius=Math.max(
-   minRadius,
-   Math.min(maxRadius,Math.max(size.x,size.z)*radiusScale)
-  );
+  // Preserve each rock's actual world-space width/depth instead of collapsing
+  // it to one centre circle. This is the key fix for the broad cliff stones.
+  const radiusX=Math.max(minRadius,Math.min(maxRadius,size.x*radiusScale));
+  const radiusZ=Math.max(minRadius,Math.min(maxRadius,size.z*radiusScale));
+  const radius=Math.max(radiusX,radiusZ);
   const bottomY=box.min.y+verticalInset;
   const topY=Math.max(bottomY+.12,box.max.y-verticalInset);
   const supportInset=Math.max(
@@ -188,11 +238,14 @@ export class WorldManager {
    Math.min(maxSupportInset,size.y*supportInsetScale)
   );
   const supportY=Math.max(bottomY+.08,topY-supportInset);
-  const standRadius=Math.max(.10,Math.min(radius,radius*standRadiusScale));
+  const standRadiusX=Math.max(.10,Math.min(radiusX,radiusX*standRadiusScale));
+  const standRadiusZ=Math.max(.10,Math.min(radiusZ,radiusZ*standRadiusScale));
 
   return this.registerRockCollider({
-   x:center.x,z:center.z,radius,bottomY,topY,supportY,
-   owner,object,standable,standRadius
+   x:center.x,z:center.z,radius,radiusX,radiusZ,bottomY,topY,supportY,
+   owner,object,standable,
+   standRadius:Math.max(standRadiusX,standRadiusZ),
+   standRadiusX,standRadiusZ
   });
  }
 
@@ -213,8 +266,8 @@ export class WorldManager {
    'environment-rocks',
    object=>object.userData?.environmentType==='rock',
    {
-    radiusScale:.36,minRadius:.30,maxRadius:2.35,verticalInset:.06,
-    standable:true,standRadiusScale:.68,supportInsetScale:.08
+    radiusScale:.42,minRadius:.30,maxRadius:2.8,verticalInset:.05,
+    standable:true,standRadiusScale:.86,supportInsetScale:.08
    }
   );
  }
@@ -229,26 +282,23 @@ export class WorldManager {
    if(!Number.isFinite(object.userData?.cliffRockSource))continue;
    const shape=object.userData?.cliffRockShape||'face';
 
-   // Cliff dressing uses broad, overlapping collider bodies instead of the old
-   // tiny center footprints. Rim rocks get the widest support cap because they
-   // are the intended stepping/jumping route across a cliff edge. Face and base
-   // rocks remain individually solid too, so the Ranger cannot fall through a
-   // visible rock simply because its centre point missed a narrow old collider.
-   const radiusScale=shape==='face'?.43:shape==='rim'?.48:.46;
-   const standRadiusScale=shape==='face'?.78:shape==='rim'?.92:.88;
-   const supportInsetScale=shape==='face'?.11:shape==='rim'?.08:.09;
+   // Every visible cliff rock receives a full footprint collider. Rim rocks are
+   // almost fully standable; face/base rocks keep only a small visual margin.
+   const radiusScale=shape==='face'?.50:shape==='rim'?.52:.50;
+   const standRadiusScale=shape==='face'?.92:shape==='rim'?.98:.95;
+   const supportInsetScale=shape==='face'?.09:shape==='rim'?.07:.08;
 
    if(this.registerRockColliderFromObject(object,{
     owner:'cliff-rocks',
     radiusScale,
-    minRadius:.36,
-    maxRadius:2.55,
-    verticalInset:.06,
+    minRadius:.38,
+    maxRadius:3.6,
+    verticalInset:.04,
     standable:true,
     standRadiusScale,
     supportInsetScale,
-    minSupportInset:.05,
-    maxSupportInset:.26
+    minSupportInset:.04,
+    maxSupportInset:.24
    }))count++;
   }
   return count;
@@ -293,33 +343,44 @@ export class WorldManager {
   return ox*ox+oz*oz;
  }
 
+ segmentIntersectsEllipse(fromX,fromZ,toX,toZ,cx,cz,rx,rz){
+  rx=Math.max(.001,rx);
+  rz=Math.max(.001,rz);
+  return this.segmentPointDistanceSq(
+   (fromX-cx)/rx,(fromZ-cz)/rz,
+   (toX-cx)/rx,(toZ-cz)/rz,
+   0,0
+  )<1;
+ }
+
  rockBlocksMovement(fromX,fromZ,toX,toZ,currentFootY){
   const candidates=this.rockColliderCandidates(fromX,fromZ,toX,toZ);
   if(!candidates.length)return false;
   const headY=currentFootY+this.playerCollisionHeight;
 
   for(const collider of candidates){
-   const supportY=Number.isFinite(collider.supportY)?collider.supportY:collider.topY;
+   const supportY=this.colliderSupportY(collider);
 
-   // A Ranger standing on the support cap is allowed to traverse that rock's
-   // top. Below the cap, the same collider behaves as a solid body and blocks
-   // horizontal entry. This keeps jump-on gameplay without trapping the player
-   // inside the rock after landing.
+   // Once the feet are on/above the support cap, the same collider becomes a
+   // walkable top rather than a side wall.
    if(currentFootY>=supportY-.04)continue;
    if(headY<=collider.bottomY+.04)continue;
 
-   const combined=collider.radius+this.playerCollisionRadius;
-   const combinedSq=combined*combined;
-   const fromDx=fromX-collider.x,fromDz=fromZ-collider.z;
-   const toDx=toX-collider.x,toDz=toZ-collider.z;
-   const fromSq=fromDx*fromDx+fromDz*fromDz;
-   const toSq=toDx*toDx+toDz*toDz;
+   const bodyX=(collider.radiusX??collider.radius)+this.playerCollisionRadius;
+   const bodyZ=(collider.radiusZ??collider.radius)+this.playerCollisionRadius;
+   const fromInside=this.pointInsideEllipse(
+    fromX,fromZ,collider.x,collider.z,bodyX,bodyZ
+   );
+   const toInside=this.pointInsideEllipse(
+    toX,toZ,collider.x,collider.z,bodyX,bodyZ
+   );
 
-   if(fromSq<combinedSq&&toSq>fromSq+1e-5)continue;
+   // Never trap a character who begins just inside a simplified footprint.
+   if(fromInside&&!toInside)continue;
 
-   if(this.segmentPointDistanceSq(fromX,fromZ,toX,toZ,collider.x,collider.z)<combinedSq){
-    return true;
-   }
+   if(this.segmentIntersectsEllipse(
+    fromX,fromZ,toX,toZ,collider.x,collider.z,bodyX,bodyZ
+   ))return true;
   }
   return false;
  }
