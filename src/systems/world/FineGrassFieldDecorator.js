@@ -1,27 +1,48 @@
 export class FineGrassFieldDecorator {
- constructor(THREE,{world,scene}){
+ constructor(THREE,{world,scene,player=null}){
   this.T=THREE;
   this.world=world;
   this.scene=scene;
+  this.player=player;
   this.seed=36271;
 
   this.root=new THREE.Group();
   this.root.name='FineGrassFieldDecorator';
   this.mesh=null;
 
-  // Fine field grass remains a presentation-only layer. Density, patch scale
-  // and blade silhouette live here; ecology still decides where grass belongs.
-  this.maxInstances=14000;
-  this.patchCandidates=980;
-  this.minPatchRadius=1.8;
-  this.maxPatchRadius=5.3;
-  this.minTuftsPerPatch=48;
-  this.maxTuftsPerPatch=128;
+  // Fine field grass remains a presentation-only layer. Ecology decides where
+  // grass belongs; this system owns the instanced field silhouette and density.
+  this.maxInstances=19000;
+  this.patchCandidates=1280;
+  this.minPatchRadius=2.15;
+  this.maxPatchRadius=6.35;
+  this.minTuftsPerPatch=72;
+  this.maxTuftsPerPatch=182;
   this.maxSlope=.46;
-  this.spawnClearRadius=4.5;
+  this.spawnClearRadius=2.6;
 
   this.obstacleCellSize=5;
   this.obstacleGrid=new Map();
+
+  // Fine-grass interaction is spatially indexed. Only tufts near the Ranger are
+  // animated; distant instances remain untouched even as field density grows.
+  this.interactionRadius=2.75;
+  this.innerRadius=.52;
+  this.maxBend=.62;
+  this.maxCompression=.16;
+  this.followSpeed=17;
+  this.recoverySpeed=8.5;
+  this.minimumMoveSpeed=.16;
+  this.instanceCellSize=3.5;
+  this.instanceGrid=new Map();
+  this.entries=[];
+  this.active=new Set();
+  this.matrixDummy=new THREE.Object3D();
+
+  this.lastPlayerX=player?.position?.x??0;
+  this.lastPlayerZ=player?.position?.z??0;
+  this.smoothedVelocityX=0;
+  this.smoothedVelocityZ=0;
  }
 
  rand(n){
@@ -53,6 +74,9 @@ export class FineGrassFieldDecorator {
    this.mesh=null;
   }
   this.obstacleGrid.clear();
+  this.instanceGrid.clear();
+  this.entries.length=0;
+  this.active.clear();
  }
 
  obstacleKey(ix,iz){return `${ix}:${iz}`;}
@@ -160,12 +184,11 @@ export class FineGrassFieldDecorator {
   const indices=[];
   const bladeCount=5;
   const segments=4;
-  const baseHeight=.76;
-  const baseWidth=.095;
+  const baseHeight=.82;
+  const baseWidth=.098;
 
-  // Each tuft is made from several segmented ribbon blades. The upper segments
-  // curve forward and slightly sideways, creating an actual leaf silhouette
-  // instead of the straight spike shape used by the earlier field grass.
+  // Each tuft is several segmented ribbon blades. Upper segments arc forward
+  // and sideways, so the field keeps a soft grass silhouette rather than spikes.
   for(let blade=0;blade<bladeCount;blade++){
    const angle=blade*(Math.PI*2/bladeCount)+(blade%2?-.11:.08);
    const dirX=Math.cos(angle);
@@ -173,8 +196,8 @@ export class FineGrassFieldDecorator {
    const acrossX=-dirZ;
    const acrossZ=dirX;
    const height=baseHeight*(.78+(blade%4)*.075);
-   const bend=.105+(blade%3)*.042;
-   const sideBend=(blade%2?1:-1)*(.018+(blade%3)*.009);
+   const bend=.118+(blade%3)*.046;
+   const sideBend=(blade%2?1:-1)*(.020+(blade%3)*.010);
    const base=positions.length/3;
 
    for(let level=0;level<=segments;level++){
@@ -185,7 +208,7 @@ export class FineGrassFieldDecorator {
     const sideways=sideBend*Math.sin(Math.PI*t);
     const centerX=dirX*forward+acrossX*sideways;
     const centerZ=dirZ*forward+acrossZ*sideways;
-    const taper=Math.max(.08,1-t*.90);
+    const taper=Math.max(.07,1-t*.91);
     const half=baseWidth*taper*.5;
 
     positions.push(
@@ -248,9 +271,165 @@ export class FineGrassFieldDecorator {
   const density=ecology.density??.7;
   const noise=ecology.noise??.5;
 
-  return Math.max(.24,Math.min(1,
-   density*(.76+grassShare*2.05)*(.86+noise*.32)
+  return Math.max(.30,Math.min(1,
+   density*(.84+grassShare*2.18)*(.90+noise*.30)
   ));
+ }
+
+ instanceKey(ix,iz){return `${ix}:${iz}`;}
+
+ addEntryToGrid(entry){
+  const cell=this.instanceCellSize;
+  const ix=Math.floor(entry.x/cell);
+  const iz=Math.floor(entry.z/cell);
+  const key=this.instanceKey(ix,iz);
+  let bucket=this.instanceGrid.get(key);
+  if(!bucket){bucket=[];this.instanceGrid.set(key,bucket);}
+  bucket.push(entry);
+ }
+
+ nearbyEntries(x,z){
+  const cell=this.instanceCellSize;
+  const r=this.interactionRadius;
+  const minX=Math.floor((x-r)/cell);
+  const maxX=Math.floor((x+r)/cell);
+  const minZ=Math.floor((z-r)/cell);
+  const maxZ=Math.floor((z+r)/cell);
+  const found=[];
+
+  for(let ix=minX;ix<=maxX;ix++){
+   for(let iz=minZ;iz<=maxZ;iz++){
+    const bucket=this.instanceGrid.get(this.instanceKey(ix,iz));
+    if(bucket)found.push(...bucket);
+   }
+  }
+  return found;
+ }
+
+ writeEntryMatrix(entry){
+  const d=this.matrixDummy;
+  d.position.set(entry.x,entry.y,entry.z);
+  d.rotation.set(
+   entry.baseLeanX+entry.bendX,
+   entry.baseYaw,
+   entry.baseLeanZ+entry.bendZ
+  );
+  d.scale.set(
+   entry.scaleX,
+   entry.scaleY*(1-entry.compression),
+   entry.scaleZ
+  );
+  d.updateMatrix();
+  this.mesh.setMatrixAt(entry.index,d.matrix);
+ }
+
+ smoothstep01(t){
+  t=Math.max(0,Math.min(1,t));
+  return t*t*(3-2*t);
+ }
+
+ updatePlayerVelocity(dt){
+  if(!this.player)return 0;
+  const px=this.player.position.x;
+  const pz=this.player.position.z;
+  const safeDt=Math.max(.001,dt);
+  const vx=(px-this.lastPlayerX)/safeDt;
+  const vz=(pz-this.lastPlayerZ)/safeDt;
+  const blend=1-Math.exp(-10*dt);
+
+  this.smoothedVelocityX+=(vx-this.smoothedVelocityX)*blend;
+  this.smoothedVelocityZ+=(vz-this.smoothedVelocityZ)*blend;
+  this.lastPlayerX=px;
+  this.lastPlayerZ=pz;
+  return Math.hypot(this.smoothedVelocityX,this.smoothedVelocityZ);
+ }
+
+ update(dt){
+  if(!this.player||!this.mesh||!this.entries.length)return;
+
+  const speed=this.updatePlayerVelocity(dt);
+  const px=this.player.position.x;
+  const pz=this.player.position.z;
+  const candidates=this.nearbyEntries(px,pz);
+  const current=new Set();
+  const runStrength=Math.max(
+   0,
+   Math.min(1,(speed-this.minimumMoveSpeed)/(5.2-this.minimumMoveSpeed))
+  );
+
+  let moveX=this.smoothedVelocityX;
+  let moveZ=this.smoothedVelocityZ;
+  const moveLength=Math.hypot(moveX,moveZ);
+  if(moveLength>.001){
+   moveX/=moveLength;
+   moveZ/=moveLength;
+  }
+
+  let changed=false;
+  for(const entry of candidates){
+   const dx=entry.x-px;
+   const dz=entry.z-pz;
+   const distance=Math.hypot(dx,dz);
+   if(distance>=this.interactionRadius)continue;
+
+   current.add(entry);
+   this.active.add(entry);
+
+   const outwardLength=Math.max(.001,distance);
+   const outwardX=dx/outwardLength;
+   const outwardZ=dz/outwardLength;
+   const radial=1-this.smoothstep01(
+    (distance-this.innerRadius)/(this.interactionRadius-this.innerRadius)
+   );
+
+   // Grass parts away from the Ranger while movement direction adds a trailing
+   // sweep, making running visibly push the field aside rather than just squash it.
+   let pushX=outwardX;
+   let pushZ=outwardZ;
+   if(moveLength>.001){
+    pushX=outwardX*.70+moveX*.30;
+    pushZ=outwardZ*.70+moveZ*.30;
+    const pushLength=Math.max(.001,Math.hypot(pushX,pushZ));
+    pushX/=pushLength;
+    pushZ/=pushLength;
+   }
+
+   const strength=radial*(.40+.60*runStrength);
+   const targetBendX=pushZ*this.maxBend*strength;
+   const targetBendZ=-pushX*this.maxBend*strength;
+   const targetCompression=this.maxCompression*strength;
+   const blend=1-Math.exp(-this.followSpeed*dt);
+
+   entry.bendX+=(targetBendX-entry.bendX)*blend;
+   entry.bendZ+=(targetBendZ-entry.bendZ)*blend;
+   entry.compression+=(targetCompression-entry.compression)*blend;
+   this.writeEntryMatrix(entry);
+   changed=true;
+  }
+
+  for(const entry of Array.from(this.active)){
+   if(current.has(entry))continue;
+
+   const blend=1-Math.exp(-this.recoverySpeed*dt);
+   entry.bendX+=(0-entry.bendX)*blend;
+   entry.bendZ+=(0-entry.bendZ)*blend;
+   entry.compression+=(0-entry.compression)*blend;
+
+   this.writeEntryMatrix(entry);
+   changed=true;
+
+   if(Math.abs(entry.bendX)<.004
+    &&Math.abs(entry.bendZ)<.004
+    &&entry.compression<.002){
+    entry.bendX=0;
+    entry.bendZ=0;
+    entry.compression=0;
+    this.writeEntryMatrix(entry);
+    this.active.delete(entry);
+   }
+  }
+
+  if(changed)this.mesh.instanceMatrix.needsUpdate=true;
  }
 
  populate(){
@@ -269,7 +448,7 @@ export class FineGrassFieldDecorator {
   mesh.name='FineGrassFieldInstances';
   mesh.castShadow=false;
   mesh.receiveShadow=true;
-  mesh.instanceMatrix.setUsage(T.StaticDrawUsage);
+  mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
 
   const dummy=new T.Object3D();
   const color=new T.Color();
@@ -279,26 +458,26 @@ export class FineGrassFieldDecorator {
   for(let patchIndex=0;patchIndex<this.patchCandidates&&placed<this.maxInstances;patchIndex++){
    const seed=patchIndex*97+11;
    const angle=this.rand(seed)*Math.PI*2;
-   const radius=7+Math.sqrt(this.rand(seed+1))*Math.max(1,terrainRadius-7);
+   const radius=5+Math.sqrt(this.rand(seed+1))*Math.max(1,terrainRadius-5);
    const cx=Math.cos(angle)*radius;
    const cz=Math.sin(angle)*radius;
 
    if(!this.terrainAllowsGrass(cx,cz))continue;
    const suitability=this.patchSuitability(cx,cz);
-   if(this.rand(seed+2)>.95*suitability)continue;
+   if(this.rand(seed+2)>.985*suitability)continue;
 
    const patchRadius=this.minPatchRadius
     +(this.maxPatchRadius-this.minPatchRadius)*this.rand(seed+3);
-   const stretch=.72+this.rand(seed+4)*.62;
+   const stretch=.76+this.rand(seed+4)*.66;
    const patchYaw=this.rand(seed+5)*Math.PI*2;
    const c=Math.cos(patchYaw);
    const s=Math.sin(patchYaw);
    const tuftTarget=Math.round(
     this.minTuftsPerPatch
     +(this.maxTuftsPerPatch-this.minTuftsPerPatch)
-     *this.rand(seed+6)*(.84+.30*suitability)
+     *this.rand(seed+6)*(.90+.26*suitability)
    );
-   const attempts=Math.ceil(tuftTarget*2.45);
+   const attempts=Math.ceil(tuftTarget*2.35);
    let accepted=0;
 
    for(let j=0;j<attempts&&accepted<tuftTarget&&placed<this.maxInstances;j++){
@@ -313,22 +492,24 @@ export class FineGrassFieldDecorator {
     const z=cz+rz;
 
     if(!this.terrainAllowsGrass(x,z))continue;
-    if(!this.isObstacleClear(x,z,.07))continue;
+    if(!this.isObstacleClear(x,z,.055))continue;
 
-    // The field now keeps most edge tufts so overlapping patches merge into
-    // broad meadow areas rather than isolated sparse circles.
+    // Very soft edge thinning lets neighboring patches merge into a continuous
+    // field while still avoiding obviously stamped circles.
     const edge=localRadius/Math.max(.001,patchRadius);
-    if(this.rand(tuftSeed+2)<Math.max(0,(edge-.82)*.28))continue;
+    if(this.rand(tuftSeed+2)<Math.max(0,(edge-.90)*.16))continue;
 
     const y=this.world.heightAt(x,z)+.016;
-    const heightScale=.88+this.rand(tuftSeed+3)*.72;
-    const widthScale=.86+this.rand(tuftSeed+4)*.50;
-    const leanX=(this.rand(tuftSeed+5)-.5)*.16;
-    const leanZ=(this.rand(tuftSeed+6)-.5)*.16;
+    const scaleY=.94+this.rand(tuftSeed+3)*.78;
+    const scaleX=.88+this.rand(tuftSeed+4)*.54;
+    const scaleZ=.88+this.rand(tuftSeed+11)*.54;
+    const baseLeanX=(this.rand(tuftSeed+5)-.5)*.18;
+    const baseLeanZ=(this.rand(tuftSeed+6)-.5)*.18;
+    const baseYaw=this.rand(tuftSeed+7)*Math.PI*2;
 
     dummy.position.set(x,y,z);
-    dummy.rotation.set(leanX,this.rand(tuftSeed+7)*Math.PI*2,leanZ);
-    dummy.scale.set(widthScale,heightScale,widthScale);
+    dummy.rotation.set(baseLeanX,baseYaw,baseLeanZ);
+    dummy.scale.set(scaleX,scaleY,scaleZ);
     dummy.updateMatrix();
     mesh.setMatrixAt(placed,dummy.matrix);
 
@@ -339,6 +520,15 @@ export class FineGrassFieldDecorator {
      .39+this.rand(tuftSeed+10)*.13
     );
     mesh.setColorAt(placed,color);
+
+    const entry={
+     index:placed,x,y,z,
+     baseYaw,baseLeanX,baseLeanZ,
+     scaleX,scaleY,scaleZ,
+     bendX:0,bendZ:0,compression:0
+    };
+    this.entries.push(entry);
+    this.addEntryToGrid(entry);
 
     placed++;
     accepted++;
@@ -352,6 +542,11 @@ export class FineGrassFieldDecorator {
 
   this.mesh=mesh;
   this.root.add(mesh);
+
+  if(this.player){
+   this.lastPlayerX=this.player.position.x;
+   this.lastPlayerZ=this.player.position.z;
+  }
   return placed;
  }
 }
