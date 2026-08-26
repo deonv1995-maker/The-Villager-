@@ -7,6 +7,7 @@ export class EnvironmentPopulation {
   this.loader=new OBJLoader();this.prototypes={};this.loading=null;
   this.materials=this.createMaterials();
   this.variants=this.createVariantCatalog();
+  this.regionRules=this.createRegionRules();
  }
 
  createMaterials(){
@@ -31,9 +32,105 @@ export class EnvironmentPopulation {
   };
  }
 
+ createRegionRules(){
+  // These values only control ecology distribution. Terrain elevation and
+  // traversal stay owned by RegionalIslandTerrain/WorldManager.
+  return {
+   lowlands:{density:.78,tree:.48,rock:.18,bush:.18,grass:.16,scale:1.00},
+   westernHighland:{density:.82,tree:.57,rock:.18,bush:.15,grass:.10,scale:1.08},
+   northernRidge:{density:.68,tree:.48,rock:.25,bush:.14,grass:.13,scale:.96},
+   easternShelf:{density:.72,tree:.39,rock:.22,bush:.22,grass:.17,scale:.98},
+   southernBasin:{density:.90,tree:.35,rock:.10,bush:.31,grass:.24,scale:.92},
+   westernValley:{density:.96,tree:.61,rock:.10,bush:.18,grass:.11,scale:1.04},
+   centralSaddle:{density:.56,tree:.28,rock:.18,bush:.22,grass:.32,scale:.92}
+  };
+ }
+
  rand(i){const x=Math.sin(i*12.9898+this.seed)*43758.5453;return x-Math.floor(x);}
  slopeAt(x,z){const e=.8,h=this.world.heightAt(x,z);return Math.max(Math.abs(this.world.heightAt(x+e,z)-h),Math.abs(this.world.heightAt(x,z+e)-h))/e;}
- terrainClearance(x,z){return !!this.world.terrain?.moduleFormationContains?.(x,z,2.5);}
+
+ habitatNoise(x,z){
+  const n=Math.sin(x*.071+z*.019)+Math.cos(z*.063-x*.014)+Math.sin((x+z)*.036+.8);
+  return Math.max(0,Math.min(1,.5+n/6));
+ }
+
+ regionAt(x,z){
+  return this.world.terrain?.terrainRegionAt?.(x,z)||{name:'lowlands',weight:0};
+ }
+
+ cliffInfoAt(x,z){
+  const terrain=this.world.terrain;
+  const profiles=terrain?.cliffProfilesAt?.(x,z)
+   ||(terrain?.cliffFormationProfileAt?[terrain.cliffFormationProfileAt(x,z)]:[]);
+  let best=null;
+  for(const profile of profiles){
+   if(!profile||profile.weight<.025)continue;
+   const f=profile.formation||terrain.cliffFormation;
+   if(!f)continue;
+   if(profile.u<f.uMin-2.5||profile.u>f.uMax+2.5)continue;
+   const distance=Math.abs(profile.signed);
+   if(!best||distance<best.distance)best={profile,formation:f,distance};
+  }
+  return best;
+ }
+
+ terrainClearance(x,z){
+  const cliff=this.cliffInfoAt(x,z);
+  if(!cliff)return false;
+  const p=cliff.profile;
+  // Keep the actual rock face and the authored ramp corridor readable, but do
+  // not sterilise the whole formation rectangle like the older implementation.
+  const solidClearance=p.rampMask<.42?2.35:1.25;
+  return cliff.distance<solidClearance;
+ }
+
+ ecologyAt(x,z,slope){
+  const region=this.regionAt(x,z);
+  const rule=this.regionRules[region.name]||this.regionRules.lowlands;
+  const cliff=this.cliffInfoAt(x,z);
+  const noise=this.habitatNoise(x,z);
+
+  let density=rule.density*(.72+noise*.48);
+  let weights={tree:rule.tree,rock:rule.rock,bush:rule.bush,grass:rule.grass};
+  let scale=rule.scale;
+
+  if(cliff){
+   const edgeInfluence=1-this.world.terrain.smoothstep(2.4,10.5,cliff.distance);
+   if(edgeInfluence>0){
+    // Exposed cliff rims and bases are naturally more open and rocky.
+    density*=1-edgeInfluence*.24;
+    weights={
+     tree:weights.tree*(1-edgeInfluence*.74),
+     rock:weights.rock+edgeInfluence*.26,
+     bush:weights.bush+edgeInfluence*.10,
+     grass:weights.grass+edgeInfluence*.14
+    };
+    scale*=1-edgeInfluence*.08;
+   }
+  }
+
+  if(slope>.28){
+   const steep=Math.min(1,(slope-.28)/.42);
+   weights.tree*=1-steep*.68;
+   weights.rock+=steep*.34;
+   weights.bush*=1-steep*.18;
+   density*=1-steep*.20;
+  }
+
+  const total=Math.max(.001,weights.tree+weights.rock+weights.bush+weights.grass);
+  return {region,rule,density,scale,weights,total,noise,cliff};
+ }
+
+ pickType(ecology,roll,seed){
+  const w=ecology.weights;
+  let cursor=w.tree/ecology.total;
+  if(roll<cursor)return this.rand(seed)<.055?'bareTree':'tree';
+  cursor+=w.rock/ecology.total;
+  if(roll<cursor)return 'rock';
+  cursor+=w.bush/ecology.total;
+  if(roll<cursor)return 'bush';
+  return 'grass';
+ }
 
  async loadObj(path,type){
   const res=await fetch(path);if(!res.ok)throw new Error(`${path}: ${res.status}`);
@@ -99,7 +196,7 @@ export class EnvironmentPopulation {
   o.userData.environmentType=type;o.userData.environmentVariant=v.name;
  }
 
- placeObject(type,x,y,z,i,scaleMultiplier=1){
+ placeObject(type,x,y,z,i,scaleMultiplier=1,regionName='lowlands'){
   const o=this.clone(type,i*19+7);if(!o)return false;
   let scale=(.78+this.rand(i*4+3)*.88)*scaleMultiplier;
   if(type==='tree')scale*=1.12;
@@ -110,36 +207,53 @@ export class EnvironmentPopulation {
   const variantIndex=Math.floor(this.rand(i*11+5)*this.variants[type].length);
   this.applyVariant(o,type,variantIndex,scale);
   o.rotation.y=this.rand(i*7+3)*Math.PI*2;o.position.set(x,y,z);
+  o.userData.terrainRegion=regionName;
   this.root.add(o);return true;
  }
 
  populateSlopeRocks(startIndex){
   let placed=0;
-  for(let i=0;i<420;i++){
+  for(let i=0;i<460;i++){
    const a=this.rand(i*13+2)*Math.PI*2;
    const r=24+Math.sqrt(this.rand(i*13+3))*106;
    const x=Math.cos(a)*r,z=Math.sin(a)*r,y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
-   if(y<.1||s<.22||s>.9||Math.hypot(x,z)<15||this.terrainClearance(x,z))continue;
-   if(this.rand(i*13+4)>.58)continue;
-   if(this.placeObject('rock',x,y-.08,z,startIndex+i,1.18+.55*Math.min(s,.7)))placed++;
+   if(y<.1||s<.22||s>.92||Math.hypot(x,z)<15||this.terrainClearance(x,z))continue;
+   const ecology=this.ecologyAt(x,z,s);
+   if(this.rand(i*13+4)>.48*ecology.density)continue;
+   if(this.placeObject('rock',x,y-.08,z,startIndex+i,(1.08+.62*Math.min(s,.7))*ecology.scale,ecology.region.name))placed++;
   }
   return placed;
  }
 
  populate(){
   this.root.clear();let placed=0;
-  for(let i=0;i<1100;i++){
-   const a=this.rand(i*4)*Math.PI*2,r=13+Math.sqrt(this.rand(i*4+1))*116;
-   const x=Math.cos(a)*r,z=Math.sin(a)*r,y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
-   if(y<.12||s>.78||Math.hypot(x,z)<12||this.terrainClearance(x,z))continue;
-   const forestBias=Math.max(0,1-r/125),roll=this.rand(i*4+2);let type;
-   if(s>.33)type='rock';
-   else if(roll<(.44+.18*forestBias))type=this.rand(i*17+11)<.055?'bareTree':'tree';
-   else if(roll<.68)type='rock';
-   else if(roll<.86)type='bush';
-   else type='grass';
-   if(this.placeObject(type,x,y,z,i))placed++;
+
+  // Candidate count is intentionally higher than the final object count. The
+  // ecology density field creates forests, open saddles, rocky cliff margins
+  // and basin vegetation without increasing the mobile rendering budget much.
+  for(let i=0;i<1450;i++){
+   const a=this.rand(i*4)*Math.PI*2;
+   const r=13+Math.sqrt(this.rand(i*4+1))*116;
+   const x=Math.cos(a)*r,z=Math.sin(a)*r;
+   const y=this.world.heightAt(x,z),s=this.slopeAt(x,z);
+   if(y<.12||s>.80||Math.hypot(x,z)<12||this.terrainClearance(x,z))continue;
+
+   const ecology=this.ecologyAt(x,z,s);
+   if(this.rand(i*9+41)>ecology.density)continue;
+
+   // Broad deterministic clearings stop the forest from becoming uniform dots.
+   const clearingThreshold=.16+Math.max(0,.40-ecology.noise)*.55;
+   if(ecology.noise<clearingThreshold&&this.rand(i*7+91)>.34)continue;
+
+   const type=this.pickType(ecology,this.rand(i*4+2),i*17+11);
+   let scale=ecology.scale;
+   if(type==='grass')scale*=.88+.24*ecology.noise;
+   if(type==='bush'&&ecology.region.name==='southernBasin')scale*=1.08;
+   if(type==='tree'&&ecology.region.name==='westernValley')scale*=1.06;
+
+   if(this.placeObject(type,x,y,z,i,scale,ecology.region.name))placed++;
   }
+
   placed+=this.populateSlopeRocks(5000);
   return placed;
  }
