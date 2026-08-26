@@ -20,7 +20,7 @@ export class GroundSurfaceDecorator {
   this.minSegments=11;
   this.maxSegments=18;
   this.maxSlope=.46;
-  this.surfaceOffset=.032;
+  this.surfaceOffset=.045;
   this.goldenAngle=Math.PI*(3-Math.sqrt(5));
  }
 
@@ -100,7 +100,6 @@ export class GroundSurfaceDecorator {
   else if(region==='centralSaddle')soil*=1.24;
   else if(region==='westernHighland')soil*=.82;
 
-  // Coastal sand should win over inland soil near the waterline.
   soil*=1-shoreBand*.72;
 
   return {
@@ -119,8 +118,6 @@ export class GroundSurfaceDecorator {
   return null;
  }
 
- // Public deterministic query for future foliage/path systems. It does not own
- // gameplay state; it simply exposes the same visual surface field used here.
  surfaceTypeAt(x,z,seed=0){
   const w=this.surfaceWeightsAt(x,z);
   if(w.sand>.66)return 'sand';
@@ -144,22 +141,25 @@ export class GroundSurfaceDecorator {
   if(type==='sand'){
    c.setHSL(
     .105+variation*.020,
-    .38+this.rand(seed+2)*.12,
-    .50+this.rand(seed+3)*.11
+    .42+this.rand(seed+2)*.12,
+    .56+this.rand(seed+3)*.10
    );
   }else{
    c.setHSL(
     .071+variation*.021,
-    .37+this.rand(seed+2)*.13,
-    .29+this.rand(seed+3)*.11
+    .40+this.rand(seed+2)*.13,
+    .27+this.rand(seed+3)*.10
    );
   }
   return c;
  }
 
  addTriangle(positions,colors,a,b,c,ca,cb,cc){
-  for(const p of [a,b,c])positions.push(p.x,p.y,p.z);
-  for(const color of [ca,cb,cc])colors.push(color.r,color.g,color.b);
+  // Patch rings are generated counter-clockwise in XZ. Swapping B/C here gives
+  // every triangle an upward-facing normal so the ground patches render from
+  // the player's camera instead of being removed by back-face culling.
+  for(const p of [a,c,b])positions.push(p.x,p.y,p.z);
+  for(const color of [ca,cc,cb])colors.push(color.r,color.g,color.b);
  }
 
  buildPatch(positions,colors,cx,cz,type,radius,seed){
@@ -212,11 +212,9 @@ export class GroundSurfaceDecorator {
 
    const baseA=this.baseColorAt(outer[i].x,outer[i].z);
    const baseB=this.baseColorAt(outer[next].x,outer[next].z);
-   const edgeA=baseA.clone().lerp(sectorColor,.42);
-   const edgeB=baseB.clone().lerp(nextColor,.42);
+   const edgeA=baseA.clone().lerp(sectorColor,.48);
+   const edgeB=baseB.clone().lerp(nextColor,.48);
 
-   // Wider colour retention at the transition ring makes the material clearly
-   // visible through dense grass while still fading naturally into the terrain.
    this.addTriangle(
     positions,colors,
     inner[i],outer[i],outer[next],
@@ -246,9 +244,6 @@ export class GroundSurfaceDecorator {
   const terrainRadius=Math.max(55,(this.world?.terrain?.radius||135)-8);
   let placed=0;
 
-  // Golden-angle distribution prevents large accidental empty zones. Jitter
-  // keeps the result organic while ensuring the ground diversity is visible
-  // throughout the playable island, including around the current spawn region.
   for(let i=0;i<this.candidateCount&&placed<this.maxPatches;i++){
    const seed=i*83+17;
    const normalized=(i+.55)/this.candidateCount;
@@ -286,16 +281,17 @@ export class GroundSurfaceDecorator {
    roughness:.99,
    metalness:0,
    flatShading:true,
+   side:T.FrontSide,
    polygonOffset:true,
    polygonOffsetFactor:-1,
-   polygonOffsetUnits:-2
+   polygonOffsetUnits:-3
   });
 
   const mesh=new T.Mesh(geometry,material);
   mesh.name='GroundSoilSandPatches';
   mesh.castShadow=false;
   mesh.receiveShadow=true;
-  mesh.renderOrder=2;
+  mesh.renderOrder=3;
 
   this.mesh=mesh;
   this.root.add(mesh);
