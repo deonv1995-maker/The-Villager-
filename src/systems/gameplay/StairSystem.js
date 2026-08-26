@@ -7,17 +7,28 @@ export class StairSystem{
 
   this.edgeProbe=.22;
   this.edgeOccupancyRadius=.24;
-  this.stairSnapRange=2.45;
+  this.stairSnapRange=2.55;
   this.railPairTolerance=.12;
   this.railDirectionTolerance=.12;
-  this.railSeatLift=.20;
-  this.treadSurfaceLift=.025;
+  this.railJointInset=.10;
+  this.railJointOverlap=.12;
+  this.maxRailSegments=7;
+  this.groundStopMargin=.22;
+
+  this.treadSeatInset=.08;
+  this.treadSurfaceLift=.018;
   this.treadAcrossMargin=.10;
   this.treadEndMargin=.10;
   this.treadsPerLog=2;
   this.totalTreads=4;
   this.walkSampleSpacing=.12;
   this.maxWalkRisePerSample=.22;
+
+  this.supportMinGap=.34;
+  this.supportGroundEmbed=.06;
+  this.supportJointInset=.05;
+  this.supportSegmentOverlap=.035;
+  this.supportRoot=null;
 
   this.originalAngleSnapBase=null;
   this.originalFloorSnapBase=null;
@@ -32,6 +43,11 @@ export class StairSystem{
  initialize(){
   if(!this.buildingModes||!this.traversal)return;
   this.world.stairs=this;
+
+  const T=this.buildingModes.T;
+  this.supportRoot=new T.Group();
+  this.supportRoot.name='AutomaticStairSupports';
+  this.buildingModes.root.add(this.supportRoot);
 
   this.originalAngleSnapBase=this.buildingModes.angleSnapBase.bind(this.buildingModes);
   this.buildingModes.angleSnapBase=base=>this.angleSnapBase(base);
@@ -72,7 +88,7 @@ export class StairSystem{
  activeFloors(){return this.buildingModes.activePlacements('floor');}
  activeRails(){
   return this.buildingModes.activePlacements('angle')
-   .filter(p=>p.snapKind==='floor-stair-rail');
+   .filter(p=>p.snapKind==='floor-stair-rail'||p.snapKind==='stair-rail-extension');
  }
  activeTreads(){return this.buildingModes.activePlacements('stairTread');}
 
@@ -145,27 +161,39 @@ export class StairSystem{
 
  stairDirectionYaw(stair){return (stair.yaw||0)+Math.PI/2;}
 
- railTopPoint(rail){
+ railHighPoint(rail){
   const halfProjection=this.buildingModes.angleHalfProjection;
   const yaw=this.stairDirectionYaw(rail);
+  const fx=Math.sin(yaw),fz=Math.cos(yaw);
   return {
-   x:rail.x+Math.sin(yaw)*halfProjection,
-   z:rail.z+Math.cos(yaw)*halfProjection,
+   x:rail.x+fx*halfProjection,
+   z:rail.z+fz*halfProjection,
    y:rail.centerY+halfProjection
+  };
+ }
+
+ railLowPoint(rail){
+  const halfProjection=this.buildingModes.angleHalfProjection;
+  const yaw=this.stairDirectionYaw(rail);
+  const fx=Math.sin(yaw),fz=Math.cos(yaw);
+  return {
+   x:rail.x-fx*halfProjection,
+   z:rail.z-fz*halfProjection,
+   y:rail.centerY-halfProjection
   };
  }
 
  railAlreadyPlaced(node,inward){
   const targetYaw=Math.atan2(inward.x,inward.z);
-  for(const rail of this.activeRails()){
-   const top=this.railTopPoint(rail);
+  for(const rail of this.activeRails().filter(r=>r.snapKind==='floor-stair-rail')){
+   const top=this.railHighPoint(rail);
    if(Math.hypot(top.x-node.x,top.z-node.z)>this.edgeOccupancyRadius)continue;
    if(this.buildingModes.yawDelta(this.stairDirectionYaw(rail),targetYaw)<=this.railDirectionTolerance)return true;
   }
   return false;
  }
 
- railCandidates(){
+ floorRailCandidates(){
   const candidates=[];
   const halfProjection=this.buildingModes.angleHalfProjection;
 
@@ -177,23 +205,75 @@ export class StairSystem{
     const z=node.z+edge.outward.z*halfProjection;
     candidates.push({
      x,z,yaw,
-     // The high end of the round log now sits on top of the floor rather than
-     // terminating through the floor edge.
-     centerY:edge.topY+this.railSeatLift-halfProjection,
+     // Sink the high end slightly into the floor body so the diagonal timber
+     // looks notched through the deck instead of glued onto its outer edge.
+     centerY:edge.topY-this.railJointInset-halfProjection,
      ground:this.world.heightAt(x,z),
      snapKind:'floor-stair-rail',
      anchorIds:[...edge.floorIds],
-     stairDeckY:edge.topY
+     stairSegmentIndex:0,
+     stairDeckY:edge.topY,
+     stairHighY:edge.topY-this.railJointInset
     });
    }
   }
   return candidates;
  }
 
+ extensionAlreadyPlaced(parent){
+  return this.activeRails().some(rail=>
+   rail.snapKind==='stair-rail-extension'&&rail.stairParentRailId===parent.id
+  );
+ }
+
+ extensionRailCandidates(){
+  const candidates=[];
+  const halfProjection=this.buildingModes.angleHalfProjection;
+
+  for(const parent of this.activeRails()){
+   const segmentIndex=parent.stairSegmentIndex??0;
+   if(segmentIndex>=this.maxRailSegments-1)continue;
+   if(this.extensionAlreadyPlaced(parent))continue;
+
+   const low=this.railLowPoint(parent);
+   const groundAtJoint=this.world.heightAt(low.x,low.z);
+   if(low.y<=groundAtJoint+this.groundStopMargin)continue;
+
+   const yaw=this.stairDirectionYaw(parent);
+   const fx=Math.sin(yaw),fz=Math.cos(yaw);
+
+   // The next diagonal overlaps the preceding one around its low-end centre.
+   // The overlap hides the end caps and makes chained stair stringers read as
+   // one continuous piece of timber.
+   const highX=low.x+fx*this.railJointOverlap;
+   const highZ=low.z+fz*this.railJointOverlap;
+   const highY=low.y+this.railJointOverlap;
+   const x=highX-fx*halfProjection;
+   const z=highZ-fz*halfProjection;
+
+   candidates.push({
+    x,z,
+    yaw,
+    centerY:highY-halfProjection,
+    ground:this.world.heightAt(x,z),
+    snapKind:'stair-rail-extension',
+    anchorIds:[parent.id],
+    stairParentRailId:parent.id,
+    stairSegmentIndex:segmentIndex+1,
+    stairDeckY:parent.stairDeckY,
+    stairHighY:highY
+   });
+  }
+  return candidates;
+ }
+
  angleSnapBase(base){
   if(!base)return base;
-  const rail=this.buildingModes.chooseCandidate(base,this.railCandidates(),this.stairSnapRange);
-  if(rail?.snapKind==='floor-stair-rail')return rail;
+
+  const stairCandidates=[...this.floorRailCandidates(),...this.extensionRailCandidates()];
+  const rail=this.buildingModes.chooseCandidate(base,stairCandidates,this.stairSnapRange);
+  if(rail?.snapKind==='floor-stair-rail'||rail?.snapKind==='stair-rail-extension')return rail;
+
   return this.originalAngleSnapBase(base);
  }
 
@@ -206,21 +286,20 @@ export class StairSystem{
 
   for(let i=0;i<rails.length;i++){
    const a=rails[i];
-   const aTop=this.railTopPoint(a);
+   const aHigh=this.railHighPoint(a);
    const aYaw=this.stairDirectionYaw(a);
    const afx=Math.sin(aYaw),afz=Math.cos(aYaw);
+   const aSegment=a.stairSegmentIndex??0;
 
    for(let j=i+1;j<rails.length;j++){
     const b=rails[j];
-    const bTop=this.railTopPoint(b);
+    if((b.stairSegmentIndex??0)!==aSegment)continue;
+    const bHigh=this.railHighPoint(b);
     const bYaw=this.stairDirectionYaw(b);
     if(this.buildingModes.yawDelta(aYaw,bYaw)>this.railDirectionTolerance)continue;
+    if(Math.abs(aHigh.y-bHigh.y)>.12)continue;
 
-    const deckAY=Number.isFinite(a.stairDeckY)?a.stairDeckY:aTop.y-this.railSeatLift;
-    const deckBY=Number.isFinite(b.stairDeckY)?b.stairDeckY:bTop.y-this.railSeatLift;
-    if(Math.abs(deckAY-deckBY)>.12)continue;
-
-    const dx=bTop.x-aTop.x,dz=bTop.z-aTop.z;
+    const dx=bHigh.x-aHigh.x,dz=bHigh.z-aHigh.z;
     const distance=Math.hypot(dx,dz);
     if(Math.abs(distance-logLength)>this.railPairTolerance)continue;
     const dot=Math.abs((dx*afx+dz*afz)/Math.max(.001,distance));
@@ -229,8 +308,9 @@ export class StairSystem{
     pairs.push({
      a,b,
      key:this.pairKey(a,b),
-     topMid:{x:(aTop.x+bTop.x)*.5,z:(aTop.z+bTop.z)*.5},
-     deckY:(deckAY+deckBY)*.5,
+     segmentIndex:aSegment,
+     topMid:{x:(aHigh.x+bHigh.x)*.5,z:(aHigh.z+bHigh.z)*.5},
+     topY:(aHigh.y+bHigh.y)*.5,
      outward:{x:-afx,z:-afz},
      inward:{x:afx,z:afz}
     });
@@ -250,9 +330,7 @@ export class StairSystem{
   return -1;
  }
 
- pairComplete(pair){
-  return this.nextBatchIndex(pair)<0;
- }
+ pairComplete(pair){return this.nextBatchIndex(pair)<0;}
 
  treadCandidates(){
   const candidates=[];
@@ -266,15 +344,16 @@ export class StairSystem{
    candidates.push({
     x,z,
     yaw:Math.atan2(pair.outward.x,pair.outward.z),
-    centerY:pair.deckY-halfProjection,
+    centerY:pair.topY-halfProjection,
     ground:this.world.heightAt(x,z),
     snapKind:'stair-treads',
     anchorIds:[pair.a.id,pair.b.id],
     stairPairKey:pair.key,
     stairBatchIndex:batchIndex,
+    stairSegmentIndex:pair.segmentIndex,
     stairTopX:pair.topMid.x,
     stairTopZ:pair.topMid.z,
-    stairDeckY:pair.deckY,
+    stairTopY:pair.topY,
     stairOutX:pair.outward.x,
     stairOutZ:pair.outward.z
    });
@@ -303,7 +382,7 @@ export class StairSystem{
    const half=this.buildingModes.materials.makeHalfLogVisual();
    half.position.set(
     0,
-    this.buildingModes.angleHalfProjection-outwardDistance+this.treadSurfaceLift,
+    this.buildingModes.angleHalfProjection-outwardDistance-this.treadSeatInset,
     outwardDistance-this.buildingModes.angleHalfProjection
    );
    group.add(half);
@@ -323,16 +402,21 @@ export class StairSystem{
   const actualMode=mode==='floor'&&base?.snapKind==='stair-treads'?'stairTread':mode;
   const placement=this.originalRecordPlacement(actualMode,object,base,actualMode==='floor'?standable:false);
 
-  if(actualMode==='angle'&&base?.snapKind==='floor-stair-rail'){
+  if(actualMode==='angle'&&(base?.snapKind==='floor-stair-rail'||base?.snapKind==='stair-rail-extension')){
+   placement.stairSegmentIndex=base.stairSegmentIndex??0;
    placement.stairDeckY=base.stairDeckY;
+   placement.stairHighY=base.stairHighY;
+   placement.stairParentRailId=base.stairParentRailId??null;
+   this.rebuildSupports();
   }
 
   if(actualMode==='stairTread'){
    placement.stairPairKey=base.stairPairKey;
    placement.stairBatchIndex=base.stairBatchIndex;
+   placement.stairSegmentIndex=base.stairSegmentIndex;
    placement.stairTopX=base.stairTopX;
    placement.stairTopZ=base.stairTopZ;
-   placement.stairDeckY=base.stairDeckY;
+   placement.stairTopY=base.stairTopY;
    placement.stairOutX=base.stairOutX;
    placement.stairOutZ=base.stairOutZ;
   }
@@ -343,12 +427,59 @@ export class StairSystem{
   if(this.buildingModes.mode==='angle'){
    const base=this.buildingModes.resolvedBase('angle');
    if(base?.snapKind==='floor-stair-rail')return 'SNAP STAIR RAIL';
+   if(base?.snapKind==='stair-rail-extension')return 'EXTEND STAIR';
   }
   if(this.buildingModes.mode==='floor'){
    const base=this.buildingModes.resolvedBase('floor');
    if(base?.snapKind==='stair-treads')return 'SNAP 2 STEPS';
   }
   return this.originalActionLabel();
+ }
+
+ clearSupports(){
+  if(!this.supportRoot)return;
+  for(const child of [...this.supportRoot.children])child.removeFromParent();
+ }
+
+ makeVerticalSupport(x,z,bottomY,topY){
+  const T=this.buildingModes.T;
+  const totalHeight=topY-bottomY;
+  if(totalHeight<this.supportMinGap)return null;
+
+  const group=new T.Group();
+  group.name='AutoStairSupportPost';
+  group.userData.autoStairSupport=true;
+
+  const logLength=this.buildingModes.materials.logLength;
+  const usable=Math.max(.5,logLength-this.supportSegmentOverlap);
+  const count=Math.max(1,Math.ceil(totalHeight/usable));
+  const segmentHeight=totalHeight/count;
+  const localBottom=-totalHeight*.5;
+
+  for(let i=0;i<count;i++){
+   const log=this.buildingModes.materials.makeLogVisual();
+   log.rotation.z=Math.PI/2;
+   log.scale.x=(segmentHeight+(i<count-1?this.supportSegmentOverlap:0))/logLength;
+   log.position.y=localBottom+segmentHeight*(i+.5);
+   group.add(log);
+  }
+
+  group.position.set(x,(bottomY+topY)*.5,z);
+  return group;
+ }
+
+ rebuildSupports(){
+  if(!this.supportRoot)return;
+  this.clearSupports();
+
+  for(const rail of this.activeRails()){
+   const low=this.railLowPoint(rail);
+   const ground=this.world.heightAt(low.x,low.z);
+   const bottomY=ground-this.supportGroundEmbed;
+   const topY=low.y-this.supportJointInset;
+   const post=this.makeVerticalSupport(low.x,low.z,bottomY,topY);
+   if(post)this.supportRoot.add(post);
+  }
  }
 
  completedPairs(){return this.railPairs().filter(pair=>this.pairComplete(pair));}
@@ -365,11 +496,8 @@ export class StairSystem{
   if(Math.abs(across)>halfAcross)return -Infinity;
   if(outward<-.06||outward>fullProjection+this.treadEndMargin)return -Infinity;
 
-  // The visible treads are discrete, but locomotion follows their continuous
-  // 45-degree envelope. This removes the hop/stutter between individual steps
-  // while keeping the staircase visually constructed from four timber treads.
   const d=Math.max(0,Math.min(fullProjection,outward));
-  return pair.deckY-d+this.treadSurfaceLift;
+  return pair.topY-d-this.treadSeatInset+this.treadSurfaceLift;
  }
 
  rampHeightAt(x,z){
