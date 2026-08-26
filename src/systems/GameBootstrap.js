@@ -7,10 +7,11 @@ import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552'
 import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=560';
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
-import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=564';
-import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=564';
+import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=565';
+import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=565';
+import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=565';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
-import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=564';
+import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=565';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -78,8 +79,8 @@ export class GameBootstrap {
    });
    this.fineGrassFields.initialize();
 
-   // Raw building materials remain physical world objects instead of becoming a
-   // numerical wood/stone currency. This is the authority for carry/place state.
+   // Raw logs and stones remain physical world materials. Construction modes
+   // transform a carried log only when the player deliberately places it.
    this.materials=new WorldMaterialSystem(T,{
     world:this.world,
     scene:this.scene,
@@ -88,8 +89,18 @@ export class GameBootstrap {
    });
    this.materials.initialize();
 
-   // Harvesting changes resources through physical stages: standing tree ->
-   // fallen trunk -> individual logs, and intact rock -> loose stones.
+   this.buildModes=new BuildingModeSystem(T,{
+    world:this.world,
+    scene:this.scene,
+    player:this.player,
+    materials:this.materials,
+    button:document.getElementById('build-mode-button'),
+    feedbackElement:document.getElementById('gameplay-feedback')
+   });
+   this.buildModes.initialize();
+
+   // Trees now go directly standing -> falling -> loose logs. There is no second
+   // trunk-chopping stage between felling a tree and using its logs.
    this.harvesting=new HarvestingSystem(T,{
     world:this.world,
     player:this.player,
@@ -97,8 +108,8 @@ export class GameBootstrap {
    });
    this.harvesting.initialize();
 
-   // Construction is recognized from what the player actually places. No recipe
-   // spawns a finished prefab into the world.
+   // RAW mode still allows loose logs and stones to form material reactions such
+   // as fires/furnaces. Structural log modes remain separate from those recipes.
    this.reactions=new ConstructionReactionSystem(T,{
     world:this.world,
     scene:this.scene,
@@ -107,13 +118,12 @@ export class GameBootstrap {
    });
    this.reactions.initialize();
 
-   // One contextual interaction button routes chopping, taking, placing and
-   // lighting so multiple gameplay systems never fight over mobile input.
    this.survivalInteraction=new SurvivalInteractionSystem({
     player:this.player,
     materials:this.materials,
     harvesting:this.harvesting,
     reactions:this.reactions,
+    buildingModes:this.buildModes,
     actionButton:document.getElementById('action-button'),
     feedbackElement:document.getElementById('gameplay-feedback')
    });
@@ -137,7 +147,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.64 · physical harvesting · raw-material construction · reactive fire · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.65 · trees fall into logs · floor/frame/wall/angle log modes · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -156,7 +166,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.64 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.65 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -178,11 +188,11 @@ export class GameBootstrap {
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.64 · Ranger · falling trees · physical logs and stones · material-built fires'
-    :'Clean rebuild 0.5.64 · Ranger · physical harvesting · raw construction · animations pending';
+    ?'Clean rebuild 0.5.65 · Ranger · direct logs · FLOOR · FRAME · WALL · ANGLE'
+    :'Clean rebuild 0.5.65 · Ranger · direct logs · construction modes · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.64 · physical harvesting · raw construction · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.65 · direct logs · construction modes · Ranger model unavailable';
   }
  }
 }
