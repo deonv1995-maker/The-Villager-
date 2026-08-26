@@ -1,4 +1,4 @@
-import { NaturalCliffTerrain } from './world/NaturalCliffTerrain.js?v=543';
+import { NaturalCliffTerrain } from './world/NaturalCliffTerrain.js?v=544';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=542';
 import { TerrainFeatures } from './world/TerrainFeatures.js?v=541';
 
