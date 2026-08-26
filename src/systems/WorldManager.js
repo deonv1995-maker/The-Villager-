@@ -1,6 +1,14 @@
-import { IslandTerrain } from './world/IslandTerrain.js?v=535';
+import { IslandTerrain as BaseIslandTerrain } from './world/IslandTerrain.js?v=536';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=520';
-import { TerrainFeatures } from './world/TerrainFeatures.js?v=535';
+import { TerrainFeatures } from './world/TerrainFeatures.js?v=536';
+
+// Rendering rule: never punch holes out of the authoritative island surface.
+// The procedural cliff face/top/apron may overlap that surface, but the island
+// remains continuous underneath it. This guarantees that a cliff endpoint or
+// transition can never expose the ocean through a missing terrain quad.
+class IslandTerrain extends BaseIslandTerrain {
+ shouldCutGroundQuad(){ return false; }
+}
 
 export class WorldManager {
  constructor(THREE, scene) {
