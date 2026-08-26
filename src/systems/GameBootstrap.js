@@ -6,6 +6,7 @@ import { PlayerVisual } from './player/PlayerVisual.js?v=538';
 import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552';
 import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=560';
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
+import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=561';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -24,14 +25,17 @@ export class GameBootstrap {
    this.scene.fog=new T.Fog(0x9bcf78,120,320);
    this.camera=new T.PerspectiveCamera(55,innerWidth/innerHeight,.1,700);
    this.renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-   this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
+   this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.30));
    this.renderer.setSize(innerWidth,innerHeight);
    document.body.insertBefore(this.renderer.domElement,document.body.firstChild);
 
-   this.scene.add(new T.HemisphereLight(0xdff2ff,0x536334,2.1));
-   const sun=new T.DirectionalLight(0xfff2cf,2.2);
-   sun.position.set(-30,50,20);
-   this.scene.add(sun);
+   // Keep enough ambient fill for the stylised palette while leaving directional
+   // contrast for readable tree, rock and character shadows.
+   this.hemi=new T.HemisphereLight(0xdff2ff,0x536334,1.55);
+   this.scene.add(this.hemi);
+   this.sun=new T.DirectionalLight(0xfff2cf,2.35);
+   this.sun.position.set(-30,50,20);
+   this.scene.add(this.sun);
 
    this.world=new WorldManager(T,this.scene);
    this.world.initialize();
@@ -74,6 +78,18 @@ export class GameBootstrap {
    });
    this.fineGrassFields.initialize();
 
+   // Centralised rendering policy: player-centred shadow frustum, nearby caster
+   // selection and conservative adaptive resolution for mobile stability.
+   this.renderPerformance=new RenderingPerformanceSystem(T,{
+    renderer:this.renderer,
+    scene:this.scene,
+    camera:this.camera,
+    world:this.world,
+    player:this.player,
+    sun:this.sun
+   });
+   this.renderPerformance.initialize();
+
    this.cameraController.update(1/60);
 
    addEventListener('resize',()=>{
@@ -82,7 +98,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.60 · natural ground blending · continuous sandy shoreline · reactive grass · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.61 · mobile shadows · adaptive performance · sandy shoreline · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -91,13 +107,14 @@ export class GameBootstrap {
     this.fineGrassFields.update(dt);
     this.playerVisual.update(dt,this.playerController.moveAmount,this.playerController.locomotionState);
     this.cameraController.update(dt);
+    this.renderPerformance.update(dt);
     this.renderer.render(this.scene,this.camera);
    };
    loop();
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.60 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.61 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -117,12 +134,13 @@ export class GameBootstrap {
    this.player.add(ranger.root);
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
+   this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.60 · Ranger · natural ground blending · continuous sandy shoreline · reactive grass'
-    :'Clean rebuild 0.5.60 · Ranger · natural ground blending · continuous sandy shoreline · reactive grass · animations pending';
+    ?'Clean rebuild 0.5.61 · Ranger · mobile shadows · adaptive performance · natural shoreline'
+    :'Clean rebuild 0.5.61 · Ranger · mobile shadows · adaptive performance · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.60 · natural ground blending · sandy shoreline · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.61 · mobile shadows · adaptive performance · Ranger model unavailable';
   }
  }
 }
