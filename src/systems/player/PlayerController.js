@@ -44,7 +44,7 @@ export class PlayerController {
   else this.coyoteTimer=Math.max(0,this.coyoteTimer-dt);
 
   if(this.jumpBufferTimer>0&&this.coyoteTimer>0){
-    this.startJump();
+   this.startJump();
   }
 
   this.updateHorizontal(dt);
@@ -149,9 +149,8 @@ export class PlayerController {
 
   if(this.verticalVelocity>0)return;
 
-  // Descending uses a swept support query. If the Ranger crosses the top of a
-  // registered rock between two frames, he lands on that support instead of
-  // passing through it. Terrain remains the fallback surface.
+  // Descending uses swept support queries. World rocks and construction floors
+  // are both sampled so a fast frame cannot tunnel through a placed floor.
   let landingFootY;
   if(this.world?.landingSurfaceHeightForSweep){
    landingFootY=this.world.landingSurfaceHeightForSweep(
@@ -164,6 +163,16 @@ export class PlayerController {
    landingFootY=this.world?.surfaceHeightAt
     ?this.world.surfaceHeightAt(this.player.position.x,this.player.position.z)
     :this.world?.heightAt?.(this.player.position.x,this.player.position.z)??0;
+  }
+
+  const constructionLanding=this.world?.constructionTraversal?.surfaceHeightForSweep?.(
+   this.player.position.x,
+   this.player.position.z,
+   fromFootY,
+   toFootY
+  );
+  if(Number.isFinite(constructionLanding)){
+   landingFootY=Math.max(landingFootY,constructionLanding);
   }
 
   if(fromFootY>=landingFootY-.06&&toFootY<=landingFootY){
@@ -190,12 +199,36 @@ export class PlayerController {
     ?this.world.surfaceHeightAt(this.player.position.x,this.player.position.z)
     :this.world?.heightAt?.(this.player.position.x,this.player.position.z)??0;
   }
+
+  // Construction floors use their real rectangular footprint rather than the
+  // elliptical approximation used by rocks. This keeps seams and corners stable.
+  const constructionGround=this.world?.constructionTraversal?.surfaceHeightAt?.(
+   this.player.position.x,
+   this.player.position.z,
+   footY,
+   this.isGrounded
+  );
+  if(Number.isFinite(constructionGround))ground=Math.max(ground,constructionGround);
+
   return ground+this.groundOffset;
  }
 
  canMove(fromX,fromZ,currentY,toX,toZ){
   if(!this.world?.resolveMovement)return true;
-  return this.world.resolveMovement(fromX,fromZ,currentY,toX,toZ).allowed;
+  const result=this.world.resolveMovement(fromX,fromZ,currentY,toX,toZ);
+  if(result.allowed)return true;
+
+  // A continuous snapped floor is a legitimate traversal surface. It may bridge
+  // terrain slope/drop/cliff geometry underneath, so those terrain-only reasons
+  // are ignored while every sample of the move remains on the same floor plane.
+  const floorWalk=this.world?.constructionTraversal?.supportsWalkSegment?.(
+   fromX,fromZ,currentY,toX,toZ
+  );
+  if(floorWalk&&[
+   'procedural-cliff','step-up','drop','slope'
+  ].includes(result.reason))return true;
+
+  return false;
  }
 
  tryMove(fromX,fromZ,currentY,toX,toZ){
