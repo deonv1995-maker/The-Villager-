@@ -9,7 +9,7 @@ import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560'
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=565';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=565';
-import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=566';
+import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=567';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
 
@@ -87,8 +87,8 @@ export class GameBootstrap {
    });
    this.materials.initialize();
 
-   // Structural pieces remain physical transformations of carried logs. Nearby
-   // compatible pieces now expose snap positions rather than relying on prefabs.
+   // Every carried log now has a live placement ghost. Snapped floors inherit the
+   // exact height plane of the floor they connect to instead of resampling terrain.
    this.buildModes=new BuildingModeSystem(T,{
     world:this.world,
     scene:this.scene,
@@ -143,11 +143,12 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.66 · structural snapping · floor/frame/wall/angle · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.67 · level floor snapping · green placement ghosts · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
     this.playerController.update(dt);
+    this.buildModes.update(dt);
     this.harvesting.update(dt);
     this.reactions.update(dt);
     this.survivalInteraction.update(dt);
@@ -162,7 +163,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.66 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.67 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -184,11 +185,11 @@ export class GameBootstrap {
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.66 · Ranger · snapping floors · frames · walls · 45° angles'
-    :'Clean rebuild 0.5.66 · Ranger · structural snapping · animations pending';
+    ?'Clean rebuild 0.5.67 · Ranger · level floors · live green build ghosts · structural snapping'
+    :'Clean rebuild 0.5.67 · Ranger · green build ghosts · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.66 · structural snapping · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.67 · level floors · green build ghosts · Ranger model unavailable';
   }
  }
 }
