@@ -31,8 +31,9 @@ export class ConstructionTraversalSystem{
 
  solidPlacements(){
   // Angled pieces stay non-blocking until stairs/roof traversal gets its own shape.
+  // Automatic deck supports use the same narrow-post collision as frame columns.
   return this.buildingModes?.placements?.filter(p=>
-   (p.mode==='frame'||p.mode==='wall')&&p.object?.parent
+   (p.mode==='frame'||p.mode==='wall'||p.mode==='support')&&p.object?.parent
   )||[];
  }
 
@@ -160,7 +161,7 @@ export class ConstructionTraversalSystem{
  overlapDepth(placement,x,z,currentFootY){
   if(!this.verticalOverlap(placement,currentFootY))return 0;
 
-  if(placement.mode==='frame'){
+  if(placement.mode==='frame'||placement.mode==='support'){
    const radius=this.frameRadius+this.playerRadius+this.collisionPadding;
    const d=Math.hypot(x-placement.x,z-placement.z);
    return Math.max(0,radius-d);
@@ -188,7 +189,7 @@ export class ConstructionTraversalSystem{
  obstacleBlocks(placement,fromX,fromZ,currentFootY,toX,toZ){
   if(!this.verticalOverlap(placement,currentFootY))return false;
 
-  if(placement.mode==='frame'){
+  if(placement.mode==='frame'||placement.mode==='support'){
    const radius=this.frameRadius+this.playerRadius+this.collisionPadding;
    return this.segmentHitsCircle(fromX,fromZ,toX,toZ,placement.x,placement.z,radius);
   }
