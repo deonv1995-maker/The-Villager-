@@ -9,7 +9,7 @@ import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560'
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=570';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=570';
-import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=573';
+import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=570';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
@@ -118,7 +118,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.73 · floor-supported frames · exact log-width frame spacing · stacked stories · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.74 · square frame bays · centred raw beams · seamless stacked frames · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -139,7 +139,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.73 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.74 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -156,15 +156,15 @@ export class GameBootstrap{
    await ranger.load();
    const old=this.playerVisual;
    this.player.add(ranger.root);
-   if(old?.root===old?.root&&old?.root?.parent===this.player)this.player.remove(old.root);
+   if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.73 · Ranger · frames only on floors · one-log frame spacing · upper beam frames'
-    :'Clean rebuild 0.5.73 · Ranger · floor-frame rules · animations pending';
+    ?'Clean rebuild 0.5.74 · Ranger · equal frame spacing · beams seated through posts · seamless upper frames'
+    :'Clean rebuild 0.5.74 · Ranger · structural joint polish · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.73 · floor-frame rules · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.74 · structural joint polish · Ranger model unavailable';
   }
  }
 }
