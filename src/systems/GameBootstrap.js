@@ -13,8 +13,9 @@ import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=579';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=576';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
+import { UpperFloorSystem } from './gameplay/UpperFloorSystem.js?v=581';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=577';
-import { StairSystem } from './gameplay/StairSystem.js?v=580';
+import { StairSystem } from './gameplay/StairSystem.js?v=581';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
 
@@ -106,6 +107,13 @@ export class GameBootstrap{
    });
    this.floorSupports.initialize();
 
+   this.upperFloors=new UpperFloorSystem({
+    buildingModes:this.buildModes,
+    foundationTerrain:this.foundationTerrain,
+    floorSupports:this.floorSupports
+   });
+   this.upperFloors.initialize();
+
    this.constructionTraversal=new ConstructionTraversalSystem({
     world:this.world,buildingModes:this.buildModes
    });
@@ -149,7 +157,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.80 · paired 45° stair rails · split-log two-step stairs · square frame grid · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.81 · four-tread timber stairs · smooth stair walking · beam-supported upper floors · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -172,7 +180,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.80 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.81 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -193,11 +201,11 @@ export class GameBootstrap{
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.80 · Ranger · stair rails snap to floor-grid corners · FLOOR creates two walkable steps'
-    :'Clean rebuild 0.5.80 · Ranger · paired stair system · animations pending';
+    ?'Clean rebuild 0.5.81 · Ranger · two floor logs fill each stair · smooth stair walking · upper floors snap to framework'
+    :'Clean rebuild 0.5.81 · Ranger · stair and upper-floor snapping · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.80 · paired stair system · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.81 · stair and upper-floor snapping · Ranger model unavailable';
   }
  }
 }
