@@ -11,6 +11,7 @@ export class StairSystem{
   this.stairEdgeMargin=.10;
   this.walkSampleSpacing=.14;
   this.maxWalkRisePerSample=.23;
+  this.stairSnapRange=2.35;
 
   this.originalAngleSnapBase=null;
   this.originalActionLabel=null;
@@ -91,10 +92,19 @@ export class StairSystem{
   return true;
  }
 
+ // BuildingMode stores the rendered angle group's Y rotation. The actual 45° log
+ // climbs along local +X, which is 90 degrees ahead of that rendered group yaw.
+ // Keep this conversion in one place so stair occupancy and traversal use the
+ // same direction as the visible log.
+ stairDirectionYaw(stair){
+  return (stair.yaw||0)+Math.PI/2;
+ }
+
  stairTopPoint(stair){
   const halfProjection=this.buildingModes.angleHalfProjection??1.025;
-  const fx=Math.sin(stair.yaw||0);
-  const fz=Math.cos(stair.yaw||0);
+  const yaw=this.stairDirectionYaw(stair);
+  const fx=Math.sin(yaw);
+  const fz=Math.cos(yaw);
   return {
    x:stair.x+fx*halfProjection,
    z:stair.z+fz*halfProjection
@@ -118,8 +128,8 @@ export class StairSystem{
     if(!this.edgeIsExposed(floor,edge))continue;
     if(this.edgeAlreadyHasStair(edge))continue;
 
-    // The angled log rises in its forward direction. For stairs, forward points
-    // inward toward the deck while the centre sits outside and below the edge.
+    // Positive local X is the high end of the 45° log. Aim it inward so the
+    // upper end meets the floor edge and the lower end extends away from the deck.
     const inwardX=-edge.ox;
     const inwardZ=-edge.oz;
     const yaw=Math.atan2(inwardX,inwardZ);
@@ -132,8 +142,7 @@ export class StairSystem{
      centerY,
      ground:this.world.heightAt(x,z),
      snapKind:'floor-stair',
-     anchorIds:[floor.id],
-     penalty:-.08
+     anchorIds:[floor.id]
     });
    }
   }
@@ -143,15 +152,17 @@ export class StairSystem{
  angleSnapBase(base){
   if(!base)return base;
 
-  const candidates=this.floorStairCandidates();
-  const roofCandidate=this.originalAngleSnapBase(base);
-  if(roofCandidate?.snapKind)candidates.push({...roofCandidate,penalty:(roofCandidate.penalty||0)+.05});
-
-  return this.buildingModes.chooseCandidate(
+  // Floor stairs take priority whenever the placement target is close enough to
+  // an exposed deck edge. This prevents nearby frame posts from stealing ANGLE
+  // placement and turning an intended stair into a roof rafter.
+  const stair=this.buildingModes.chooseCandidate(
    base,
-   candidates,
-   (this.buildingModes.angleSnapRange??1.85)+.24
+   this.floorStairCandidates(),
+   this.stairSnapRange
   );
+  if(stair?.snapKind==='floor-stair')return stair;
+
+  return this.originalAngleSnapBase(base);
  }
 
  actionLabel(){
@@ -166,8 +177,9 @@ export class StairSystem{
   if(!stair||stair.snapKind!=='floor-stair')return -Infinity;
 
   const halfProjection=this.buildingModes.angleHalfProjection??1.025;
-  const fx=Math.sin(stair.yaw||0);
-  const fz=Math.cos(stair.yaw||0);
+  const yaw=this.stairDirectionYaw(stair);
+  const fx=Math.sin(yaw);
+  const fz=Math.cos(yaw);
   const rx=fz;
   const rz=-fx;
   const dx=x-stair.x;
@@ -178,8 +190,6 @@ export class StairSystem{
   if(Math.abs(along)>halfProjection+this.stairEdgeMargin)return -Infinity;
   if(Math.abs(across)>this.stairHalfWidth)return -Infinity;
 
-  // At 45 degrees the vertical rise equals horizontal travel. The support
-  // offset places the walkable top of the round log flush with the floor edge.
   return stair.centerY+along+this.stairSurfaceOffset;
  }
 
