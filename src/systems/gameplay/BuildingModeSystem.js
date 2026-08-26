@@ -19,21 +19,26 @@ export class BuildingModeSystem{
 
   this.logLength=this.materials?.logLength??2.90;
   this.logHalfLength=this.logLength*.5;
-  this.floorWidth=1.12;
+
+  // Three split-log floor strips make one full log-width structural bay. This
+  // means the frame grid can be the same width in both directions while still
+  // requiring actual floor material underneath every ground-story post.
+  this.floorWidth=this.logLength/3;
   this.floorHalfLength=this.logHalfLength;
   this.floorHalfWidth=this.floorWidth*.5;
+  this.floorSplitOffset=this.floorWidth*.25;
+
   this.frameCenterOffset=this.logHalfLength+.01;
   this.floorSnapRange=1.45;
-  this.frameSnapRange=1.45;
+  this.frameSnapRange=1.55;
   this.wallSnapRange=1.70;
   this.angleSnapRange=1.85;
-  this.rawBeamSnapRange=1.85;
+  this.rawBeamSnapRange=1.95;
   this.angleHalfProjection=this.logHalfLength*Math.SQRT1_2;
 
-  this.frameColumnRadius=.38;
-  this.frameOccupancyRadius=.30;
-  this.frameSpacingTolerance=.18;
-  this.beamSeatOffset=.28;
+  this.frameColumnRadius=.34;
+  this.frameOccupancyRadius=.28;
+  this.frameSpacingTolerance=.14;
   this.wallStackRadius=.34;
   this.wallHeightTolerance=.08;
 
@@ -183,26 +188,23 @@ export class BuildingModeSystem{
    for(const sz of [-1,1]){
     result.push({
      x:floor.x+b.xX*this.floorHalfLength*sx+b.zX*this.floorHalfWidth*sz,
-     z:floor.z+b.xZ*this.floorHalfLength*sx+b.zZ*this.floorHalfWidth*sz
+     z:floor.z+b.xZ*this.floorHalfLength*sx+b.zZ*this.floorHalfWidth*sz,
+     floor
     });
    }
   }
   return result;
  }
 
- baseFramesOnFloor(floor){
-  const corners=this.floorCornerCandidates(floor);
-  return this.activePlacements('frame').filter(frame=>{
-   if(frame.snapKind!=='floor-corner')return false;
-   if(Math.abs(frame.minY-floor.maxY)>.40)return false;
-   return corners.some(c=>Math.hypot(frame.x-c.x,frame.z-c.z)<=this.frameOccupancyRadius);
-  });
+ foundationFrames(){
+  return this.activePlacements('frame').filter(frame=>frame.snapKind==='floor-corner');
  }
 
  floorFrameCandidates(base){
   const candidates=[];
+  const foundationFrames=this.foundationFrames();
+
   for(const floor of this.activePlacements('floor')){
-   const existing=this.baseFramesOnFloor(floor);
    for(const corner of this.floorCornerCandidates(floor)){
     const occupied=this.activePlacements('frame').some(frame=>
      Math.hypot(frame.x-corner.x,frame.z-corner.z)<=this.frameOccupancyRadius&&
@@ -210,14 +212,15 @@ export class BuildingModeSystem{
     );
     if(occupied)continue;
 
-    // The first frame may use any floor corner. Every additional base frame on
-    // that floor must be exactly one full harvested-log length from an existing
-    // floor-supported frame. Frames can no longer free-snap onto terrain.
-    if(existing.length){
-     const logWidthMatch=existing.some(frame=>
+    // The very first post may use any floor corner. After that, every foundation
+    // post must be exactly one full raw-log length from an existing foundation
+    // post. Because three floor strips equal one log width, the bay is square in
+    // both directions instead of becoming narrow on one side.
+    if(foundationFrames.length){
+     const oneLogAway=foundationFrames.some(frame=>
       Math.abs(Math.hypot(frame.x-corner.x,frame.z-corner.z)-this.logLength)<=this.frameSpacingTolerance
      );
-     if(!logWidthMatch)continue;
+     if(!oneLogAway)continue;
     }
 
     candidates.push({
@@ -290,8 +293,6 @@ export class BuildingModeSystem{
   if(this.world?.environment?.terrainClearance?.(base.x,base.z)&&!base.snapKind)return false;
 
   if(mode==='frame'){
-   // Ground-story frames must be tied to a placed floor. Upper-story frames are
-   // still allowed on the structural beam created in RAW mode.
    if(base.snapKind!=='floor-corner'&&base.snapKind!=='beam-top')return false;
   }
   if(mode==='wall'&&!this.wallFitsFrameHeight(base))return false;
@@ -370,6 +371,9 @@ export class BuildingModeSystem{
   const columns=this.frameColumns();
   const candidates=[];
 
+  // A beam between two posts terminates at their centre lines and its own centre
+  // line drops to the exact top of the posts. The logs therefore visually joint
+  // into one another instead of hovering above the vertical frame.
   for(let i=0;i<columns.length;i++){
    const a=columns[i];
    for(let j=i+1;j<columns.length;j++){
@@ -377,14 +381,14 @@ export class BuildingModeSystem{
     const dx=b.x-a.x,dz=b.z-a.z;
     const distance=Math.hypot(dx,dz);
     if(Math.abs(distance-this.logLength)>this.frameSpacingTolerance)continue;
-    if(Math.abs(a.maxY-b.maxY)>.35)continue;
+    if(Math.abs(a.maxY-b.maxY)>.30)continue;
     const x=(a.x+b.x)*.5;
     const z=(a.z+b.z)*.5;
     const yaw=this.snapYaw(Math.atan2(-dz,dx));
+    const jointY=(a.maxY+b.maxY)*.5;
     candidates.push({
      x,z,yaw,rotationY:yaw,
-     centerY:Math.max(a.maxY,b.maxY)+this.beamSeatOffset,
-     y:Math.max(a.maxY,b.maxY)+this.beamSeatOffset,
+     centerY:jointY,y:jointY,
      ground:this.world.heightAt(x,z),
      snapKind:'frame-pair-top',
      anchorIds:[a.topId,b.topId]
@@ -392,16 +396,17 @@ export class BuildingModeSystem{
    }
   }
 
+  // Single-post beam placement remains available for extensions, but pair spans
+  // are preferred because they establish the clean structural bay automatically.
   for(const column of columns){
    candidates.push({
     x:column.x,z:column.z,
     yaw:base.yaw,rotationY:base.rotationY??base.yaw,
-    centerY:column.maxY+this.beamSeatOffset,
-    y:column.maxY+this.beamSeatOffset,
+    centerY:column.maxY,y:column.maxY,
     ground:this.world.heightAt(column.x,column.z),
     snapKind:'frame-top-beam',
     anchorIds:[column.topId],
-    penalty:.10
+    penalty:.22
    });
   }
   return candidates;
@@ -415,8 +420,9 @@ export class BuildingModeSystem{
  frameSnapBase(base){
   const candidates=[...this.floorFrameCandidates(base)];
 
-  // Upper frames are the one exception to the floor-only foundation rule: they
-  // may stand on a RAW beam that was itself snapped onto an existing frame.
+  // Upper posts start at the beam centre line, not on top of the beam's outer
+  // surface. The lower end of the vertical log therefore passes into the raw beam
+  // and creates a seamless timber joint.
   for(const beam of this.activePlacements('beam')){
    const b=this.basis(beam.yaw);
    const points=beam.snapKind==='frame-pair-top'
@@ -429,13 +435,13 @@ export class BuildingModeSystem{
    for(const point of points){
     const occupied=this.activePlacements('frame').some(frame=>
      Math.hypot(frame.x-point.x,frame.z-point.z)<=this.frameOccupancyRadius&&
-     frame.minY>=beam.maxY-.12
+     frame.minY>=beam.centerY-.12
     );
     if(occupied)continue;
     candidates.push({
      x:point.x,z:point.z,yaw:base.yaw,
-     baseY:beam.maxY,
-     ground:beam.maxY,
+     baseY:beam.centerY,
+     ground:beam.centerY,
      snapKind:'beam-top',
      anchorIds:[beam.id]
     });
@@ -454,7 +460,7 @@ export class BuildingModeSystem{
     const b=columns[j];
     const dx=b.x-a.x,dz=b.z-a.z;
     const distance=Math.hypot(dx,dz);
-    if(Math.abs(distance-this.logLength)>this.frameSpacingTolerance+.08)continue;
+    if(Math.abs(distance-this.logLength)>this.frameSpacingTolerance+.06)continue;
 
     const x=(a.x+b.x)*.5;
     const z=(a.z+b.z)*.5;
@@ -513,7 +519,7 @@ export class BuildingModeSystem{
  makeFloor(base){
   const group=new this.T.Group();
   group.name='SplitLogFloor';
-  for(const offset of [-.28,.28]){
+  for(const offset of [-this.floorSplitOffset,this.floorSplitOffset]){
    const half=this.materials.makeHalfLogVisual();
    half.position.z=offset;
    group.add(half);
@@ -685,7 +691,7 @@ export class BuildingModeSystem{
   }
 
   const base=this.resolvedBase(this.mode);
-  if(this.mode==='frame'&&!base.snapKind)return 'NEEDS FLOOR';
+  if(this.mode==='frame'&&!base.snapKind)return 'NEEDS FLOOR/BEAM';
   if(this.mode==='wall'&&!base.snapKind)return 'NEEDS FRAMES';
   if(this.mode==='wall'&&!this.wallFitsFrameHeight(base))return 'WALL FULL';
   return `${base.snapKind?'SNAP':'PLACE'} ${this.modeLabel()}`;
