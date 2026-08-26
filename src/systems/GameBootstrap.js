@@ -1,4 +1,4 @@
-import { WorldManager } from './WorldManager.js?v=544';
+import { WorldManager } from './WorldManager.js?v=545';
 import { MobileControls } from './input/MobileControls.js?v=539';
 import { PlayerController } from './player/PlayerController.js?v=538';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
@@ -56,7 +56,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.44 · rounded terrain polish · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.45 · safe rounded cliff rims · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -69,7 +69,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.44 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.45 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -90,11 +90,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.44 · Ranger · rounded terrain polish'
-    :'Clean rebuild 0.5.44 · Ranger · rounded terrain polish · animations pending';
+    ?'Clean rebuild 0.5.45 · Ranger · safe rounded cliff rims'
+    :'Clean rebuild 0.5.45 · Ranger · safe rounded cliff rims · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.44 · rounded terrain polish · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.45 · safe rounded cliff rims · Ranger model unavailable';
   }
  }
 }
