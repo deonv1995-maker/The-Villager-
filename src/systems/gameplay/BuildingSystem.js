@@ -40,6 +40,7 @@ export class BuildingSystem{
   };
   this.geometry={
    floor:new THREE.BoxGeometry(2.8,.18,2.8),
+   floorTrim:new THREE.BoxGeometry(2.86,.09,.12),
    log:new THREE.BoxGeometry(1.35,.18,.24),
    stone:new THREE.IcosahedronGeometry(.24,0),
    ember:new THREE.CylinderGeometry(.42,.52,.06,12)
@@ -143,11 +144,11 @@ export class BuildingSystem{
   group.add(floor);
 
   if(!preview){
-   const trimGeometry=new T.BoxGeometry(2.86,.09,.12);
    for(const z of [-1.33,1.33]){
-    const trim=new T.Mesh(trimGeometry,this.materials.woodDark);
+    const trim=new T.Mesh(this.geometry.floorTrim,this.materials.woodDark);
     trim.position.set(0,.10,z);
     trim.receiveShadow=true;
+    trim.castShadow=false;
     group.add(trim);
    }
   }
@@ -165,6 +166,7 @@ export class BuildingSystem{
    stone.position.set(Math.cos(angle)*.62,.18,Math.sin(angle)*.62);
    stone.scale.set(1.15,.72,1);
    stone.receiveShadow=true;
+   stone.castShadow=false;
    group.add(stone);
   }
 
@@ -173,11 +175,13 @@ export class BuildingSystem{
   logA.position.y=.24;logB.position.y=.24;
   logA.rotation.y=Math.PI*.25;logB.rotation.y=-Math.PI*.25;
   logA.receiveShadow=true;logB.receiveShadow=true;
+  logA.castShadow=false;logB.castShadow=false;
   group.add(logA,logB);
 
   const ember=new T.Mesh(this.geometry.ember,material||this.materials.ember);
   ember.position.y=.09;
   ember.receiveShadow=false;
+  ember.castShadow=false;
   group.add(ember);
   return group;
  }
@@ -193,7 +197,6 @@ export class BuildingSystem{
   if(!definition)return;
   this.preview=this.createVisual(definition,true);
   this.preview.name='BuildingPlacementPreview';
-  this.preview.renderOrder=6;
   this.scene.add(this.preview);
  }
 
