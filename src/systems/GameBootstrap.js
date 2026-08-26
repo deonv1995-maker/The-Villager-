@@ -1,6 +1,6 @@
-import { WorldManager } from './WorldManager.js?v=536';
+import { WorldManager } from './WorldManager.js?v=537';
 import { MobileControls } from './input/MobileControls.js';
-import { PlayerController } from './player/PlayerController.js?v=519';
+import { PlayerController } from './player/PlayerController.js?v=537';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
 import { PlayerVisual } from './player/PlayerVisual.js';
 
@@ -55,7 +55,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.36 · continuous terrain under cliffs · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.37 · traversal lock · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -68,7 +68,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.36 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.37 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -89,11 +89,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.36 · Ranger · continuous terrain under cliffs'
-    :'Clean rebuild 0.5.36 · Ranger · continuous terrain under cliffs · animations pending';
+    ?'Clean rebuild 0.5.37 · Ranger · traversal lock'
+    :'Clean rebuild 0.5.37 · Ranger · traversal lock · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.36 · continuous terrain under cliffs · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.37 · traversal lock · Ranger model unavailable';
   }
  }
 }
