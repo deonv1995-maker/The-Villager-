@@ -9,7 +9,7 @@ import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560'
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=570';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=570';
-import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=571';
+import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=572';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=570';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
@@ -21,7 +21,7 @@ const KAYKIT_ROOTS=[
 ];
 const kaykitUrls=path=>KAYKIT_ROOTS.map(root=>`${root}/${path}`);
 
-export class GameBootstrap {
+export class GameBootstrap{
  constructor(THREE){this.THREE=THREE;this.clock=new THREE.Clock();}
  start(){
   const T=this.THREE,status=document.getElementById('status');
@@ -60,83 +60,53 @@ export class GameBootstrap {
    this.cameraController=new ThirdPersonCamera(T,{camera:this.camera,target:this.player,input:this.input,world:this.world});
    this.playerController=new PlayerController(T,{player:this.player,input:this.input,cameraController:this.cameraController,world:this.world,groundOffset:0});
 
-   this.groundSurface=new GroundSurfaceDecorator(T,{
-    world:this.world,
-    scene:this.scene
-   });
+   this.groundSurface=new GroundSurfaceDecorator(T,{world:this.world,scene:this.scene});
    this.world.groundSurface=this.groundSurface;
    this.groundSurface.initialize();
 
-   this.grassInteraction=new GrassInteractionSystem(T,{
-    world:this.world,
-    player:this.player
-   });
+   this.grassInteraction=new GrassInteractionSystem(T,{world:this.world,player:this.player});
    this.grassInteraction.initialize();
 
-   this.fineGrassFields=new FineGrassFieldDecorator(T,{
-    world:this.world,
-    scene:this.scene,
-    player:this.player
-   });
+   this.fineGrassFields=new FineGrassFieldDecorator(T,{world:this.world,scene:this.scene,player:this.player});
    this.fineGrassFields.initialize();
 
    this.materials=new WorldMaterialSystem(T,{
-    world:this.world,
-    scene:this.scene,
-    player:this.player,
+    world:this.world,scene:this.scene,player:this.player,
     hudRoot:document.getElementById('material-hud')
    });
    this.materials.initialize();
 
    this.buildModes=new BuildingModeSystem(T,{
-    world:this.world,
-    scene:this.scene,
-    player:this.player,
-    materials:this.materials,
+    world:this.world,scene:this.scene,player:this.player,materials:this.materials,
     button:document.getElementById('build-mode-button'),
     feedbackElement:document.getElementById('gameplay-feedback')
    });
    this.buildModes.initialize();
 
    this.constructionTraversal=new ConstructionTraversalSystem({
-    world:this.world,
-    buildingModes:this.buildModes
+    world:this.world,buildingModes:this.buildModes
    });
    this.constructionTraversal.initialize();
 
-   this.harvesting=new HarvestingSystem(T,{
-    world:this.world,
-    player:this.player,
-    materials:this.materials
-   });
+   this.harvesting=new HarvestingSystem(T,{world:this.world,player:this.player,materials:this.materials});
    this.harvesting.initialize();
 
    this.reactions=new ConstructionReactionSystem(T,{
-    world:this.world,
-    scene:this.scene,
-    player:this.player,
-    materials:this.materials
+    world:this.world,scene:this.scene,player:this.player,materials:this.materials
    });
    this.reactions.initialize();
 
    this.survivalInteraction=new SurvivalInteractionSystem({
-    player:this.player,
-    materials:this.materials,
-    harvesting:this.harvesting,
-    reactions:this.reactions,
-    buildingModes:this.buildModes,
+    player:this.player,materials:this.materials,harvesting:this.harvesting,
+    reactions:this.reactions,buildingModes:this.buildModes,
     actionButton:document.getElementById('action-button'),
     feedbackElement:document.getElementById('gameplay-feedback')
    });
    this.survivalInteraction.initialize();
 
    this.renderPerformance=new RenderingPerformanceSystem(T,{
-    renderer:this.renderer,
-    scene:this.scene,
-    camera:this.camera,
-    world:this.world,
-    player:this.player,
-    sun:this.sun
+    renderer:this.renderer,scene:this.scene,camera:this.camera,
+    world:this.world,player:this.player,sun:this.sun
    });
    this.renderPerformance.initialize();
 
@@ -148,7 +118,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.71 · unlimited wall stacking · taller frames · roof-ready angle snapping · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.72 · raw beams on frames · stacked frame stories · frame-capped walls · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -169,7 +139,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.71 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.72 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -181,8 +151,7 @@ export class GameBootstrap {
     modelUrls:kaykitUrls('Characters/gltf/Ranger.glb'),
     movementUrls:kaykitUrls('Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb'),
     generalUrls:kaykitUrls('Animations/gltf/Rig_Medium/Rig_Medium_General.glb'),
-    targetHeight:2.7,
-    facingYaw:0
+    targetHeight:2.7,facingYaw:0
    });
    await ranger.load();
    const old=this.playerVisual;
@@ -191,11 +160,11 @@ export class GameBootstrap {
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.71 · Ranger · walls stack correctly · taller frames · angle roof pieces'
-    :'Clean rebuild 0.5.71 · Ranger · wall stacking fix · animations pending';
+    ?'Clean rebuild 0.5.72 · Ranger · beam-supported upper frames · frame-height wall limits · roof-ready angles'
+    :'Clean rebuild 0.5.72 · Ranger · structural story snapping · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.71 · wall stacking fix · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.72 · structural story snapping · Ranger model unavailable';
   }
  }
 }
