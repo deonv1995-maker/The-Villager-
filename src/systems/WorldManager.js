@@ -1,5 +1,5 @@
 import { RegionalIslandTerrain } from './world/RegionalIslandTerrain.js?v=541';
-import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=520';
+import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=542';
 import { TerrainFeatures } from './world/TerrainFeatures.js?v=541';
 
 export class WorldManager {
