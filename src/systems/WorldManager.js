@@ -1,7 +1,7 @@
-import { PolishedGrassTerrain } from './world/PolishedGrassTerrain.js?v=548';
+import { PolishedGrassTerrain } from './world/PolishedGrassTerrain.js?v=549';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=547';
 import { TerrainFeatures } from './world/TerrainFeatures.js?v=541';
-import { CliffRockDecorator } from './world/CliffRockDecorator.js?v=547';
+import { CliffRockDecorator } from './world/CliffRockDecorator.js?v=549';
 
 export class WorldManager {
  constructor(THREE, scene) {
@@ -67,6 +67,32 @@ export class WorldManager {
   return this.terrain.heightAt(x, z);
  }
 
+ // Player landing surfaces are separate from terrain authority. The terrain
+ // remains the true world floor, while registered rocks may contribute a top
+ // surface only when the player is already at/above that top. This prevents
+ // invisible step-up snapping from below while allowing real jump-on gameplay.
+ landingSurfaceHeightAt(x,z,currentFootY=Infinity,isGrounded=false){
+  const terrainY=this.terrain.heightAt(x,z);
+  let surfaceY=terrainY;
+  const candidates=this.rockColliderCandidates(x,z,x,z);
+  if(!candidates.length)return surfaceY;
+
+  const tolerance=isGrounded?.24:.12;
+  for(const collider of candidates){
+   if(!collider.standable)continue;
+   if(collider.topY<=terrainY+.08)continue;
+
+   const dx=x-collider.x;
+   const dz=z-collider.z;
+   const standRadius=collider.standRadius??collider.radius*.62;
+   if(dx*dx+dz*dz>standRadius*standRadius)continue;
+
+   if(Number.isFinite(currentFootY)&&currentFootY<collider.topY-tolerance)continue;
+   if(collider.topY>surfaceY)surfaceY=collider.topY;
+  }
+  return surfaceY;
+ }
+
  isWithinPlayableBounds(x, z) {
   const metric=this.terrain.islandMetric?.(x,z);
   if(Number.isFinite(metric))return metric<this.playableCoastMetric;
@@ -107,11 +133,16 @@ export class WorldManager {
   this.rebuildRockColliderGrid();
  }
 
- registerRockCollider({x,z,radius,bottomY,topY,owner='world',object=null}){
+ registerRockCollider({
+  x,z,radius,bottomY,topY,owner='world',object=null,
+  standable=true,standRadius=null
+ }){
   if(![x,z,radius,bottomY,topY].every(Number.isFinite))return null;
   if(radius<=.05||topY<=bottomY+.05)return null;
   const collider={
-   id:this.nextRockColliderId++,x,z,radius,bottomY,topY,owner,object
+   id:this.nextRockColliderId++,x,z,radius,bottomY,topY,owner,object,
+   standable:!!standable,
+   standRadius:Number.isFinite(standRadius)?Math.max(.08,Math.min(radius,standRadius)):radius*.62
   };
   this.rockColliders.push(collider);
   this.addColliderToGrid(collider);
@@ -119,7 +150,8 @@ export class WorldManager {
  }
 
  registerRockColliderFromObject(object,{
-  owner='world',radiusScale=.36,minRadius=.30,maxRadius=2.4,verticalInset=.05
+  owner='world',radiusScale=.36,minRadius=.30,maxRadius=2.4,verticalInset=.05,
+  standable=true,standRadiusScale=.62
  }={}){
   if(!object)return null;
   object.updateWorldMatrix?.(true,true);
@@ -132,8 +164,9 @@ export class WorldManager {
   const radius=Math.max(minRadius,Math.min(maxRadius,Math.max(size.x,size.z)*radiusScale));
   const bottomY=box.min.y+verticalInset;
   const topY=Math.max(bottomY+.12,box.max.y-verticalInset);
+  const standRadius=Math.max(.10,Math.min(radius,radius*standRadiusScale));
   return this.registerRockCollider({
-   x:center.x,z:center.z,radius,bottomY,topY,owner,object
+   x:center.x,z:center.z,radius,bottomY,topY,owner,object,standable,standRadius
   });
  }
 
@@ -153,17 +186,35 @@ export class WorldManager {
    this.environment?.root,
    'environment-rocks',
    object=>object.userData?.environmentType==='rock',
-   {radiusScale:.36,minRadius:.30,maxRadius:2.35,verticalInset:.06}
+   {
+    radiusScale:.36,minRadius:.30,maxRadius:2.35,verticalInset:.06,
+    standable:true,standRadiusScale:.66
+   }
   );
  }
 
  rebuildCliffRockColliders(){
-  return this.registerRockCollidersFromGroup(
-   this.cliffRocks?.root,
-   'cliff-rocks',
-   object=>Number.isFinite(object.userData?.cliffRockSource),
-   {radiusScale:.29,minRadius:.32,maxRadius:2.20,verticalInset:.08}
-  );
+  this.clearRockColliders('cliff-rocks');
+  const root=this.cliffRocks?.root;
+  if(!root)return 0;
+  let count=0;
+
+  for(const object of root.children){
+   if(!Number.isFinite(object.userData?.cliffRockSource))continue;
+   const shape=object.userData?.cliffRockShape||'face';
+   const standRadiusScale=shape==='face'?.44:shape==='rim'?.58:.68;
+   const radiusScale=shape==='face'?.27:.31;
+   if(this.registerRockColliderFromObject(object,{
+    owner:'cliff-rocks',
+    radiusScale,
+    minRadius:.30,
+    maxRadius:2.20,
+    verticalInset:.08,
+    standable:true,
+    standRadiusScale
+   }))count++;
+  }
+  return count;
  }
 
  rockColliderCandidates(fromX,fromZ,toX,toZ){
@@ -211,8 +262,9 @@ export class WorldManager {
   const headY=currentFootY+this.playerCollisionHeight;
 
   for(const collider of candidates){
-   // Allow jumping cleanly over low rocks and walking beneath geometry that is
-   // genuinely above the character, such as some cliff-face decoration.
+   // Once the Ranger's feet are above a rock top, its side wall no longer
+   // blocks horizontal movement. This is what makes a jump onto/over the rock
+   // possible while retaining a solid obstacle when approached from ground.
    if(currentFootY>=collider.topY-.04)continue;
    if(headY<=collider.bottomY+.04)continue;
 
