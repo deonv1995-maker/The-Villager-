@@ -1,7 +1,7 @@
 export class MobileControls{
   constructor({leftRoot,leftKnob,rightRoot,rightKnob,jumpRoot}){
-    this.left={root:leftRoot,knob:leftKnob,pointerId:null,x:0,y:0};
-    this.right={root:rightRoot,knob:rightKnob,pointerId:null,x:0,y:0};
+    this.left={root:leftRoot,knob:leftKnob,pointerId:null,x:0,y:0,anchorX:0,anchorY:0};
+    this.right={root:rightRoot,knob:rightKnob,pointerId:null,x:0,y:0,anchorX:0,anchorY:0};
     this.jumpRoot=jumpRoot||null;
     this.jumpQueued=false;
     this.jumpHeld=false;
@@ -10,42 +10,83 @@ export class MobileControls{
   }
 
   install(){
-    this.bindStick(this.left);
-    this.bindStick(this.right);
+    this.bindScreenZones();
     this.bindJump();
     this.bindKeyboard();
   }
 
-  bindStick(stick){
-    const root=stick.root;
-    if(!root)return;
-    root.style.touchAction='none';
+  isJumpTarget(target){
+    return !!(this.jumpRoot&&(target===this.jumpRoot||this.jumpRoot.contains?.(target)));
+  }
 
+  bindScreenZones(){
     const onDown=e=>{
+      if(e.pointerType==='mouse'&&e.button!==0)return;
+      if(this.isJumpTarget(e.target))return;
+
+      const stick=e.clientX<window.innerWidth*.5?this.left:this.right;
       if(stick.pointerId!==null)return;
+
       stick.pointerId=e.pointerId;
-      root.setPointerCapture?.(e.pointerId);
+      stick.anchorX=e.clientX;
+      stick.anchorY=e.clientY;
+      stick.x=0;
+      stick.y=0;
+      this.showStick(stick);
       this.updateStick(stick,e.clientX,e.clientY);
-      e.preventDefault();
-    };
-    const onMove=e=>{
-      if(e.pointerId!==stick.pointerId)return;
-      this.updateStick(stick,e.clientX,e.clientY);
-      e.preventDefault();
-    };
-    const onEnd=e=>{
-      if(e.pointerId!==stick.pointerId)return;
-      stick.pointerId=null;
-      stick.x=0;stick.y=0;
-      if(stick.knob)stick.knob.style.transform='translate(-50%,-50%)';
       e.preventDefault();
     };
 
-    root.addEventListener('pointerdown',onDown,{passive:false});
+    const onMove=e=>{
+      const stick=e.pointerId===this.left.pointerId?this.left:(e.pointerId===this.right.pointerId?this.right:null);
+      if(!stick)return;
+      this.updateStick(stick,e.clientX,e.clientY);
+      e.preventDefault();
+    };
+
+    const onEnd=e=>{
+      if(e.pointerId===this.left.pointerId)this.endStick(this.left);
+      if(e.pointerId===this.right.pointerId)this.endStick(this.right);
+    };
+
+    window.addEventListener('pointerdown',onDown,{passive:false});
     window.addEventListener('pointermove',onMove,{passive:false});
     window.addEventListener('pointerup',onEnd,{passive:false});
     window.addEventListener('pointercancel',onEnd,{passive:false});
-    this.bound.push([root,'pointerdown',onDown],[window,'pointermove',onMove],[window,'pointerup',onEnd],[window,'pointercancel',onEnd]);
+    this.bound.push(
+      [window,'pointerdown',onDown],
+      [window,'pointermove',onMove],
+      [window,'pointerup',onEnd],
+      [window,'pointercancel',onEnd]
+    );
+  }
+
+  showStick(stick){
+    if(!stick.root)return;
+    stick.root.style.left=`${stick.anchorX}px`;
+    stick.root.style.top=`${stick.anchorY}px`;
+    stick.root.classList.add('active');
+    if(stick.knob)stick.knob.style.transform='translate(-50%,-50%)';
+  }
+
+  endStick(stick){
+    stick.pointerId=null;
+    stick.x=0;
+    stick.y=0;
+    if(stick.knob)stick.knob.style.transform='translate(-50%,-50%)';
+    stick.root?.classList.remove('active');
+  }
+
+  updateStick(stick,clientX,clientY){
+    const visualSize=stick.root?.getBoundingClientRect?.().width||124;
+    const max=Math.max(38,visualSize*.36);
+    let dx=clientX-stick.anchorX;
+    let dy=clientY-stick.anchorY;
+    const len=Math.hypot(dx,dy);
+    if(len>max&&len>0){dx=dx/len*max;dy=dy/len*max;}
+    stick.x=dx/max;
+    stick.y=dy/max;
+    if(stick.knob)stick.knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
   }
 
   bindJump(){
@@ -59,11 +100,13 @@ export class MobileControls{
       root.classList.add('pressed');
       root.setPointerCapture?.(e.pointerId);
       e.preventDefault();
+      e.stopPropagation();
     };
     const onEnd=e=>{
       this.jumpHeld=false;
       root.classList.remove('pressed');
       e.preventDefault();
+      e.stopPropagation();
     };
 
     root.addEventListener('pointerdown',onDown,{passive:false});
@@ -89,17 +132,6 @@ export class MobileControls{
     this.bound.push([window,'keydown',onKeyDown],[window,'keyup',onKeyUp]);
   }
 
-  updateStick(stick,clientX,clientY){
-    const r=stick.root.getBoundingClientRect();
-    const cx=r.left+r.width*.5,cy=r.top+r.height*.5,max=r.width*.32;
-    let dx=clientX-cx,dy=clientY-cy;
-    const len=Math.hypot(dx,dy);
-    if(len>max&&len>0){dx=dx/len*max;dy=dy/len*max;}
-    stick.x=dx/max;
-    stick.y=dy/max;
-    if(stick.knob)stick.knob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
-  }
-
   consumeJump(){
     const queued=this.jumpQueued;
     this.jumpQueued=false;
@@ -112,6 +144,8 @@ export class MobileControls{
   dispose(){
     for(const [target,type,handler] of this.bound)target.removeEventListener(type,handler);
     this.bound.length=0;
+    this.endStick(this.left);
+    this.endStick(this.right);
     this.jumpQueued=false;
     this.jumpHeld=false;
   }
