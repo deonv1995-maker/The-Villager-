@@ -94,9 +94,11 @@ export class PlayerController {
  moveOneStep(step){
   const ox=this.player.position.x;
   const oz=this.player.position.z;
-  const oy=this.world.surfaceHeightAt
-   ?this.world.surfaceHeightAt(ox,oz)
-   :this.player.position.y-this.groundOffset;
+
+  // Pass the Ranger's actual foot height to world traversal. Grounded movement
+  // therefore behaves exactly as before, while a jump can genuinely clear low
+  // rock colliders instead of remaining blocked by a ground-height proxy.
+  const oy=this.player.position.y-this.groundOffset;
   const nx=ox+this.move.x*step;
   const nz=oz+this.move.z*step;
 
@@ -105,7 +107,8 @@ export class PlayerController {
   if(this.tryMove(ox,oz,oy,nx,nz))return true;
 
   // Preserve natural wall sliding without allowing diagonal tunnelling through
-  // a cliff. Each axis is independently validated by the same world rules.
+  // a cliff or registered rock footprint. Each axis is independently validated
+  // by the same world traversal authority.
   const xOnly=ox+this.move.x*step;
   const zOnly=oz+this.move.z*step;
   const canX=Math.abs(this.move.x)>.001
