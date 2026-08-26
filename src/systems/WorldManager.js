@@ -1,4 +1,4 @@
-import { RegionalIslandTerrain } from './world/RegionalIslandTerrain.js?v=541';
+import { NaturalCliffTerrain } from './world/NaturalCliffTerrain.js?v=543';
 import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=542';
 import { TerrainFeatures } from './world/TerrainFeatures.js?v=541';
 
@@ -6,7 +6,7 @@ export class WorldManager {
  constructor(THREE, scene) {
   this.THREE = THREE;
   this.scene = scene;
-  this.terrain = new RegionalIslandTerrain(THREE);
+  this.terrain = new NaturalCliffTerrain(THREE);
   this.environment = null;
   this.features = null;
 
