@@ -8,6 +8,7 @@ export class PlayerController {
   this.groundOffset=groundOffset;
   this.moveSpeed=5.2;
   this.turnSpeed=12;
+  this.maxMoveSubstep=.22;
   this.forward=new THREE.Vector3();
   this.right=new THREE.Vector3();
   this.move=new THREE.Vector3();
@@ -24,7 +25,7 @@ export class PlayerController {
   if(mag<.06){
    this.isMoving=false;
    this.moveAmount=0;
-   this.snapToGround(dt);
+   this.snapToGround();
    return;
   }
 
@@ -34,31 +35,12 @@ export class PlayerController {
   this.move.copy(this.right).multiplyScalar(x).addScaledVector(this.forward,-y);
   if(this.move.lengthSq()>.0001)this.move.normalize();
 
-  const speed=this.moveSpeed*this.moveAmount;
-  const step=speed*dt;
-  const ox=this.player.position.x;
-  const oz=this.player.position.z;
-  const oy=this.player.position.y-this.groundOffset;
-  const nx=ox+this.move.x*step;
-  const nz=oz+this.move.z*step;
+  const distance=this.moveSpeed*this.moveAmount*dt;
+  const substeps=Math.max(1,Math.ceil(distance/this.maxMoveSubstep));
+  const step=distance/substeps;
 
-  const radius=this.world?.terrain?.radius||90;
-  const edge=radius-3;
-  const dist=Math.hypot(nx*.92,nz*1.08);
-
-  if(dist<edge){
-   if(!this.tryMove(ox,oz,oy,nx,nz)){
-    const xOnly=ox+this.move.x*step;
-    const zOnly=oz+this.move.z*step;
-    const canX=Math.abs(this.move.x)>.001&&this.canMove(ox,oz,oy,xOnly,oz);
-    const canZ=Math.abs(this.move.z)>.001&&this.canMove(ox,oz,oy,ox,zOnly);
-
-    if(canX&&canZ){
-     if(Math.abs(this.move.x)>=Math.abs(this.move.z))this.player.position.x=xOnly;
-     else this.player.position.z=zOnly;
-    }else if(canX)this.player.position.x=xOnly;
-    else if(canZ)this.player.position.z=zOnly;
-   }
+  for(let i=0;i<substeps;i++){
+   if(!this.moveOneStep(step))break;
   }
 
   const targetYaw=Math.atan2(this.move.x,this.move.z);
@@ -66,7 +48,41 @@ export class PlayerController {
   delta=Math.atan2(Math.sin(delta),Math.cos(delta));
   this.player.rotation.y+=delta*(1-Math.exp(-this.turnSpeed*dt));
   this.isMoving=true;
-  this.snapToGround(dt);
+  this.snapToGround();
+ }
+
+ moveOneStep(step){
+  const ox=this.player.position.x;
+  const oz=this.player.position.z;
+  const oy=this.world.surfaceHeightAt
+   ?this.world.surfaceHeightAt(ox,oz)
+   :this.player.position.y-this.groundOffset;
+  const nx=ox+this.move.x*step;
+  const nz=oz+this.move.z*step;
+
+  if(this.world?.isWithinPlayableBounds&&!this.world.isWithinPlayableBounds(nx,nz))return false;
+
+  if(this.tryMove(ox,oz,oy,nx,nz))return true;
+
+  // Preserve natural wall sliding without allowing diagonal tunnelling through
+  // a cliff. Each axis is independently validated by the same world rules.
+  const xOnly=ox+this.move.x*step;
+  const zOnly=oz+this.move.z*step;
+  const canX=Math.abs(this.move.x)>.001
+   &&(!this.world?.isWithinPlayableBounds||this.world.isWithinPlayableBounds(xOnly,oz))
+   &&this.canMove(ox,oz,oy,xOnly,oz);
+  const canZ=Math.abs(this.move.z)>.001
+   &&(!this.world?.isWithinPlayableBounds||this.world.isWithinPlayableBounds(ox,zOnly))
+   &&this.canMove(ox,oz,oy,ox,zOnly);
+
+  if(canX&&canZ){
+   if(Math.abs(this.move.x)>=Math.abs(this.move.z))this.player.position.x=xOnly;
+   else this.player.position.z=zOnly;
+   return true;
+  }
+  if(canX){this.player.position.x=xOnly;return true;}
+  if(canZ){this.player.position.z=zOnly;return true;}
+  return false;
  }
 
  canMove(fromX,fromZ,currentY,toX,toZ){
@@ -81,11 +97,14 @@ export class PlayerController {
   return true;
  }
 
- snapToGround(dt){
-  const currentY=this.player.position.y-this.groundOffset;
+ snapToGround(){
+  if(!this.world)return;
   const ground=(this.world.surfaceHeightAt
-   ?this.world.surfaceHeightAt(this.player.position.x,this.player.position.z,currentY)
+   ?this.world.surfaceHeightAt(this.player.position.x,this.player.position.z)
    :this.world.heightAt(this.player.position.x,this.player.position.z))+this.groundOffset;
-  this.player.position.y=this.T.MathUtils.lerp(this.player.position.y,ground,1-Math.exp(-18*dt));
+
+  // There is no jump/fall state yet, so the terrain is authoritative. Exact
+  // grounding avoids accumulated interpolation lag on ramps and cliff lips.
+  this.player.position.y=ground;
  }
 }
