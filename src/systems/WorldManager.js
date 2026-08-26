@@ -1,13 +1,13 @@
-import { RockDressedTerrain } from './world/RockDressedTerrain.js?v=546';
-import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=542';
+import { PolishedGrassTerrain } from './world/PolishedGrassTerrain.js?v=547';
+import { EnvironmentPopulation } from './world/EnvironmentPopulation.js?v=547';
 import { TerrainFeatures } from './world/TerrainFeatures.js?v=541';
-import { CliffRockDecorator } from './world/CliffRockDecorator.js?v=546';
+import { CliffRockDecorator } from './world/CliffRockDecorator.js?v=547';
 
 export class WorldManager {
  constructor(THREE, scene) {
   this.THREE = THREE;
   this.scene = scene;
-  this.terrain = new RockDressedTerrain(THREE);
+  this.terrain = new PolishedGrassTerrain(THREE);
   this.environment = null;
   this.features = null;
   this.cliffRocks = null;
@@ -20,6 +20,16 @@ export class WorldManager {
   this.maxSampleStepDown = .72;
   this.maxWalkSlope = 1.75;
   this.playableCoastMetric = .985;
+
+  // Lightweight rock collision registry. Decorative meshes remain visual-only;
+  // traversal uses compact cylindrical footprints stored in a spatial grid.
+  // This keeps collision predictable and mobile-friendly as the world expands.
+  this.rockColliders=[];
+  this.rockColliderGrid=new Map();
+  this.rockColliderCellSize=6;
+  this.nextRockColliderId=1;
+  this.playerCollisionRadius=.42;
+  this.playerCollisionHeight=2.15;
  }
 
  initialize() {
@@ -31,16 +41,22 @@ export class WorldManager {
 
   this.environment = new EnvironmentPopulation(this.THREE, { world: this, scene: this.scene });
   this.environment.initialize();
+  this.environment.loadKayKit().then(()=>Promise.resolve().then(()=>{
+   this.rebuildEnvironmentRockColliders();
+  })).catch(err=>console.error('[Environment rock colliders]',err));
 
   // Visual cliff dressing is deliberately downstream of terrain authority.
   // It reuses the environment's already-loaded KayKit rock prototypes, while
-  // movement/collision continues to read only the stable terrain profiles.
+  // movement/collision continues to read the stable terrain profiles plus
+  // simplified rock footprints rather than raw render meshes.
   this.cliffRocks = new CliffRockDecorator(this.THREE, {
    world: this,
    scene: this.scene,
    environment: this.environment
   });
-  this.cliffRocks.initialize();
+  this.cliffRocks.initialize().then(()=>{
+   this.rebuildCliffRockColliders();
+  }).catch(err=>console.error('[Cliff rock colliders]',err));
  }
 
  heightAt(x, z) {
@@ -59,6 +75,163 @@ export class WorldManager {
 
  cliffProfileAt(x, z) {
   return this.terrain.cliffFormationProfileAt?.(x, z) || null;
+ }
+
+ colliderCellKey(ix,iz){return `${ix}:${iz}`;}
+
+ addColliderToGrid(collider){
+  const cell=this.rockColliderCellSize;
+  const extent=collider.radius+this.playerCollisionRadius;
+  const minX=Math.floor((collider.x-extent)/cell);
+  const maxX=Math.floor((collider.x+extent)/cell);
+  const minZ=Math.floor((collider.z-extent)/cell);
+  const maxZ=Math.floor((collider.z+extent)/cell);
+  for(let ix=minX;ix<=maxX;ix++){
+   for(let iz=minZ;iz<=maxZ;iz++){
+    const key=this.colliderCellKey(ix,iz);
+    let bucket=this.rockColliderGrid.get(key);
+    if(!bucket){bucket=[];this.rockColliderGrid.set(key,bucket);}
+    bucket.push(collider);
+   }
+  }
+ }
+
+ rebuildRockColliderGrid(){
+  this.rockColliderGrid.clear();
+  for(const collider of this.rockColliders)this.addColliderToGrid(collider);
+ }
+
+ clearRockColliders(owner=null){
+  if(owner==null)this.rockColliders.length=0;
+  else this.rockColliders=this.rockColliders.filter(c=>c.owner!==owner);
+  this.rebuildRockColliderGrid();
+ }
+
+ registerRockCollider({x,z,radius,bottomY,topY,owner='world',object=null}){
+  if(![x,z,radius,bottomY,topY].every(Number.isFinite))return null;
+  if(radius<=.05||topY<=bottomY+.05)return null;
+  const collider={
+   id:this.nextRockColliderId++,x,z,radius,bottomY,topY,owner,object
+  };
+  this.rockColliders.push(collider);
+  this.addColliderToGrid(collider);
+  return collider;
+ }
+
+ registerRockColliderFromObject(object,{
+  owner='world',radiusScale=.36,minRadius=.30,maxRadius=2.4,verticalInset=.05
+ }={}){
+  if(!object)return null;
+  object.updateWorldMatrix?.(true,true);
+  const box=new this.THREE.Box3().setFromObject(object);
+  if(box.isEmpty())return null;
+  const size=new this.THREE.Vector3();
+  const center=new this.THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
+  const radius=Math.max(minRadius,Math.min(maxRadius,Math.max(size.x,size.z)*radiusScale));
+  const bottomY=box.min.y+verticalInset;
+  const topY=Math.max(bottomY+.12,box.max.y-verticalInset);
+  return this.registerRockCollider({
+   x:center.x,z:center.z,radius,bottomY,topY,owner,object
+  });
+ }
+
+ registerRockCollidersFromGroup(root,owner,filter,options={}){
+  this.clearRockColliders(owner);
+  if(!root)return 0;
+  let count=0;
+  for(const object of root.children){
+   if(filter&&!filter(object))continue;
+   if(this.registerRockColliderFromObject(object,{owner,...options}))count++;
+  }
+  return count;
+ }
+
+ rebuildEnvironmentRockColliders(){
+  return this.registerRockCollidersFromGroup(
+   this.environment?.root,
+   'environment-rocks',
+   object=>object.userData?.environmentType==='rock',
+   {radiusScale:.36,minRadius:.30,maxRadius:2.35,verticalInset:.06}
+  );
+ }
+
+ rebuildCliffRockColliders(){
+  return this.registerRockCollidersFromGroup(
+   this.cliffRocks?.root,
+   'cliff-rocks',
+   object=>Number.isFinite(object.userData?.cliffRockSource),
+   {radiusScale:.29,minRadius:.32,maxRadius:2.20,verticalInset:.08}
+  );
+ }
+
+ rockColliderCandidates(fromX,fromZ,toX,toZ){
+  if(!this.rockColliderGrid.size)return [];
+  const cell=this.rockColliderCellSize;
+  const pad=this.playerCollisionRadius+.08;
+  const minX=Math.floor((Math.min(fromX,toX)-pad)/cell);
+  const maxX=Math.floor((Math.max(fromX,toX)+pad)/cell);
+  const minZ=Math.floor((Math.min(fromZ,toZ)-pad)/cell);
+  const maxZ=Math.floor((Math.max(fromZ,toZ)+pad)/cell);
+  const found=[];
+  const seen=new Set();
+  for(let ix=minX;ix<=maxX;ix++){
+   for(let iz=minZ;iz<=maxZ;iz++){
+    const bucket=this.rockColliderGrid.get(this.colliderCellKey(ix,iz));
+    if(!bucket)continue;
+    for(const collider of bucket){
+     if(seen.has(collider.id))continue;
+     seen.add(collider.id);
+     found.push(collider);
+    }
+   }
+  }
+  return found;
+ }
+
+ segmentPointDistanceSq(ax,az,bx,bz,px,pz){
+  const dx=bx-ax;
+  const dz=bz-az;
+  const lenSq=dx*dx+dz*dz;
+  if(lenSq<1e-8){
+   const ox=px-ax,oz=pz-az;
+   return ox*ox+oz*oz;
+  }
+  const t=Math.max(0,Math.min(1,((px-ax)*dx+(pz-az)*dz)/lenSq));
+  const cx=ax+dx*t;
+  const cz=az+dz*t;
+  const ox=px-cx,oz=pz-cz;
+  return ox*ox+oz*oz;
+ }
+
+ rockBlocksMovement(fromX,fromZ,toX,toZ,currentFootY){
+  const candidates=this.rockColliderCandidates(fromX,fromZ,toX,toZ);
+  if(!candidates.length)return false;
+  const headY=currentFootY+this.playerCollisionHeight;
+
+  for(const collider of candidates){
+   // Allow jumping cleanly over low rocks and walking beneath geometry that is
+   // genuinely above the character, such as some cliff-face decoration.
+   if(currentFootY>=collider.topY-.04)continue;
+   if(headY<=collider.bottomY+.04)continue;
+
+   const combined=collider.radius+this.playerCollisionRadius;
+   const combinedSq=combined*combined;
+   const fromDx=fromX-collider.x,fromDz=fromZ-collider.z;
+   const toDx=toX-collider.x,toDz=toZ-collider.z;
+   const fromSq=fromDx*fromDx+fromDz*fromDz;
+   const toSq=toDx*toDx+toDz*toDz;
+
+   // Never trap a character that starts marginally inside a footprint. Moving
+   // outward is allowed; moving deeper or crossing into a rock is rejected.
+   if(fromSq<combinedSq&&toSq>fromSq+1e-5)continue;
+
+   if(this.segmentPointDistanceSq(fromX,fromZ,toX,toZ,collider.x,collider.z)<combinedSq){
+    return true;
+   }
+  }
+  return false;
  }
 
  isApproachingSolidCliff(fromX, fromZ, toX, toZ) {
@@ -106,6 +279,10 @@ export class WorldManager {
 
    if(!this.isWithinPlayableBounds(x,z)){
     return {allowed:false,ground:previousGround,reason:'coast'};
+   }
+
+   if(this.rockBlocksMovement(px,pz,x,z,currentY)){
+    return {allowed:false,ground:previousGround,reason:'rock'};
    }
 
    if(this.isApproachingSolidCliff(px,pz,x,z)
