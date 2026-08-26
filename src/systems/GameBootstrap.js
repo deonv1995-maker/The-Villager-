@@ -9,7 +9,7 @@ import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560'
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=570';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=570';
-import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=570';
+import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=571';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=570';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
@@ -80,8 +80,6 @@ export class GameBootstrap {
    });
    this.fineGrassFields.initialize();
 
-   // Physical logs are now long enough to become full-height frame posts while
-   // remaining the same raw object used for floors, walls and 45-degree pieces.
    this.materials=new WorldMaterialSystem(T,{
     world:this.world,
     scene:this.scene,
@@ -100,9 +98,6 @@ export class GameBootstrap {
    });
    this.buildModes.initialize();
 
-   // Construction owns its collision immediately; BuildingMode no longer creates
-   // temporary rock colliders. Overlap is evaluated as a whole cluster so the
-   // Ranger can always move back out of a tight post/wall corner.
    this.constructionTraversal=new ConstructionTraversalSystem({
     world:this.world,
     buildingModes:this.buildModes
@@ -153,7 +148,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.70 · taller 2.9m logs · full-height frames · overlap-safe structures · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.71 · unlimited wall stacking · taller frames · roof-ready angle snapping · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -174,7 +169,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.70 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.71 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -196,11 +191,11 @@ export class GameBootstrap {
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.70 · Ranger · taller frames · safer wall collision · green build ghosts'
-    :'Clean rebuild 0.5.70 · Ranger · taller construction · animations pending';
+    ?'Clean rebuild 0.5.71 · Ranger · walls stack correctly · taller frames · angle roof pieces'
+    :'Clean rebuild 0.5.71 · Ranger · wall stacking fix · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.70 · taller construction · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.71 · wall stacking fix · Ranger model unavailable';
   }
  }
 }
