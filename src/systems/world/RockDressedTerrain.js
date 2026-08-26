@@ -1,17 +1,22 @@
 import { SafeRimTerrain } from './SafeRimTerrain.js?v=545';
 
 // Terrain remains the authoritative continuous collision/height surface.
-// Visible cliff faces are no longer generated as a stitched procedural wall;
-// CliffRockDecorator dresses these same formation profiles with KayKit rocks.
+// Visible cliff faces are dressed entirely with KayKit rocks. The old
+// procedural wall, grassy top-cap platform and base-apron meshes are all
+// disabled here so there is only one ground surface under the decoration.
 export class RockDressedTerrain extends SafeRimTerrain {
  constructor(THREE){
   super(THREE);
   this.usesKayKitCliffRocks=true;
  }
 
- // Keep the grass shoulder and base apron, but remove the procedural rock wall.
- // The continuous island mesh underneath remains watertight and authoritative.
+ // RegionalIslandTerrain already keeps the authoritative island mesh beneath
+ // every formation (shouldCutGroundQuad() returns false). These legacy detail
+ // strips therefore only duplicated the ground and produced the floating /
+ // platform-like shelves still visible beside the KayKit rocks.
  appendCliffSpan(){ }
+ appendCliffTopCapSpan(){ }
+ appendCliffBaseApronSpan(){ }
  appendCliffEndClosure(){ }
 
  getCliffDecorationStrips(){
