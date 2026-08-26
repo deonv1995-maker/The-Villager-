@@ -37,7 +37,7 @@ export class FrameGridSystem{
    const offsets=[
     [b.xX*modes.logLength,b.xZ*modes.logLength],
     [-b.xX*modes.logLength,-b.xZ*modes.logLength],
-    [b.zX*modes.floorWidth,b.zX?b.zZ*modes.floorWidth:b.zZ*modes.floorWidth],
+    [b.zX*modes.floorWidth,b.zZ*modes.floorWidth],
     [-b.zX*modes.floorWidth,-b.zZ*modes.floorWidth]
    ];
 
