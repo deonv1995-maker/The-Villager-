@@ -1,5 +1,5 @@
 import { WorldManager } from './WorldManager.js?v=552';
-import { MobileControls } from './input/MobileControls.js?v=539';
+import { MobileControls } from './input/MobileControls.js?v=563';
 import { PlayerController } from './player/PlayerController.js?v=552';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
 import { PlayerVisual } from './player/PlayerVisual.js?v=538';
@@ -7,6 +7,9 @@ import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552'
 import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=560';
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
+import { InventorySystem } from './gameplay/InventorySystem.js?v=563';
+import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=563';
+import { BuildingSystem } from './gameplay/BuildingSystem.js?v=563';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -74,6 +77,34 @@ export class GameBootstrap {
    });
    this.fineGrassFields.initialize();
 
+   // Inventory owns resource quantities. Harvesting and building consume the
+   // same API, keeping resource balance independent from either gameplay loop.
+   this.inventory=new InventorySystem({
+    hudRoot:document.getElementById('resource-hud')
+   });
+
+   this.harvesting=new HarvestingSystem(T,{
+    world:this.world,
+    player:this.player,
+    inventory:this.inventory,
+    actionButton:document.getElementById('action-button'),
+    feedbackElement:document.getElementById('gameplay-feedback')
+   });
+   this.harvesting.initialize();
+
+   this.building=new BuildingSystem(T,{
+    world:this.world,
+    scene:this.scene,
+    player:this.player,
+    inventory:this.inventory,
+    harvesting:this.harvesting,
+    actionButton:document.getElementById('action-button'),
+    buildButton:document.getElementById('build-button'),
+    menuRoot:document.getElementById('build-menu'),
+    feedbackElement:document.getElementById('gameplay-feedback')
+   });
+   this.building.initialize();
+
    // World shadows are cached until their static window changes; the Ranger has
    // a lightweight real-time contact shadow so animation never forces an
    // expensive shadow-map render every frame.
@@ -95,11 +126,13 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.62 · smooth movement · cached world shadows · mobile performance · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.63 · harvesting · inventory · starter building · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
     this.playerController.update(dt);
+    this.harvesting.update(dt);
+    this.building.update(dt);
     this.grassInteraction.update(dt);
     this.fineGrassFields.update(dt);
     this.playerVisual.update(dt,this.playerController.moveAmount,this.playerController.locomotionState);
@@ -111,7 +144,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.62 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.63 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -133,11 +166,11 @@ export class GameBootstrap {
    this.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.62 · Ranger · smooth movement · cached world shadows · adaptive performance'
-    :'Clean rebuild 0.5.62 · Ranger · smooth movement · cached world shadows · animations pending';
+    ?'Clean rebuild 0.5.63 · Ranger · harvesting · inventory · starter building'
+    :'Clean rebuild 0.5.63 · Ranger · harvesting · starter building · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.62 · smooth movement · cached world shadows · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.63 · harvesting · starter building · Ranger model unavailable';
   }
  }
 }
