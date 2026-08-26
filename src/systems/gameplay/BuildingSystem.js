@@ -256,7 +256,7 @@ export class BuildingSystem{
   this.previewAffordable=this.inventory.canAfford(definition.cost);
   const ready=this.previewValid&&this.previewAffordable;
   this.previewMaterial.color.setHex(ready?0x62c96a:0xd45a52);
-  this.previewMaterial.opacity=ready?.50:.40;
+  this.previewMaterial.opacity=ready ? .50 : .40;
 
   if(this.actionButton){
    this.actionButton.classList.remove('hidden-action');
