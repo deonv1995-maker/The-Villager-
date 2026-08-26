@@ -1,4 +1,4 @@
-import { WorldManager } from './WorldManager.js?v=537';
+import { WorldManager } from './WorldManager.js?v=540';
 import { MobileControls } from './input/MobileControls.js?v=539';
 import { PlayerController } from './player/PlayerController.js?v=538';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
@@ -56,7 +56,7 @@ export class GameBootstrap {
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.39 · dynamic touch controls · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.40 · regional terrain geography · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -69,7 +69,7 @@ export class GameBootstrap {
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.39 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.40 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -90,11 +90,11 @@ export class GameBootstrap {
    if(old?.root?.parent===this.player)this.player.remove(old.root);
    this.playerVisual=ranger;
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.39 · Ranger · dynamic touch controls + jump'
-    :'Clean rebuild 0.5.39 · Ranger · dynamic touch controls + jump · animations pending';
+    ?'Clean rebuild 0.5.40 · Ranger · regional terrain geography'
+    :'Clean rebuild 0.5.40 · Ranger · regional terrain geography · animations pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.39 · dynamic touch controls · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.40 · regional terrain geography · Ranger model unavailable';
   }
  }
 }
