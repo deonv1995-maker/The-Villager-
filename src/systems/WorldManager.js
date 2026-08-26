@@ -21,6 +21,13 @@ export class WorldManager {
   this.maxWalkSlope = 1.75;
   this.playableCoastMetric = .985;
 
+  // A character that has genuinely left its current support surface may cross
+  // a steep terrain seam while its feet are above both sides of that seam.
+  // This keeps cliffs solid for normal walking but lets a real jump clear the
+  // KayKit rim rocks / cliff edge instead of hitting an invisible wall.
+  this.airborneTraversalLift = .08;
+  this.airborneTerrainClearance = .05;
+
   // Lightweight rock collision registry. Decorative meshes remain visual-only;
   // traversal uses compact cylindrical footprints stored in a spatial grid.
   // This keeps collision predictable and mobile-friendly as the world expands.
@@ -311,6 +318,19 @@ export class WorldManager {
   return false;
  }
 
+ canAirborneClearTerrainSegment(fromX,fromZ,toX,toZ,currentFootY,fromGround,toGround){
+  if(!Number.isFinite(currentFootY))return false;
+
+  // Use the same landing-surface service as PlayerController so standing on a
+  // rock is not mistaken for being airborne simply because the terrain below
+  // that rock is lower. The player must actually lift clear of current support.
+  const supportY=this.landingSurfaceHeightAt(fromX,fromZ,currentFootY,true);
+  if(currentFootY<=supportY+this.airborneTraversalLift)return false;
+
+  const requiredY=Math.max(fromGround,toGround)+this.airborneTerrainClearance;
+  return currentFootY>=requiredY;
+ }
+
  resolveMovement(fromX, fromZ, currentY, toX, toZ) {
   if(!this.isWithinPlayableBounds(toX,toZ)){
    return {allowed:false,ground:this.surfaceHeightAt(fromX,fromZ),reason:'coast'};
@@ -333,29 +353,40 @@ export class WorldManager {
     return {allowed:false,ground:previousGround,reason:'coast'};
    }
 
+   const ground=this.surfaceHeightAt(x,z);
+   const clearsTerrain=this.canAirborneClearTerrainSegment(
+    px,pz,x,z,currentY,previousGround,ground
+   );
+
+   // Render rocks retain their own vertical collision. Clearing the terrain
+   // seam does not phase through a rock: the jump still has to get above that
+   // rock's registered top before horizontal movement is allowed through it.
    if(this.rockBlocksMovement(px,pz,x,z,currentY)){
     return {allowed:false,ground:previousGround,reason:'rock'};
    }
 
-   if(this.isApproachingSolidCliff(px,pz,x,z)
-    ||this.terrain.moduleFormationBlocksSegment(px,pz,x,z)){
+   const terrainBarrier=this.isApproachingSolidCliff(px,pz,x,z)
+    ||this.terrain.moduleFormationBlocksSegment(px,pz,x,z);
+   if(terrainBarrier&&!clearsTerrain){
     return {allowed:false,ground:previousGround,reason:'procedural-cliff'};
    }
 
-   const ground=this.surfaceHeightAt(x,z);
    const rise=ground-previousGround;
    const sampleDistance=Math.max(.001,Math.hypot(x-px,z-pz));
    const slope=Math.abs(rise)/sampleDistance;
    const profile=this.cliffProfileAt(x,z);
    const onRamp=profile?.rampMask>.38;
 
-   if(!onRamp&&rise>this.maxSampleStepUp){
+   // Step/slope limits describe grounded walking. While genuinely airborne and
+   // vertically clear of both sampled surfaces, horizontal jump travel should
+   // not be cancelled by the steep edge underneath the Ranger.
+   if(!clearsTerrain&&!onRamp&&rise>this.maxSampleStepUp){
     return {allowed:false,ground:previousGround,reason:'step-up'};
    }
-   if(!onRamp&&rise<-this.maxSampleStepDown){
+   if(!clearsTerrain&&!onRamp&&rise<-this.maxSampleStepDown){
     return {allowed:false,ground:previousGround,reason:'drop'};
    }
-   if(!onRamp&&slope>this.maxWalkSlope){
+   if(!clearsTerrain&&!onRamp&&slope>this.maxWalkSlope){
     return {allowed:false,ground:previousGround,reason:'slope'};
    }
 
