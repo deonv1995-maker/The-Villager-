@@ -32,9 +32,12 @@ export class BuildingModeSystem{
   this.angleSnapRange=1.75;
   this.angleHalfProjection=this.logHalfLength*Math.SQRT1_2;
 
-  // Do not allow a post or wall to materialize through the Ranger. This works in
-  // tandem with escape-safe traversal collision and prevents most trapping before
-  // it can happen; the ghost turns red when the player is occupying the piece.
+  // Wall courses that share the same snapped span form one vertical stack. Keep
+  // this radius tight so a neighbouring wall bay can never steal the next course.
+  this.wallStackRadius=.34;
+
+  // Do not allow a post or low wall course to materialize through the Ranger.
+  // Elevated wall courses are allowed once their bottom is above his head.
   this.playerBuildClearance=.54;
   this.framePlacementRadius=.30;
   this.wallPlacementHalfThickness=.28;
@@ -153,6 +156,15 @@ export class BuildingModeSystem{
    const radius=this.framePlacementRadius+this.playerBuildClearance;
    return Math.hypot(px-base.x,pz-base.z)>radius;
   }
+
+  // Once a wall course is genuinely above the Ranger it no longer needs a 2D
+  // exclusion bubble around him. This lets the upper courses be completed from
+  // inside or just outside a wall bay without pretending the whole wall is at
+  // ground level.
+  const wallCenterY=this.wallBaseHeight(base);
+  const wallBottomY=wallCenterY-.28;
+  const playerHeadY=this.player.position.y+(this.world?.playerCollisionHeight??2.15);
+  if(wallBottomY>playerHeadY+.06)return true;
 
   const b=this.basis(base.yaw||0);
   const dx=px-base.x,dz=pz-base.z;
@@ -400,15 +412,19 @@ export class BuildingModeSystem{
  }
 
  wallBaseHeight(base){
-  let best=null;
-  let bestDistance=.70;
+  let highestTop=-Infinity;
   for(const placement of this.placements){
    if(placement.mode!=='wall')continue;
    if(this.axisYawDelta(placement.yaw,base.yaw)>.14)continue;
    const d=Math.hypot(placement.x-base.x,placement.z-base.z);
-   if(d<bestDistance){best=placement;bestDistance=d;}
+   if(d>this.wallStackRadius)continue;
+   if(Number.isFinite(placement.maxY))highestTop=Math.max(highestTop,placement.maxY);
   }
-  return best?best.maxY+.02:base.ground+.26;
+
+  // Previous builds selected the first wall at this position. Once two sections
+  // existed, every later section reused the second height and was hidden inside it.
+  // Always using the highest existing course makes the stack genuinely unbounded.
+  return Number.isFinite(highestTop)?highestTop+.02:base.ground+.26;
  }
 
  makeWall(base){
