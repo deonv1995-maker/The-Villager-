@@ -1,87 +1,45 @@
-import { RockDressedTerrain } from './RockDressedTerrain.js?v=547';
+import { RockDressedTerrain } from './RockDressedTerrain.js?v=548';
 
-// Final grass-surface presentation layer.
+// Lightweight grass presentation layer.
 //
-// RockDressedTerrain remains the authority for geography, cliffs, ramps and
-// traversal. This layer only removes small high-frequency height changes from
-// ordinary grassy ground and switches the terrain root to smooth vertex
-// normals. Cliff seams, ramps and coast transitions are deliberately protected
-// so visual polish cannot soften gameplay-critical boundaries.
+// IMPORTANT: terrain height sampling is deliberately NOT filtered here.
+// The previous 0.5.47 pass averaged multiple neighbouring height queries for
+// every terrain sample. On the 240x240 island mesh, surface colour/slope checks
+// multiplied that into millions of extra terrain evaluations and could leave
+// mobile devices sitting on the native loading screen before the first frame.
+//
+// RockDressedTerrain remains the single authority for geography, collision,
+// ramps and player grounding. Visual smoothing is done only through shared
+// vertex normals on the main land mesh, which keeps traversal and rendering in
+// perfect agreement and has no recurring runtime cost.
 export class PolishedGrassTerrain extends RockDressedTerrain {
  constructor(THREE){
   super(THREE);
-  this.grassSmoothRadius=1.15;
-  this.grassSmoothStrength=.30;
-  this.grassSmoothMaxDelta=.18;
- }
-
- preserveSharpTerrainAt(x,z){
-  const coast=this.islandMetric(x,z);
-  if(coast>.91)return true;
-
-  const profiles=this.cliffProfilesAt?.(x,z)||[];
-  for(const profile of profiles){
-   if(!profile||profile.weight<.035)continue;
-   const seamDistance=Math.abs(profile.signed);
-
-   // Keep the actual cliff break exact. KayKit rocks now provide the visual
-   // breakup, while this underlying edge remains the stable traversal wall.
-   if(profile.drop>1.05&&profile.rampMask<.42&&seamDistance<2.7)return true;
-
-   // Preserve authored ramp profiles so smoothing never changes their grade.
-   if(profile.rampMask>.22&&seamDistance<6.2)return true;
-  }
-  return false;
- }
-
- baseHeightAt(x,z){
-  return super.heightAt(x,z);
  }
 
  heightAt(x,z){
-  const center=this.baseHeightAt(x,z);
-  if(!Number.isFinite(center)||this.preserveSharpTerrainAt(x,z))return center;
-
-  const r=this.grassSmoothRadius;
-  const d=r*.72;
-  const samples=[
-   [x+r,z,1],[x-r,z,1],[x,z+r,1],[x,z-r,1],
-   [x+d,z+d,.62],[x-d,z+d,.62],[x+d,z-d,.62],[x-d,z-d,.62]
-  ];
-
-  let total=center*4.4;
-  let weight=4.4;
-  for(const [sx,sz,w] of samples){
-   if(this.preserveSharpTerrainAt(sx,sz))continue;
-   const h=this.baseHeightAt(sx,sz);
-   if(!Number.isFinite(h))continue;
-   total+=h*w;
-   weight+=w;
-  }
-
-  if(weight<=4.4)return center;
-  const average=total/weight;
-  const delta=Math.max(-this.grassSmoothMaxDelta,Math.min(this.grassSmoothMaxDelta,average-center));
-  return center+delta*this.grassSmoothStrength;
+  return super.heightAt(x,z);
  }
 
  create(){
   const root=super.create();
+  const land=root.getObjectByName?.('UnifiedProceduralIslandLand');
 
-  // The terrain stays low-poly in silhouette and colour, but smooth normals
-  // remove the harsh triangular lighting changes visible across broad grass.
-  root.traverse(child=>{
-   if(!child.isMesh)return;
-   if(child.geometry?.attributes?.position){
-    child.geometry.computeVertexNormals();
+  if(land?.isMesh){
+   if(land.geometry?.attributes?.position){
+    land.geometry.computeVertexNormals();
+    land.geometry.normalizeNormals?.();
    }
-   const materials=Array.isArray(child.material)?child.material:[child.material];
+
+   const materials=Array.isArray(land.material)?land.material:[land.material];
    for(const material of materials){
     if(!material)continue;
     material.flatShading=false;
+    material.roughness=.92;
     material.needsUpdate=true;
    }
-  });
+  }
+
   return root;
  }
 }
