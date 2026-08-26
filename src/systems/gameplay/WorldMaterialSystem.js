@@ -78,7 +78,7 @@ export class WorldMaterialSystem{
    object,
    state:'loose',
    radius:type==='log'?1.05:.42,
-   stackHeight:type==='log'?.46:.46
+   stackHeight:.46
   };
   this.items.push(item);
   return item;
@@ -149,7 +149,7 @@ export class WorldMaterialSystem{
   const yaw=this.player.rotation.y;
   let x=this.player.position.x+Math.sin(yaw)*this.placeDistance;
   let z=this.player.position.z+Math.cos(yaw)*this.placeDistance;
-  let y=(this.world?.heightAt?.(x,z)??0)+(item.type==='log'?.25:.24);
+  let y=(this.world?.heightAt?.(x,z)??0)+(item.type==='log' ? .25 : .24);
   let rotationY=item.type==='log'
    ?Math.round(yaw/(Math.PI/4))*(Math.PI/4)
    :yaw;
