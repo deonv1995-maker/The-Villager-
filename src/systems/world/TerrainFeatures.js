@@ -7,13 +7,90 @@ export class TerrainFeatures {
   this.root.name='ProceduralTerrainDetails';
   this.seed=9413;
   this.materials={
-   boulder:new THREE.MeshStandardMaterial({color:0x747f7a,roughness:.96,metalness:0,flatShading:true})
+   boulder:new THREE.MeshStandardMaterial({color:0x747f7a,roughness:.96,metalness:0,flatShading:true}),
+   cliffSeal:new THREE.MeshStandardMaterial({
+    color:0x66716d,
+    roughness:.98,
+    metalness:0,
+    flatShading:true,
+    side:THREE.DoubleSide,
+    depthWrite:true
+   })
   };
  }
 
  rand(i){
   const x=Math.sin(i*12.9898+this.seed)*43758.5453;
   return x-Math.floor(x);
+ }
+
+ buildCliffBackstopSpan(u0,u1){
+  const T=this.T;
+  const terrain=this.world.terrain;
+  const extension=3.15;
+  const start=u0-extension;
+  const end=u1+extension;
+  const segments=Math.max(28,Math.round((end-start)/.52));
+  const positions=[];
+  const indices=[];
+
+  const smooth=(a,b,x)=>{
+   if(a===b)return x>=b?1:0;
+   const t=Math.max(0,Math.min(1,(x-a)/(b-a)));
+   return t*t*(3-2*t);
+  };
+
+  for(let i=0;i<=segments;i++){
+   const u=start+(end-start)*(i/segments);
+   let taper=1;
+   if(u<u0)taper=smooth(start,u0,u);
+   else if(u>u1)taper=1-smooth(u1,end,u);
+
+   const edgeV=terrain.cliffEdgeV(u);
+   const sealWorld=terrain.cliffFormationWorld(u,edgeV-.16);
+   const highWorld=terrain.cliffFormationWorld(u,edgeV+1.22);
+   const lowWorld=terrain.cliffFormationWorld(u,edgeV-2.05);
+
+   const naturalY=this.world.heightAt(sealWorld.x,sealWorld.z)-.035;
+   const highY=this.world.heightAt(highWorld.x,highWorld.z)-.085;
+   const lowY=this.world.heightAt(lowWorld.x,lowWorld.z)-.11;
+
+   let topY=naturalY+(highY-naturalY)*taper;
+   let bottomY=naturalY+(lowY-naturalY)*taper;
+   if(topY<bottomY){const temp=topY;topY=bottomY;bottomY=temp;}
+   if(topY-bottomY<.06)bottomY=topY-.06;
+
+   positions.push(sealWorld.x,topY,sealWorld.z);
+   positions.push(sealWorld.x,bottomY,sealWorld.z);
+  }
+
+  for(let i=0;i<segments;i++){
+   const a=i*2;
+   const b=a+1;
+   const c=a+2;
+   const d=a+3;
+   if(i%2===0)indices.push(a,c,d,a,d,b);
+   else indices.push(a,c,b,c,d,b);
+  }
+
+  const geo=new T.BufferGeometry();
+  geo.setAttribute('position',new T.Float32BufferAttribute(positions,3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+
+  const mesh=new T.Mesh(geo,this.materials.cliffSeal);
+  mesh.name='CliffHiddenBackstop';
+  mesh.receiveShadow=true;
+  mesh.castShadow=false;
+  this.root.add(mesh);
+ }
+
+ buildCliffBackstops(){
+  const terrain=this.world.terrain;
+  for(const [u0,u1] of terrain.cliffWallSpans()){
+   this.buildCliffBackstopSpan(u0,u1);
+  }
  }
 
  buildBaseBoulders(){
@@ -69,6 +146,11 @@ export class TerrainFeatures {
 
  initialize(){
   this.scene.add(this.root);
+  // The visible cliff still comes from IslandTerrain. These backstops sit just
+  // behind that face and taper into the untouched ground beyond each endpoint.
+  // They are intentionally hidden under normal viewing conditions and exist to
+  // guarantee that no ocean/sky can ever show through a residual seam.
+  this.buildCliffBackstops();
   this.buildBaseBoulders();
  }
 }
