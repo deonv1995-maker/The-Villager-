@@ -12,16 +12,34 @@ export class ConstructionTraversalSystem{
   this.sweepTopTolerance=.04;
   this.walkSampleSpacing=.16;
   this.samePlaneTolerance=.075;
+
+  // Frames and walls use their own narrow construction collision instead of the
+  // broad rock-collider approximation. This prevents overlapping posts/walls from
+  // trapping the player inside a newly built structure.
+  this.playerRadius=this.world?.playerCollisionRadius??.42;
+  this.playerHeight=this.world?.playerCollisionHeight??2.15;
+  this.frameRadius=.27;
+  this.wallHalfLength=(this.buildingModes?.logLength??2.20)*.5;
+  this.wallHalfThickness=.26;
+  this.collisionPadding=.035;
   this.lastColliderCount=-1;
  }
 
  initialize(){
   this.world.constructionTraversal=this;
-  this.removeLegacyFloorColliders();
+  this.removeLegacyConstructionColliders();
  }
 
  floorPlacements(){
   return this.buildingModes?.placements?.filter(p=>p.mode==='floor'&&p.object?.parent)||[];
+ }
+
+ solidPlacements(){
+  // Angled logs are intentionally excluded for now: they are roof/stair primitives
+  // and should not create a full-height invisible wall underneath their projection.
+  return this.buildingModes?.placements?.filter(p=>
+   (p.mode==='frame'||p.mode==='wall')&&p.object?.parent
+  )||[];
  }
 
  basis(yaw){
@@ -87,15 +105,104 @@ export class ConstructionTraversalSystem{
   return true;
  }
 
- removeLegacyFloorColliders(){
+ verticalOverlap(placement,currentFootY){
+  if(!Number.isFinite(placement?.minY)||!Number.isFinite(placement?.maxY))return true;
+  const headY=currentFootY+this.playerHeight;
+  if(currentFootY>=placement.maxY-.04)return false;
+  if(headY<=placement.minY+.04)return false;
+  return true;
+ }
+
+ circleContains(x,z,cx,cz,radius){
+  const dx=x-cx,dz=z-cz;
+  return dx*dx+dz*dz<=radius*radius;
+ }
+
+ segmentHitsCircle(ax,az,bx,bz,cx,cz,radius){
+  const dx=bx-ax,dz=bz-az;
+  const lenSq=dx*dx+dz*dz;
+  if(lenSq<1e-8)return this.circleContains(ax,az,cx,cz,radius);
+  const t=Math.max(0,Math.min(1,((cx-ax)*dx+(cz-az)*dz)/lenSq));
+  const px=ax+dx*t,pz=az+dz*t;
+  return this.circleContains(px,pz,cx,cz,radius);
+ }
+
+ toLocal(placement,x,z){
+  const b=this.basis(placement.yaw||0);
+  const dx=x-placement.x,dz=z-placement.z;
+  return {
+   x:dx*b.xX+dz*b.xZ,
+   z:dx*b.zX+dz*b.zZ
+  };
+ }
+
+ pointInRect(point,halfX,halfZ){
+  return Math.abs(point.x)<=halfX&&Math.abs(point.z)<=halfZ;
+ }
+
+ segmentHitsRect(a,b,halfX,halfZ){
+  let tMin=0,tMax=1;
+  const dx=b.x-a.x,dz=b.z-a.z;
+  const axes=[
+   [a.x,dx,halfX],
+   [a.z,dz,halfZ]
+  ];
+
+  for(const [p,d,h] of axes){
+   if(Math.abs(d)<1e-8){
+    if(p<-h||p>h)return false;
+    continue;
+   }
+   let t1=(-h-p)/d;
+   let t2=(h-p)/d;
+   if(t1>t2){const tmp=t1;t1=t2;t2=tmp;}
+   tMin=Math.max(tMin,t1);
+   tMax=Math.min(tMax,t2);
+   if(tMin>tMax)return false;
+  }
+  return true;
+ }
+
+ obstacleBlocks(placement,fromX,fromZ,currentFootY,toX,toZ){
+  if(!this.verticalOverlap(placement,currentFootY))return false;
+
+  if(placement.mode==='frame'){
+   const radius=this.frameRadius+this.playerRadius+this.collisionPadding;
+   const fromInside=this.circleContains(fromX,fromZ,placement.x,placement.z,radius);
+   if(fromInside)return false; // always let a player already overlapping escape.
+   return this.segmentHitsCircle(fromX,fromZ,toX,toZ,placement.x,placement.z,radius);
+  }
+
+  if(placement.mode==='wall'){
+   const halfX=this.wallHalfLength+this.playerRadius+this.collisionPadding;
+   const halfZ=this.wallHalfThickness+this.playerRadius+this.collisionPadding;
+   const from=this.toLocal(placement,fromX,fromZ);
+   const to=this.toLocal(placement,toX,toZ);
+   if(this.pointInRect(from,halfX,halfZ))return false;
+   return this.segmentHitsRect(from,to,halfX,halfZ);
+  }
+
+  return false;
+ }
+
+ blocksMovement(fromX,fromZ,currentFootY,toX,toZ){
+  for(const placement of this.solidPlacements()){
+   if(this.obstacleBlocks(placement,fromX,fromZ,currentFootY,toX,toZ))return true;
+  }
+  return false;
+ }
+
+ removeLegacyConstructionColliders(){
   const world=this.world;
   if(!Array.isArray(world?.rockColliders))return;
 
   const before=world.rockColliders.length;
-  world.rockColliders=world.rockColliders.filter(collider=>{
-   if(collider.owner!=='player-construction')return true;
-   return collider.object?.userData?.constructionMode!=='floor';
-  });
+  // All player-built pieces are now handled here: floors as support rectangles,
+  // frames/walls as narrow authored obstacles. Keeping their old AABB ellipses in
+  // the rock grid creates oversized overlapping collision volumes and traps players.
+  world.rockColliders=world.rockColliders.filter(collider=>
+   collider.owner!=='player-construction'
+  );
 
   if(world.rockColliders.length!==before)world.rebuildRockColliderGrid?.();
   this.lastColliderCount=world.rockColliders.length;
@@ -103,6 +210,6 @@ export class ConstructionTraversalSystem{
 
  update(){
   const count=this.world?.rockColliders?.length??0;
-  if(count!==this.lastColliderCount)this.removeLegacyFloorColliders();
+  if(count!==this.lastColliderCount)this.removeLegacyConstructionColliders();
  }
 }
