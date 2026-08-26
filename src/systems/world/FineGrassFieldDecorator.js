@@ -9,20 +9,17 @@ export class FineGrassFieldDecorator {
   this.root.name='FineGrassFieldDecorator';
   this.mesh=null;
 
-  // Fine field grass is a presentation layer only. Ecology still decides where
-  // vegetation belongs; this system only turns suitable areas into dense,
-  // mobile-friendly visual patches.
-  this.maxInstances=8200;
-  this.patchCandidates=760;
-  this.minPatchRadius=1.35;
-  this.maxPatchRadius=3.65;
-  this.minTuftsPerPatch=24;
-  this.maxTuftsPerPatch=74;
+  // Fine field grass remains a presentation-only layer. Density, patch scale
+  // and blade silhouette live here; ecology still decides where grass belongs.
+  this.maxInstances=14000;
+  this.patchCandidates=980;
+  this.minPatchRadius=1.8;
+  this.maxPatchRadius=5.3;
+  this.minTuftsPerPatch=48;
+  this.maxTuftsPerPatch=128;
   this.maxSlope=.46;
   this.spawnClearRadius=4.5;
 
-  // Obstacle lookup is built once when the field is generated so grass does not
-  // clip through rocks, trunks or bushes without adding any per-frame cost.
   this.obstacleCellSize=5;
   this.obstacleGrid=new Map();
  }
@@ -161,26 +158,49 @@ export class FineGrassFieldDecorator {
   const T=this.T;
   const positions=[];
   const indices=[];
-  const bladeWidth=.088;
-  const bladeHeight=.54;
+  const bladeCount=5;
+  const segments=4;
+  const baseHeight=.76;
+  const baseWidth=.095;
 
-  // Three crossed, tapered blades form one tiny tuft. One InstancedMesh then
-  // renders thousands of these tufts in a single draw call.
-  for(let blade=0;blade<3;blade++){
-   const angle=blade*Math.PI/3;
-   const dx=Math.cos(angle);
-   const dz=Math.sin(angle);
-   const half=bladeWidth*.5;
-   const tipHalf=bladeWidth*.10;
+  // Each tuft is made from several segmented ribbon blades. The upper segments
+  // curve forward and slightly sideways, creating an actual leaf silhouette
+  // instead of the straight spike shape used by the earlier field grass.
+  for(let blade=0;blade<bladeCount;blade++){
+   const angle=blade*(Math.PI*2/bladeCount)+(blade%2?-.11:.08);
+   const dirX=Math.cos(angle);
+   const dirZ=Math.sin(angle);
+   const acrossX=-dirZ;
+   const acrossZ=dirX;
+   const height=baseHeight*(.78+(blade%4)*.075);
+   const bend=.105+(blade%3)*.042;
+   const sideBend=(blade%2?1:-1)*(.018+(blade%3)*.009);
    const base=positions.length/3;
 
-   positions.push(
-    -dx*half,0,-dz*half,
-     dx*half,0, dz*half,
-     dx*tipHalf,bladeHeight, dz*tipHalf,
-    -dx*tipHalf,bladeHeight,-dz*tipHalf
-   );
-   indices.push(base,base+1,base+2,base,base+2,base+3);
+   for(let level=0;level<=segments;level++){
+    const t=level/segments;
+    const eased=t*t;
+    const y=height*t;
+    const forward=bend*eased;
+    const sideways=sideBend*Math.sin(Math.PI*t);
+    const centerX=dirX*forward+acrossX*sideways;
+    const centerZ=dirZ*forward+acrossZ*sideways;
+    const taper=Math.max(.08,1-t*.90);
+    const half=baseWidth*taper*.5;
+
+    positions.push(
+     centerX-acrossX*half,y,centerZ-acrossZ*half,
+     centerX+acrossX*half,y,centerZ+acrossZ*half
+    );
+   }
+
+   for(let segment=0;segment<segments;segment++){
+    const a=base+segment*2;
+    const b=a+1;
+    const c=a+3;
+    const d=a+2;
+    indices.push(a,b,c,a,c,d);
+   }
   }
 
   const geometry=new T.BufferGeometry();
@@ -228,8 +248,8 @@ export class FineGrassFieldDecorator {
   const density=ecology.density??.7;
   const noise=ecology.noise??.5;
 
-  return Math.max(.18,Math.min(1,
-   density*(.66+grassShare*1.9)*(.82+noise*.34)
+  return Math.max(.24,Math.min(1,
+   density*(.76+grassShare*2.05)*(.86+noise*.32)
   ));
  }
 
@@ -241,7 +261,7 @@ export class FineGrassFieldDecorator {
   const geometry=this.buildTuftGeometry();
   const material=new T.MeshStandardMaterial({
    color:0xffffff,
-   roughness:.92,
+   roughness:.94,
    metalness:0,
    side:T.DoubleSide
   });
@@ -265,19 +285,20 @@ export class FineGrassFieldDecorator {
 
    if(!this.terrainAllowsGrass(cx,cz))continue;
    const suitability=this.patchSuitability(cx,cz);
-   if(this.rand(seed+2)>.84*suitability)continue;
+   if(this.rand(seed+2)>.95*suitability)continue;
 
    const patchRadius=this.minPatchRadius
     +(this.maxPatchRadius-this.minPatchRadius)*this.rand(seed+3);
-   const stretch=.68+this.rand(seed+4)*.56;
+   const stretch=.72+this.rand(seed+4)*.62;
    const patchYaw=this.rand(seed+5)*Math.PI*2;
    const c=Math.cos(patchYaw);
    const s=Math.sin(patchYaw);
    const tuftTarget=Math.round(
     this.minTuftsPerPatch
-    +(this.maxTuftsPerPatch-this.minTuftsPerPatch)*this.rand(seed+6)*(.78+.34*suitability)
+    +(this.maxTuftsPerPatch-this.minTuftsPerPatch)
+     *this.rand(seed+6)*(.84+.30*suitability)
    );
-   const attempts=Math.ceil(tuftTarget*2.6);
+   const attempts=Math.ceil(tuftTarget*2.45);
    let accepted=0;
 
    for(let j=0;j<attempts&&accepted<tuftTarget&&placed<this.maxInstances;j++){
@@ -292,16 +313,18 @@ export class FineGrassFieldDecorator {
     const z=cz+rz;
 
     if(!this.terrainAllowsGrass(x,z))continue;
-    if(!this.isObstacleClear(x,z,.08))continue;
+    if(!this.isObstacleClear(x,z,.07))continue;
 
+    // The field now keeps most edge tufts so overlapping patches merge into
+    // broad meadow areas rather than isolated sparse circles.
     const edge=localRadius/Math.max(.001,patchRadius);
-    if(this.rand(tuftSeed+2)<Math.max(0,(edge-.72)*.42))continue;
+    if(this.rand(tuftSeed+2)<Math.max(0,(edge-.82)*.28))continue;
 
-    const y=this.world.heightAt(x,z)+.018;
-    const heightScale=.82+this.rand(tuftSeed+3)*.95;
-    const widthScale=.88+this.rand(tuftSeed+4)*.56;
-    const leanX=(this.rand(tuftSeed+5)-.5)*.13;
-    const leanZ=(this.rand(tuftSeed+6)-.5)*.13;
+    const y=this.world.heightAt(x,z)+.016;
+    const heightScale=.88+this.rand(tuftSeed+3)*.72;
+    const widthScale=.86+this.rand(tuftSeed+4)*.50;
+    const leanX=(this.rand(tuftSeed+5)-.5)*.16;
+    const leanZ=(this.rand(tuftSeed+6)-.5)*.16;
 
     dummy.position.set(x,y,z);
     dummy.rotation.set(leanX,this.rand(tuftSeed+7)*Math.PI*2,leanZ);
@@ -311,9 +334,9 @@ export class FineGrassFieldDecorator {
 
     const shade=this.rand(tuftSeed+8);
     color.setHSL(
-     .255+shade*.018,
-     .43+this.rand(tuftSeed+9)*.08,
-     .41+this.rand(tuftSeed+10)*.12
+     .252+shade*.021,
+     .44+this.rand(tuftSeed+9)*.09,
+     .39+this.rand(tuftSeed+10)*.13
     );
     mesh.setColorAt(placed,color);
 
