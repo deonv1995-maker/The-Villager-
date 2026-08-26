@@ -8,8 +8,6 @@ export class BuildingModeSystem{
   this.button=button;
   this.feedbackElement=feedbackElement;
 
-  // RAW preserves free placement for fires/furnaces. Structural modes transform
-  // one carried log and snap it to compatible pieces already in the world.
   this.modes=['raw','floor','frame','wall','angle'];
   this.modeIndex=0;
   this.root=new THREE.Group();
@@ -19,18 +17,28 @@ export class BuildingModeSystem{
   this.placeDistance=1.90;
   this.feedbackTimer=null;
 
-  this.logLength=2.20;
+  // Construction derives its proportions from the actual harvested log. The new
+  // 2.9 m log puts a FRAME slightly above Ranger head height and gives WALL bays
+  // enough width to read as a proper room instead of a cramped cage.
+  this.logLength=this.materials?.logLength??2.90;
+  this.logHalfLength=this.logLength*.5;
   this.floorWidth=1.12;
-  this.floorHalfLength=this.logLength*.5;
+  this.floorHalfLength=this.logHalfLength;
   this.floorHalfWidth=this.floorWidth*.5;
-  this.floorSnapRange=1.25;
-  this.frameSnapRange=1.20;
-  this.wallSnapRange=1.45;
-  this.angleSnapRange=1.55;
-  this.angleHalfProjection=this.logLength*.5*Math.SQRT1_2;
+  this.frameCenterOffset=this.logHalfLength+.01;
+  this.floorSnapRange=1.45;
+  this.frameSnapRange=1.35;
+  this.wallSnapRange=1.70;
+  this.angleSnapRange=1.75;
+  this.angleHalfProjection=this.logHalfLength*Math.SQRT1_2;
 
-  // The ghost is presentation-only. It uses the exact same resolved placement as
-  // the real piece, so what the player sees is where the log will actually land.
+  // Do not allow a post or wall to materialize through the Ranger. This works in
+  // tandem with escape-safe traversal collision and prevents most trapping before
+  // it can happen; the ghost turns red when the player is occupying the piece.
+  this.playerBuildClearance=.54;
+  this.framePlacementRadius=.30;
+  this.wallPlacementHalfThickness=.28;
+
   this.preview=null;
   this.previewMode=null;
   this.previewValid=false;
@@ -135,9 +143,31 @@ export class BuildingModeSystem{
   };
  }
 
- placementAllowed(x,z){
-  if(this.world?.isWithinPlayableBounds&&!this.world.isWithinPlayableBounds(x,z))return false;
-  if(this.world?.environment?.terrainClearance?.(x,z))return false;
+ playerClearForPlacement(mode,base){
+  if(!this.player||!base)return true;
+  if(mode!=='frame'&&mode!=='wall')return true;
+
+  const px=this.player.position.x;
+  const pz=this.player.position.z;
+  if(mode==='frame'){
+   const radius=this.framePlacementRadius+this.playerBuildClearance;
+   return Math.hypot(px-base.x,pz-base.z)>radius;
+  }
+
+  const b=this.basis(base.yaw||0);
+  const dx=px-base.x,dz=pz-base.z;
+  const localX=dx*b.xX+dz*b.xZ;
+  const localZ=dx*b.zX+dz*b.zZ;
+  const halfX=this.logHalfLength+this.playerBuildClearance;
+  const halfZ=this.wallPlacementHalfThickness+this.playerBuildClearance;
+  return Math.abs(localX)>halfX||Math.abs(localZ)>halfZ;
+ }
+
+ placementAllowed(base,mode=this.mode){
+  if(!base)return false;
+  if(this.world?.isWithinPlayableBounds&&!this.world.isWithinPlayableBounds(base.x,base.z))return false;
+  if(this.world?.environment?.terrainClearance?.(base.x,base.z))return false;
+  if(!this.playerClearForPlacement(mode,base))return false;
   return true;
  }
 
@@ -152,23 +182,6 @@ export class BuildingModeSystem{
    const dx=p.x-x,dz=p.z-z;
    if(dx*dx+dz*dz<r2)object.visible=false;
   }
- }
-
- registerStructureCollider(object,{standable=false,radiusScale=.46,standRadiusScale=.92}={}){
-  if(!this.world?.registerRockColliderFromObject||!object)return null;
-  object.updateWorldMatrix?.(true,true);
-  return this.world.registerRockColliderFromObject(object,{
-   owner:'player-construction',
-   radiusScale,
-   minRadius:.16,
-   maxRadius:1.35,
-   verticalInset:.01,
-   standable,
-   standRadiusScale,
-   supportInsetScale:.025,
-   minSupportInset:.01,
-   maxSupportInset:.04
-  });
  }
 
  recordPlacement(mode,object,base,standable=false){
@@ -189,7 +202,6 @@ export class BuildingModeSystem{
    anchorIds:[...(base.anchorIds||[])]
   };
   this.placements.push(placement);
-  this.registerStructureCollider(object,{standable});
   return placement;
  }
 
@@ -209,19 +221,14 @@ export class BuildingModeSystem{
    const offsets=[
     [b.xX*this.logLength,b.xZ*this.logLength],
     [-b.xX*this.logLength,-b.xZ*this.logLength],
-    [b.zX*this.floorWidth,b.zX*this.floorWidth],
+    [b.zX*this.floorWidth,b.zZ*this.floorWidth],
     [-b.zX*this.floorWidth,-b.zZ*this.floorWidth]
    ];
-   // Correct the lateral +Z component explicitly; keeping offsets data-shaped
-   // makes it easier to add diagonal floor snapping later.
-   offsets[2][1]=b.zZ*this.floorWidth;
    for(const [ox,oz] of offsets){
     const x=this.snapQuarter(floor.x+ox);
     const z=this.snapQuarter(floor.z+oz);
     candidates.push({
      x,z,yaw,
-     // A snapped floor inherits the exact construction plane of the floor it
-     // connects to. Terrain variation underneath can no longer create steps.
      centerY:floor.centerY,
      ground:floor.centerY-.275,
      snapKind:'floor-edge',
@@ -248,7 +255,6 @@ export class BuildingModeSystem{
 
  frameSnapBase(base){
   const candidates=[];
-
   for(const placement of this.placements){
    if(placement.mode==='floor'){
     for(const corner of this.floorCornerCandidates(placement)){
@@ -291,8 +297,8 @@ export class BuildingModeSystem{
     const b=frames[j];
     const dx=b.x-a.x,dz=b.z-a.z;
     const distance=Math.hypot(dx,dz);
-    if(distance<this.logLength-.48||distance>this.logLength+.48)continue;
-    if(Math.abs(a.maxY-b.maxY)>.72)continue;
+    if(distance<this.logLength-.62||distance>this.logLength+.62)continue;
+    if(Math.abs(a.maxY-b.maxY)>.78)continue;
 
     const x=(a.x+b.x)*.5;
     const z=(a.z+b.z)*.5;
@@ -304,7 +310,7 @@ export class BuildingModeSystem{
      ground:Math.max(a.minY,b.minY),
      snapKind:'between-frames',
      anchorIds:[a.id,b.id],
-     penalty:Math.abs(distance-this.logLength)*.35
+     penalty:Math.abs(distance-this.logLength)*.30
     });
    }
   }
@@ -312,7 +318,7 @@ export class BuildingModeSystem{
  }
 
  wallSnapBase(base){
-  const between=this.chooseCandidate(base,this.wallPairCandidates(base),this.wallSnapRange+.12);
+  const between=this.chooseCandidate(base,this.wallPairCandidates(base),this.wallSnapRange+.14);
   if(between.snapKind)return between;
 
   const candidates=[];
@@ -320,8 +326,8 @@ export class BuildingModeSystem{
   for(const frame of this.placements){
    if(frame.mode!=='frame')continue;
    for(const sign of [-1,1]){
-    const x=this.snapQuarter(frame.x+b.xX*this.floorHalfLength*sign);
-    const z=this.snapQuarter(frame.z+b.xZ*this.floorHalfLength*sign);
+    const x=this.snapQuarter(frame.x+b.xX*this.logHalfLength*sign);
+    const z=this.snapQuarter(frame.z+b.xZ*this.logHalfLength*sign);
     candidates.push({
      x,z,yaw:base.yaw,
      ground:frame.minY,
@@ -388,14 +394,14 @@ export class BuildingModeSystem{
   log.rotation.z=Math.PI/2;
   group.add(log);
   const baseY=Number.isFinite(base.baseY)?base.baseY:base.ground;
-  group.position.set(base.x,baseY+1.12,base.z);
+  group.position.set(base.x,baseY+this.frameCenterOffset,base.z);
   group.rotation.y=base.yaw;
   return group;
  }
 
  wallBaseHeight(base){
   let best=null;
-  let bestDistance=.60;
+  let bestDistance=.70;
   for(const placement of this.placements){
    if(placement.mode!=='wall')continue;
    if(this.axisYawDelta(placement.yaw,base.yaw)>.14)continue;
@@ -427,7 +433,9 @@ export class BuildingModeSystem{
   const log=this.materials.makeLogVisual();
   log.rotation.z=Math.PI/4;
   group.add(log);
-  const centerY=Number.isFinite(base.centerY)?base.centerY:base.ground+1.02;
+  const centerY=Number.isFinite(base.centerY)
+   ?base.centerY
+   :base.ground+this.angleHalfProjection+.20;
   group.position.set(base.x,centerY,base.z);
   group.rotation.y=base.yaw-Math.PI/2;
   return group;
@@ -499,13 +507,15 @@ export class BuildingModeSystem{
    object.rotation.set(0,base.yaw,0);
   }else if(mode==='frame'){
    const baseY=Number.isFinite(base.baseY)?base.baseY:base.ground;
-   object.position.set(base.x,baseY+1.12,base.z);
+   object.position.set(base.x,baseY+this.frameCenterOffset,base.z);
    object.rotation.set(0,base.yaw,0);
   }else if(mode==='wall'){
    object.position.set(base.x,this.wallBaseHeight(base),base.z);
    object.rotation.set(0,base.yaw,0);
   }else if(mode==='angle'){
-   const centerY=Number.isFinite(base.centerY)?base.centerY:base.ground+1.02;
+   const centerY=Number.isFinite(base.centerY)
+    ?base.centerY
+    :base.ground+this.angleHalfProjection+.20;
    object.position.set(base.x,centerY,base.z);
    object.rotation.set(0,base.yaw-Math.PI/2,0);
   }
@@ -531,9 +541,9 @@ export class BuildingModeSystem{
   if(!this.preview)return;
 
   this.applyPreviewTransform(this.mode,base);
-  this.previewValid=this.placementAllowed(base.x,base.z);
+  this.previewValid=this.placementAllowed(base,this.mode);
   this.previewMaterial.color.setHex(this.previewValid?0x65d879:0xd85d57);
-  this.previewMaterial.opacity=this.previewValid ? .44 : .34;
+  this.previewMaterial.opacity=this.previewValid?.44:.34;
   this.preview.visible=true;
  }
 
@@ -554,7 +564,7 @@ export class BuildingModeSystem{
   }
 
   const base=this.resolvedBase(this.mode);
-  if(!this.placementAllowed(base.x,base.z))return null;
+  if(!this.placementAllowed(base,this.mode))return null;
 
   let object=null;
   let standable=false;
@@ -573,7 +583,7 @@ export class BuildingModeSystem{
   if(!this.consumeCarriedLog())return null;
   this.destroyPreview();
   const placement=this.recordPlacement(this.mode,object,base,standable);
-  this.clearAuthoredGrass(base.x,base.z,this.mode==='floor'?1.35:.85);
+  this.clearAuthoredGrass(base.x,base.z,this.mode==='floor'?1.45:.95);
   return placement;
  }
 
