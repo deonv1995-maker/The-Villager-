@@ -15,6 +15,8 @@ export class ConstructionTraversalSystem{
   this.frameRadius=.27;
   this.wallHalfLength=(this.buildingModes?.logLength??2.90)*.5;
   this.wallHalfThickness=.26;
+  this.floorBodyPadding=.025;
+  this.stairRailRadius=.27;
   this.collisionPadding=.035;
   this.escapeEpsilon=.003;
   this.lastColliderCount=-1;
@@ -29,11 +31,21 @@ export class ConstructionTraversalSystem{
   return this.buildingModes?.placements?.filter(p=>p.mode==='floor'&&p.object?.parent)||[];
  }
 
- solidPlacements(){
-  // Angled pieces stay non-blocking until stairs/roof traversal gets its own shape.
-  // Automatic deck supports use the same narrow-post collision as frame columns.
+ stairRailPlacements(){
   return this.buildingModes?.placements?.filter(p=>
-   (p.mode==='frame'||p.mode==='wall'||p.mode==='support')&&p.object?.parent
+   p.mode==='angle'&&p.object?.parent&&
+   (p.snapKind==='floor-stair-rail'||p.snapKind==='stair-rail-extension')
+  )||[];
+ }
+
+ solidPlacements(){
+  // Roof rafters stay non-blocking for now, but actual stair stringers are solid.
+  // Floors are also solid from below/the side while retaining a walkable top.
+  return this.buildingModes?.placements?.filter(p=>
+   (
+    p.mode==='frame'||p.mode==='wall'||p.mode==='support'||p.mode==='floor'||
+    (p.mode==='angle'&&(p.snapKind==='floor-stair-rail'||p.snapKind==='stair-rail-extension'))
+   )&&p.object?.parent
   )||[];
  }
 
@@ -108,6 +120,18 @@ export class ConstructionTraversalSystem{
   return true;
  }
 
+ floorBodyVerticalOverlap(floor,currentFootY){
+  if(!Number.isFinite(floor?.minY)||!Number.isFinite(floor?.maxY))return false;
+
+  // If the top is within normal grounded step height, let traversal climb onto it
+  // instead of treating the floor edge like a vertical wall.
+  if(currentFootY>=floor.maxY-this.groundedStepTolerance-.03)return false;
+
+  const headY=currentFootY+this.playerHeight;
+  return headY>floor.minY+this.floorBodyPadding&&
+   currentFootY<floor.maxY-this.floorBodyPadding;
+ }
+
  circleContains(x,z,cx,cz,radius){
   const dx=x-cx,dz=z-cz;
   return dx*dx+dz*dz<=radius*radius;
@@ -128,6 +152,23 @@ export class ConstructionTraversalSystem{
   return {
    x:dx*b.xX+dz*b.xZ,
    z:dx*b.zX+dz*b.zZ
+  };
+ }
+
+ stairDirectionYaw(placement){
+  const stairs=this.world?.stairs;
+  if(stairs?.stairDirectionYaw)return stairs.stairDirectionYaw(placement);
+  return (placement.yaw||0)+Math.PI/2;
+ }
+
+ toStairLocal(placement,x,z){
+  const yaw=this.stairDirectionYaw(placement);
+  const fx=Math.sin(yaw),fz=Math.cos(yaw);
+  const rx=fz,rz=-fx;
+  const dx=x-placement.x,dz=z-placement.z;
+  return {
+   along:dx*fx+dz*fz,
+   across:dx*rx+dz*rz
   };
  }
 
@@ -158,7 +199,66 @@ export class ConstructionTraversalSystem{
   return true;
  }
 
+ stairRailVerticalOverlap(placement,x,z,currentFootY){
+  const local=this.toStairLocal(placement,x,z);
+  const halfProjection=this.buildingModes?.angleHalfProjection??1.025;
+  const along=Math.max(-halfProjection,Math.min(halfProjection,local.along));
+  const railY=(placement.centerY??0)+along;
+  const radius=this.stairRailRadius;
+  const headY=currentFootY+this.playerHeight;
+  if(currentFootY>=railY+radius-.025)return false;
+  if(headY<=railY-radius+.025)return false;
+  return true;
+ }
+
+ stairRailOverlapDepth(placement,x,z,currentFootY){
+  const halfProjection=(this.buildingModes?.angleHalfProjection??1.025)+this.playerRadius+this.collisionPadding;
+  const halfAcross=this.stairRailRadius+this.playerRadius+this.collisionPadding;
+  const p=this.toStairLocal(placement,x,z);
+  if(Math.abs(p.along)>halfProjection||Math.abs(p.across)>halfAcross)return 0;
+  if(!this.stairRailVerticalOverlap(placement,x,z,currentFootY))return 0;
+  return Math.max(0,Math.min(
+   halfProjection-Math.abs(p.along),
+   halfAcross-Math.abs(p.across)
+  ));
+ }
+
+ stairRailBlocks(placement,fromX,fromZ,currentFootY,toX,toZ){
+  const halfProjection=(this.buildingModes?.angleHalfProjection??1.025)+this.playerRadius+this.collisionPadding;
+  const halfAcross=this.stairRailRadius+this.playerRadius+this.collisionPadding;
+  const fromRaw=this.toStairLocal(placement,fromX,fromZ);
+  const toRaw=this.toStairLocal(placement,toX,toZ);
+  const from={x:fromRaw.along,z:fromRaw.across};
+  const to={x:toRaw.along,z:toRaw.across};
+  if(!this.segmentHitsRect(from,to,halfProjection,halfAcross))return false;
+
+  // Horizontal movement substeps are small, but sample the swept segment so a
+  // diagonal move cannot tunnel through a stringer between frames.
+  for(let i=0;i<=4;i++){
+   const t=i/4;
+   const x=fromX+(toX-fromX)*t;
+   const z=fromZ+(toZ-fromZ)*t;
+   const p=this.toStairLocal(placement,x,z);
+   if(Math.abs(p.along)>halfProjection||Math.abs(p.across)>halfAcross)continue;
+   if(this.stairRailVerticalOverlap(placement,x,z,currentFootY))return true;
+  }
+  return false;
+ }
+
  overlapDepth(placement,x,z,currentFootY){
+  if(placement.mode==='floor'){
+   if(!this.floorBodyVerticalOverlap(placement,currentFootY))return 0;
+   const halfX=(this.buildingModes?.floorHalfLength??1.45)+this.playerRadius+this.collisionPadding;
+   const halfZ=(this.buildingModes?.floorHalfWidth??.56)+this.playerRadius+this.collisionPadding;
+   const p=this.toLocal(placement,x,z);
+   if(!this.pointInRect(p,halfX,halfZ))return 0;
+   return Math.max(0,Math.min(halfX-Math.abs(p.x),halfZ-Math.abs(p.z)));
+  }
+
+  if(placement.mode==='angle'){
+   return this.stairRailOverlapDepth(placement,x,z,currentFootY);
+  }
+
   if(!this.verticalOverlap(placement,currentFootY))return 0;
 
   if(placement.mode==='frame'||placement.mode==='support'){
@@ -187,6 +287,19 @@ export class ConstructionTraversalSystem{
  }
 
  obstacleBlocks(placement,fromX,fromZ,currentFootY,toX,toZ){
+  if(placement.mode==='floor'){
+   if(!this.floorBodyVerticalOverlap(placement,currentFootY))return false;
+   const halfX=(this.buildingModes?.floorHalfLength??1.45)+this.playerRadius+this.collisionPadding;
+   const halfZ=(this.buildingModes?.floorHalfWidth??.56)+this.playerRadius+this.collisionPadding;
+   const from=this.toLocal(placement,fromX,fromZ);
+   const to=this.toLocal(placement,toX,toZ);
+   return this.segmentHitsRect(from,to,halfX,halfZ);
+  }
+
+  if(placement.mode==='angle'){
+   return this.stairRailBlocks(placement,fromX,fromZ,currentFootY,toX,toZ);
+  }
+
   if(!this.verticalOverlap(placement,currentFootY))return false;
 
   if(placement.mode==='frame'||placement.mode==='support'){
@@ -206,10 +319,9 @@ export class ConstructionTraversalSystem{
  }
 
  blocksMovement(fromX,fromZ,currentFootY,toX,toZ){
-  // If multiple posts/walls overlap around the Ranger, judge the whole cluster as
-  // one collision field. While inside it, any move that does not increase total
-  // penetration is allowed. This guarantees a path out of tight construction
-  // corners instead of one obstacle allowing escape while its neighbour blocks it.
+  // Treat all nearby construction as one collision field. If the Ranger somehow
+  // begins inside a newly built piece, movement that reduces penetration remains
+  // legal so construction can never permanently trap the player.
   const fromDepth=this.totalOverlapDepth(fromX,fromZ,currentFootY);
   if(fromDepth>0){
    const toDepth=this.totalOverlapDepth(toX,toZ,currentFootY);
