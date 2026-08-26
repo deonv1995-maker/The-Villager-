@@ -209,9 +209,12 @@ export class BuildingModeSystem{
    const offsets=[
     [b.xX*this.logLength,b.xZ*this.logLength],
     [-b.xX*this.logLength,-b.xZ*this.logLength],
-    [b.zX*this.floorWidth,b.zZ*this.floorWidth],
+    [b.zX*this.floorWidth,b.zX*this.floorWidth],
     [-b.zX*this.floorWidth,-b.zZ*this.floorWidth]
    ];
+   // Correct the lateral +Z component explicitly; keeping offsets data-shaped
+   // makes it easier to add diagonal floor snapping later.
+   offsets[2][1]=b.zZ*this.floorWidth;
    for(const [ox,oz] of offsets){
     const x=this.snapQuarter(floor.x+ox);
     const z=this.snapQuarter(floor.z+oz);
@@ -253,8 +256,6 @@ export class BuildingModeSystem{
      const z=this.snapQuarter(corner.z);
      candidates.push({
       x,z,yaw:base.yaw,
-      // Posts snapped to a floor begin on the floor surface instead of dropping
-      // to the terrain below it.
       baseY:placement.maxY,
       ground:placement.maxY,
       snapKind:'floor-corner',
@@ -532,7 +533,7 @@ export class BuildingModeSystem{
   this.applyPreviewTransform(this.mode,base);
   this.previewValid=this.placementAllowed(base.x,base.z);
   this.previewMaterial.color.setHex(this.previewValid?0x65d879:0xd85d57);
-  this.previewMaterial.opacity=this.previewValid?.44:.34;
+  this.previewMaterial.opacity=this.previewValid ? .44 : .34;
   this.preview.visible=true;
  }
 
