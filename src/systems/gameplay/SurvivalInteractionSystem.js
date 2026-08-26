@@ -94,7 +94,8 @@ export class SurvivalInteractionSystem{
    const placed=this.buildingModes.placeCarriedLog();
    if(placed){
     const mode=this.buildingModes.mode;
-    this.showFeedback(mode==='raw'?'Log placed':`${this.buildingModes.modeLabel(mode)} placed`);
+    if(mode==='raw')this.showFeedback('Log placed');
+    else this.showFeedback(`${this.buildingModes.modeLabel(mode)} ${placed.snapKind?'snapped':'placed'}`);
     this.current=null;
     this.updateButton();
     return true;
