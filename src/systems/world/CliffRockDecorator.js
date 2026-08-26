@@ -92,6 +92,7 @@ export class CliffRockDecorator {
   });
 
   wrapper.userData.cliffRockSource=source.index;
+  wrapper.userData.cliffRockShape=shape;
   return wrapper;
  }
 
