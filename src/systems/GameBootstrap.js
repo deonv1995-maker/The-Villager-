@@ -1,6 +1,7 @@
 import { WorldManager } from './WorldManager.js?v=584';
-import { MobileControls } from './input/MobileControls.js?v=563';
-import { PlayerController } from './player/PlayerController.js?v=590';
+import { MobileControls } from './input/MobileControls.js?v=609';
+import { PlayerController } from './player/PlayerController.js?v=609';
+import { SprintStaminaHudSystem } from './player/SprintStaminaHudSystem.js?v=609';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
 import { PlayerVisual } from './player/PlayerVisual.js?v=538';
 import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552';
@@ -87,10 +88,17 @@ export class GameBootstrap{
     leftKnob:document.getElementById('move-knob'),
     rightRoot:document.getElementById('look-stick'),
     rightKnob:document.getElementById('look-knob'),
-    jumpRoot:document.getElementById('jump-button')
+    jumpRoot:document.getElementById('jump-button'),
+    sprintRoot:document.getElementById('sprint-button')
    });
    this.cameraController=new ThirdPersonCamera(T,{camera:this.camera,target:this.player,input:this.input,world:this.world});
    this.playerController=new PlayerController(T,{player:this.player,input:this.input,cameraController:this.cameraController,world:this.world,groundOffset:0});
+   this.sprintHud=new SprintStaminaHudSystem({
+    playerController:this.playerController,
+    root:document.getElementById('stamina-hud'),
+    fill:document.getElementById('stamina-fill')
+   });
+   this.sprintHud.initialize();
 
    this.groundSurface=new GroundSurfaceDecorator(T,{world:this.world,scene:this.scene});
    this.world.groundSurface=this.groundSurface;
@@ -194,7 +202,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='0.6.08 · loading';
+   if(status)status.textContent='0.6.09 · loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const rawDt=Math.min(this.clock.getDelta(),.05);
@@ -205,6 +213,7 @@ export class GameBootstrap{
 
     this.constructionTraversal.update(dt);
     this.playerController.update(dt);
+    this.sprintHud.update(dt);
     this.materials.update(dt);
     this.logHauling.update(dt);
     this.harvesting.update(dt);
@@ -230,7 +239,10 @@ export class GameBootstrap{
 
     const hauling=this.logHauling?.visualCarryType?.();
     this.playerVisual.setCarrying?.(hauling?'log':(this.materials?.carried?.type||null));
-    this.playerVisual.update(dt,this.playerController.moveAmount,this.playerController.locomotionState);
+    const visualMoveAmount=this.playerController.isSprinting
+     ?Math.max(.82,this.playerController.moveAmount)
+     :Math.min(.68,this.playerController.moveAmount);
+    this.playerVisual.update(dt,visualMoveAmount,this.playerController.locomotionState);
     this.logHauling.updateVisual(dt,this.playerController.moveAmount);
     this.grassCarryVisual.update();
     this.cameraController.update(dt);
@@ -240,7 +252,7 @@ export class GameBootstrap{
    loop();
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.6.08 · ERROR';status.style.background='#5b1818';}
+   if(status){status.textContent='0.6.09 · ERROR';status.style.background='#5b1818';}
   }
  }
 
@@ -257,7 +269,7 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
-   if(status)status.textContent=ranger.actions.size?'0.6.08 · Ranger':'0.6.08 · Ranger anim…';
+   if(status)status.textContent=ranger.actions.size?'0.6.09 · Ranger':'0.6.09 · Ranger anim…';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
    if(this.fallbackVisual){
@@ -265,7 +277,7 @@ export class GameBootstrap{
     this.playerVisual=this.fallbackVisual;
     this.world.playerVisual=this.fallbackVisual;
    }
-   if(status)status.textContent='0.6.08 · fallback';
+   if(status)status.textContent='0.6.09 · fallback';
   }
  }
 }
