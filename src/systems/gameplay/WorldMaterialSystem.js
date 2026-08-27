@@ -282,7 +282,8 @@ export class WorldMaterialSystem{
 
   for(const item of this.items){
    if(item.state!=='loose'||!item.object?.parent)continue;
-   if(item.physics?.active)continue;
+   // Moving logs remain valid pickup targets. Grabbing one cancels its loose-body
+   // physics immediately, so the player can catch a rolling/falling log in range.
    item.object.getWorldPosition(this.tempPosition);
    const dx=this.tempPosition.x-px,dz=this.tempPosition.z-pz;
    const distance=Math.hypot(dx,dz);
@@ -296,7 +297,7 @@ export class WorldMaterialSystem{
  }
 
  pickup(item){
-  if(this.carried||!item||item.state!=='loose'||!item.object?.parent||item.physics?.active)return false;
+  if(this.carried||!item||item.state!=='loose'||!item.object?.parent)return false;
   item.object.removeFromParent();
   this.player.add(item.object);
   item.state='carried';
@@ -304,9 +305,13 @@ export class WorldMaterialSystem{
 
   if(item.type==='log'){
    if(item.physics){
+    // Catching a moving log transfers it out of world physics before parenting it
+    // to the Ranger, preventing any remaining velocity from fighting the carry pose.
     item.physics.active=false;
     item.physics.vx=item.physics.vy=item.physics.vz=0;
     item.physics.spinY=item.physics.rollSpeed=0;
+    item.physics.settleTimer=0;
+    item.physics.grounded=false;
    }
    this.resetLogVisualRoll(item);
    item.object.position.set(0,1.24,.76);
