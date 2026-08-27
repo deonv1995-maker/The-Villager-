@@ -19,6 +19,8 @@ export class KayKitPlayerVisual{
   this.chopActionName=null;
   this.pickupActionName=null;
   this.placeActionName=null;
+  this.carryOverlayAction=null;
+  this.carryOverlayWeight=0;
   this.chopDuration=.56;
   this.pickupDuration=.82;
   this.placeDuration=.72;
@@ -27,6 +29,7 @@ export class KayKitPlayerVisual{
   this.placeTimer=0;
   this.carryingType=null;
   this.bones=new Map();
+  this.normalizedBones=new Map();
 
   this.tmpV1=new THREE.Vector3();
   this.tmpV2=new THREE.Vector3();
@@ -37,6 +40,7 @@ export class KayKitPlayerVisual{
  }
 
  normalize(value){return (Array.isArray(value)?value:[value]).filter(Boolean);}
+ normalizeBoneName(value){return String(value||'').toLowerCase().replace(/[^a-z0-9]/g,'');}
 
  async loadFirst(loader,urls,label,required=true){
   let last=null;
@@ -65,7 +69,11 @@ export class KayKitPlayerVisual{
   model.position.y-=scaled.min.y;
   model.traverse(o=>{
    if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}
-   if(o.isBone&&o.name)this.bones.set(o.name.toLowerCase(),o);
+   if(o.isBone&&o.name){
+    const lower=o.name.toLowerCase();
+    this.bones.set(lower,o);
+    this.normalizedBones.set(this.normalizeBoneName(lower),o);
+   }
   });
   this.root.add(model);
   this.mixer=new this.T.AnimationMixer(model);
@@ -86,8 +94,9 @@ export class KayKitPlayerVisual{
    jump.clampWhenFinished=true;
   }
 
-  // The General pack supplies the full-body timing. Procedural arm targets are
-  // layered afterwards so the hands line up with our actual shoulder-carried log.
+  // General clips provide interaction timing. A filtered two-handed clip is also
+  // kept as a real upper-body carry layer so the arms remain visibly engaged even
+  // on KayKit exports whose bone names include a rig prefix.
   this.chopActionName=this.findPreferredAction(['interact','pickup','pick_up','pick up','attack','heavy']);
   this.pickupActionName=this.findPreferredAction(['pickup','pick_up','pick up','interact','grab','heavy']);
   this.placeActionName=this.findPreferredAction(['interact','pickup','pick_up','putdown','put_down','drop']);
@@ -99,6 +108,7 @@ export class KayKitPlayerVisual{
     action.clampWhenFinished=false;
    }
   }
+  this.setupCarryOverlay();
 
   this.loaded=true;
   const idle=this.actions.has('Idle_A')?'Idle_A':(this.actions.has('Idle')?'Idle':null);
@@ -129,6 +139,41 @@ export class KayKitPlayerVisual{
    if(exact)return exact;
   }
   return names.find(name=>name.toLowerCase().includes('jump'))||null;
+ }
+
+ setupCarryOverlay(){
+  const sourceName=this.findPreferredAction([
+   '2H_Melee_Idle','2H Melee Idle','2H_Melee','2H_Ranged_Aiming','2H'
+  ]);
+  const source=sourceName?this.actions.get(sourceName):null;
+  const sourceClip=source?.getClip?.();
+  if(!sourceClip?.tracks?.length)return;
+
+  const upperTokens=['shoulder','upperarm','lowerarm','wrist','hand'];
+  const tracks=sourceClip.tracks
+   .filter(track=>{
+    const key=this.normalizeBoneName(track.name);
+    return upperTokens.some(token=>key.includes(token));
+   })
+   .map(track=>track.clone());
+  if(!tracks.length)return;
+
+  const clip=new this.T.AnimationClip('__ShoulderLogUpper',sourceClip.duration,tracks);
+  const action=this.mixer.clipAction(clip);
+  action.setLoop(this.T.LoopRepeat,Infinity);
+  action.setEffectiveTimeScale(.72);
+  action.setEffectiveWeight(0);
+  action.play();
+  this.carryOverlayAction=action;
+ }
+
+ updateCarryOverlay(dt,targetWeight){
+  const action=this.carryOverlayAction;
+  if(!action)return;
+  const response=1-Math.exp(-11*dt);
+  this.carryOverlayWeight+=(targetWeight-this.carryOverlayWeight)*response;
+  if(Math.abs(this.carryOverlayWeight)<.001)this.carryOverlayWeight=0;
+  action.setEffectiveWeight(Math.max(0,Math.min(1,this.carryOverlayWeight)));
  }
 
  play(name,fade=.16,timeScale=1,forceRestart=false){
@@ -170,7 +215,18 @@ export class KayKitPlayerVisual{
   if(this.placeActionName)this.play(this.placeActionName,.05,.96,true);
  }
 
- bone(name){return this.bones.get(name.toLowerCase())||null;}
+ bone(name){
+  const lower=String(name||'').toLowerCase();
+  const exact=this.bones.get(lower);
+  if(exact)return exact;
+  const wanted=this.normalizeBoneName(lower);
+  const normalized=this.normalizedBones.get(wanted);
+  if(normalized)return normalized;
+  for(const [key,bone] of this.normalizedBones){
+   if(key.endsWith(wanted)||key.includes(wanted))return bone;
+  }
+  return null;
+ }
 
  playerLocalPoint(x,y,z){
   const point=this.tmpV3.set(x,y,z);
@@ -222,23 +278,31 @@ export class KayKitPlayerVisual{
   };
  }
 
- applyCarryPose(weight=.98){
-  // The log lies across the shoulders rather than floating in front of the chest.
-  // Both hands brace it close to the shoulder line while locomotion keeps control
-  // of the hips and legs underneath this upper-body pose.
-  this.poseArm('l',{x:.58,y:1.73,z:.18},{x:.62,y:1.82,z:.13},weight);
-  this.poseArm('r',{x:-.48,y:1.69,z:.21},{x:-.34,y:1.80,z:.14},weight);
+ carryPoseTargets(){
+  return {
+   l:{elbow:{x:.66,y:1.45,z:.04},hand:{x:.56,y:1.71,z:-.07}},
+   r:{elbow:{x:-.56,y:1.42,z:-.02},hand:{x:-.28,y:1.63,z:-.20}}
+  };
+ }
+
+ applyCarryPose(weight=.99){
+  // Reference-style shoulder carry: one arm comes up in front to take the load,
+  // while the opposite arm stays bent back under the log to keep it from rolling.
+  const target=this.carryPoseTargets();
+  this.poseArm('l',target.l.elbow,target.l.hand,weight);
+  this.poseArm('r',target.r.elbow,target.r.hand,weight);
  }
 
  applyPickupPose(){
   const elapsed=this.pickupDuration-this.pickupTimer;
   const t=Math.max(0,Math.min(1,elapsed/this.pickupDuration));
-  const lift=this.smooth((t-.12)/.88);
+  const lift=this.smooth((t-.10)/.90);
+  const target=this.carryPoseTargets();
 
-  const leftElbow=this.mixPoint({x:.55,y:.94,z:.82},{x:.58,y:1.73,z:.18},lift);
-  const leftHand=this.mixPoint({x:.55,y:.54,z:1.12},{x:.62,y:1.82,z:.13},lift);
-  const rightElbow=this.mixPoint({x:-.55,y:.96,z:.80},{x:-.48,y:1.69,z:.21},lift);
-  const rightHand=this.mixPoint({x:-.55,y:.56,z:1.08},{x:-.34,y:1.80,z:.14},lift);
+  const leftElbow=this.mixPoint({x:.56,y:.92,z:.84},target.l.elbow,lift);
+  const leftHand=this.mixPoint({x:.55,y:.54,z:1.10},target.l.hand,lift);
+  const rightElbow=this.mixPoint({x:-.56,y:.94,z:.80},target.r.elbow,lift);
+  const rightHand=this.mixPoint({x:-.54,y:.56,z:1.06},target.r.hand,lift);
 
   this.poseArm('l',leftElbow,leftHand,.99);
   this.poseArm('r',rightElbow,rightHand,.99);
@@ -248,11 +312,12 @@ export class KayKitPlayerVisual{
   const elapsed=this.placeDuration-this.placeTimer;
   const t=Math.max(0,Math.min(1,elapsed/this.placeDuration));
   const lower=this.smooth(t);
+  const target=this.carryPoseTargets();
 
-  const leftElbow=this.mixPoint({x:.58,y:1.73,z:.18},{x:.53,y:1.03,z:.86},lower);
-  const leftHand=this.mixPoint({x:.62,y:1.82,z:.13},{x:.54,y:.58,z:1.28},lower);
-  const rightElbow=this.mixPoint({x:-.48,y:1.69,z:.21},{x:-.53,y:1.04,z:.84},lower);
-  const rightHand=this.mixPoint({x:-.34,y:1.80,z:.14},{x:-.54,y:.60,z:1.24},lower);
+  const leftElbow=this.mixPoint(target.l.elbow,{x:.53,y:1.03,z:.86},lower);
+  const leftHand=this.mixPoint(target.l.hand,{x:.54,y:.58,z:1.28},lower);
+  const rightElbow=this.mixPoint(target.r.elbow,{x:-.53,y:1.04,z:.84},lower);
+  const rightHand=this.mixPoint(target.r.hand,{x:-.54,y:.60,z:1.24},lower);
 
   this.poseArm('l',leftElbow,leftHand,.99);
   this.poseArm('r',rightElbow,rightHand,.99);
@@ -261,7 +326,6 @@ export class KayKitPlayerVisual{
  applyChopPose(){
   const elapsed=this.chopDuration-this.chopTimer;
   const t=Math.max(0,Math.min(1,elapsed/this.chopDuration));
-  // Wind up quickly, then accelerate through the strike and recover slightly.
   const strike=t<.34?0:(t<.78?(t-.34)/.44:1-(t-.78)/.22*.18);
   const s=strike*strike*(3-2*strike);
 
@@ -292,8 +356,6 @@ export class KayKitPlayerVisual{
    if(!locomotion.isGrounded&&this.jumpActionName){
     this.play(this.jumpActionName,.08,1,!!locomotion.jumpStarted);
    }else if(carryingLog){
-    // A shoulder log never uses the running cycle. Even at full stick input the
-    // Ranger trudges with the walking clip at a deliberately heavy cadence.
     if(moveAmount<.06){
      this.play(this.actions.has('Idle_A')?'Idle_A':'Idle',.15,.82);
     }else{
@@ -308,6 +370,7 @@ export class KayKitPlayerVisual{
    }
   }
 
+  this.updateCarryOverlay(dt,carryingLog&&!interaction?.92:0);
   this.mixer?.update(dt);
   this.model?.updateMatrixWorld(true);
 
