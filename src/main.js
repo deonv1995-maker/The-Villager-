@@ -1,7 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=621';
+import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=622';
 
-const BUILD='0.6.21';
+const BUILD='0.6.22';
 const status=document.getElementById('status');
 const RECOVERY_BOOT='https://cdn.jsdelivr.net/gh/deonv1995-maker/The-Villager-@b92c156a2d47221b592181e8895de6004e595313/src/systems/GameBootstrap.js';
 
@@ -39,18 +39,24 @@ function syncBuildBadge(suffix='Ranger'){
  status.textContent=`${BUILD} · ${suffix}`;
 }
 
-function keepBuildBadgeCurrent(){
- syncBuildBadge('Ranger');
- [600,1400,2800,4800,7000].forEach(delay=>setTimeout(()=>syncBuildBadge('Ranger'),delay));
-}
-
 function startGame(GameBootstrap){
  allowAnyOrientation();
- const game=new GameBootstrap(THREE);
- game.start();
+
+ // GameBootstrap still carries an old internal build string. Hide the status ID
+ // only while it starts so it cannot overwrite the shell's authoritative badge.
+ const originalStatusId=status?.id||'status';
+ if(status)status.id='villager-build-status';
+ let game;
+ try{
+  game=new GameBootstrap(THREE);
+  game.start();
+ }finally{
+  if(status)status.id=originalStatusId;
+ }
+
  globalThis.__villagerGame=game;
 
- if(game.survivalInteraction&&game.buildModes&&game.materials&&game.player){
+ if(game?.survivalInteraction&&game.buildModes&&game.materials&&game.player){
   const system=new DismantleReuseSystem({
    interaction:game.survivalInteraction,
    buildingModes:game.buildModes,
@@ -62,7 +68,7 @@ function startGame(GameBootstrap){
  }
 
  bindOrientation(game);
- keepBuildBadgeCurrent();
+ syncBuildBadge('Ranger');
  return game;
 }
 
@@ -70,7 +76,7 @@ async function launch(){
  syncBuildBadge('loading');
  allowAnyOrientation();
  try{
-  const {GameBootstrap}=await import('./systems/GameBootstrap.js?v=621');
+  const {GameBootstrap}=await import('./systems/GameBootstrap.js?v=622');
   startGame(GameBootstrap);
  }catch(primaryError){
   console.error('[BOOT IMPORT]',primaryError);
@@ -78,7 +84,7 @@ async function launch(){
   try{
    const {GameBootstrap}=await import(RECOVERY_BOOT);
    startGame(GameBootstrap);
-   setTimeout(()=>syncBuildBadge('recovery'),2200);
+   syncBuildBadge('recovery');
   }catch(recoveryError){
    console.error('[BOOT RECOVERY]',recoveryError);
    if(status){
