@@ -6,38 +6,107 @@ export class DismantleReuseSystem{
   this.player=player;
   this.range=3.25;
   this.verticalRange=3.20;
+  this.active=false;
   this.originalResolve=null;
   this.originalPerform=null;
   this.tmpWorld=buildingModes?.T?new buildingModes.T.Vector3():null;
+  this.button=null;
+  this.styleElement=null;
  }
 
  initialize(){
   if(!this.interaction||!this.buildingModes||!this.materials)return;
   this.originalResolve=this.interaction.resolve.bind(this.interaction);
   this.originalPerform=this.interaction.perform.bind(this.interaction);
+  this.createModeButton();
 
   this.interaction.resolve=()=>{
-   // Dismantling is an empty-hands construction interaction and should not be
-   // hidden by nearby harvest/reaction targets. Busy/carry states still retain
-   // their normal authority.
-   if(this.interaction.pending||this.materials.carried)return this.originalResolve();
+   if(!this.active)return this.originalResolve();
+
+   if(this.interaction.pending||this.materials.carried){
+    if(this.materials.carried)this.setActive(false);
+    return this.originalResolve();
+   }
+
    const target=this.findTarget();
    if(target)return {type:'dismantle',target,label:`TAKE DOWN ${this.labelFor(target)}`};
-   return this.originalResolve();
+
+   // Disassembly mode is deliberately exclusive. Normal pickup / harvest
+   // interactions stay suspended until the player leaves the mode.
+   return null;
   };
 
   this.interaction.perform=()=>{
-   if(this.interaction.pending)return false;
+   if(!this.active)return this.originalPerform();
+   if(this.interaction.pending||this.materials.carried){
+    if(this.materials.carried)this.setActive(false);
+    return false;
+   }
+
    const resolved=this.interaction.resolve();
-   if(resolved?.type!=='dismantle')return this.originalPerform();
+   if(resolved?.type!=='dismantle')return false;
+
    const label=this.labelFor(resolved.target);
    const returned=this.dismantle(resolved.target);
    if(!returned)return false;
-   this.interaction.showFeedback?.(`${label} dismantled`);
+
+   this.interaction.showFeedback?.(`${label} dismantled · material recovered`);
    this.interaction.current=null;
    this.interaction.updateButton?.();
    return true;
   };
+ }
+
+ createModeButton(){
+  if(document.getElementById('disassembly-mode-button'))return;
+
+  const style=document.createElement('style');
+  style.id='disassembly-mode-style';
+  style.textContent=`
+   #disassembly-mode-button{position:fixed;right:7px;top:62px;z-index:47;width:82px;height:34px;border:3px solid #3a2b21;border-radius:10px;background:#314632e8;color:#f4ead8;font:900 8px system-ui;letter-spacing:.35px;touch-action:none;box-shadow:0 3px 10px #0004;display:flex;align-items:center;justify-content:center;gap:5px;padding:0 7px}
+   #disassembly-mode-button .disassembly-icon{font-size:15px;line-height:1}
+   #disassembly-mode-button:active{transform:scale(.94)}
+   #disassembly-mode-button.active{background:#a75d43;color:#fff5e7;border-color:#5a2f24;box-shadow:0 0 0 2px #d7a06466,0 3px 10px #0005}
+   #disassembly-mode-button:disabled{opacity:.35;filter:saturate(.5)}
+   @media(max-width:760px){#disassembly-mode-button{right:5px;top:56px;width:74px;height:31px;font-size:7px;border-width:2px}.disassembly-icon{font-size:13px!important}}
+  `;
+  document.head.appendChild(style);
+
+  const button=document.createElement('button');
+  button.id='disassembly-mode-button';
+  button.type='button';
+  button.dataset.gameUi='true';
+  button.setAttribute('aria-label','Enter disassembly mode');
+  button.setAttribute('aria-pressed','false');
+  button.innerHTML='<span class="disassembly-icon" aria-hidden="true">🛠</span><span class="disassembly-label">DISASSEMBLE</span>';
+  button.addEventListener('pointerdown',event=>{
+   event.preventDefault();
+   event.stopPropagation();
+   if(this.materials?.carried||this.interaction?.pending)return;
+   this.setActive(!this.active);
+  },{passive:false});
+
+  document.body.appendChild(button);
+  this.button=button;
+  this.styleElement=style;
+ }
+
+ setActive(active){
+  const allowed=!this.materials?.carried&&!this.interaction?.pending;
+  this.active=!!active&&allowed;
+
+  if(this.button){
+   this.button.classList.toggle('active',this.active);
+   this.button.setAttribute('aria-pressed',this.active?'true':'false');
+   this.button.setAttribute('aria-label',this.active?'Exit disassembly mode':'Enter disassembly mode');
+   const label=this.button.querySelector('.disassembly-label');
+   if(label)label.textContent=this.active?'DONE':'DISASSEMBLE';
+  }
+
+  document.body.classList.toggle('disassembly-mode-active',this.active);
+  this.interaction.current=null;
+  this.interaction.updateButton?.();
+  this.interaction.showFeedback?.(this.active?'DISASSEMBLY MODE · select a placed piece':'Disassembly mode off');
  }
 
  labelFor(target){
@@ -62,8 +131,6 @@ export class DismantleReuseSystem{
   const dx=x-px,dz=z-pz,dy=y-py;
   const horizontal=Math.hypot(dx,dz);
   if(horizontal>this.range||Math.abs(dy)>this.verticalRange)return Infinity;
-  // Keep targeting independent of the visual Ranger facing convention. The
-  // nearest valid placed piece wins, which is much more reliable on touch.
   return horizontal+Math.abs(dy)*.34;
  }
 
@@ -79,7 +146,6 @@ export class DismantleReuseSystem{
 
   for(const placement of this.buildingModes.placements||[]){
    if(!placement?.object?.parent)continue;
-   // The thatch ridge cap is generated automatically and costs no material.
    if(placement.snapKind==='roof-grass-ridge')continue;
    const p=this.tmpWorld?placement.object.getWorldPosition(this.tmpWorld):placement.object.position;
    const score=this.targetScore(p.x,p.y,p.z);
@@ -149,7 +215,6 @@ export class DismantleReuseSystem{
    return this.spawnLooseGrass(x,z);
   }
 
-  // Every authored timber placement currently consumes exactly one log.
   const log=this.materials.spawnLog?.(x,z,yaw)||null;
   if(log){
    log.state='loose';
