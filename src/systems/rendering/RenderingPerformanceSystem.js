@@ -21,7 +21,7 @@ export class RenderingPerformanceSystem{
   this.lastAnchorX=Infinity;
   this.lastAnchorZ=Infinity;
   this.shadowMaintenanceTimer=0;
-  this.shadowMaintenanceInterval=this.isMobile?.14:.08;
+  this.shadowMaintenanceInterval=this.isMobile ? .14 : .08;
 
   this.contactShadow=null;
   this.contactShadowTexture=null;
@@ -261,8 +261,6 @@ export class RenderingPerformanceSystem{
  }
 
  updateAdaptiveQuality(dt){
-  // Never resize the mobile backbuffer during play. This avoids both blur and
-  // intermittent allocation hitches. Desktop keeps the older gentle adaptation.
   if(this.isMobile)return;
   this.qualityCooldown=Math.max(0,this.qualityCooldown-dt);
   this.performanceTimer+=dt;
