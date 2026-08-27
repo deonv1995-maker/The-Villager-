@@ -156,7 +156,7 @@ export class HarvestingSystem{
   entry.fallAxis=Math.abs(Math.sin(entry.x*.31+entry.z*.47))>.5?'z':'x';
   entry.fallSign=this.deterministicSign(entry);
   entry.fallStart=entry.object.rotation[entry.fallAxis];
-  entry.fallTarget=entry.fallStart+entry.fallSign*1.48;
+  entry.fallTarget=entry.fallStart+entry.fallSign*(Math.PI*.5-.04);
   this.falling.push(entry);
   if(this.currentTarget===entry)this.currentTarget=null;
  }
@@ -174,32 +174,37 @@ export class HarvestingSystem{
   const sideX=-dz,sideZ=dx;
   const count=3;
   const logLength=this.materials?.logLength??2.90;
-  const spacing=logLength*.88;
+  const logRadius=this.materials?.logRadius??.27;
+  const spacing=logLength*.985;
 
-  // The three physical logs occupy consecutive sections of the fallen trunk,
-  // beginning just beyond the stump. They inherit forward impact momentum and a
-  // small asymmetric kick, then WorldMaterialSystem handles gravity/rolling.
+  // Replace the landed trunk with three nearly contiguous physical sections.
+  // Their centres sit where the trunk visually landed, not above it. Each section
+  // inherits more impact speed the farther it was from the stump, while a small
+  // sideways component gives the cylinder a physically consistent rolling impulse.
   for(let i=0;i<count;i++){
-   const along=(i+.58)*spacing;
-   const side=(this.deterministicNoise(entry,i,1)-.5)*.34;
+   const impactRatio=(i+1)/count;
+   const along=(i+.5)*spacing;
+   const side=(this.deterministicNoise(entry,i,1)-.5)*.12;
    const x=entry.x+dx*along+sideX*side;
    const z=entry.z+dz*along+sideZ*side;
    const ground=this.world?.heightAt?.(x,z)??0;
-   const lift=.72+this.deterministicNoise(entry,i,2)*.48;
-   const forwardSpeed=.92+i*.18+this.deterministicNoise(entry,i,3)*.34;
-   const lateral=(this.deterministicNoise(entry,i,4)-.5)*.78;
+   const forwardSpeed=.34+impactRatio*.72+this.deterministicNoise(entry,i,2)*.16;
+   const lateral=(this.deterministicNoise(entry,i,3)-.5)*(.38+impactRatio*.28);
+   const impactSpeed=1.05+impactRatio*.78+this.deterministicNoise(entry,i,4)*.22;
+   const yawJitter=(this.deterministicNoise(entry,i,5)-.5)*.045;
+   const angularKick=lateral/Math.max(.08,logRadius)*.35+(this.deterministicNoise(entry,i,6)-.5)*.36;
 
    this.materials.spawnPhysicalLog(
     x,
-    ground+(this.materials?.logRadius??.27)+lift,
+    ground+logRadius+.035,
     z,
-    yaw+(this.deterministicNoise(entry,i,5)-.5)*.07,
+    yaw+yawJitter,
     {
      vx:dx*forwardSpeed+sideX*lateral,
-     vy:1.05+this.deterministicNoise(entry,i,6)*.82,
+     vy:-impactSpeed,
      vz:dz*forwardSpeed+sideZ*lateral,
-     spinY:(this.deterministicNoise(entry,i,7)-.5)*1.15,
-     rollSpeed:(this.deterministicNoise(entry,i,8)-.5)*7.2
+     spinY:(this.deterministicNoise(entry,i,7)-.5)*.58,
+     rollSpeed:angularKick
     }
    );
   }
