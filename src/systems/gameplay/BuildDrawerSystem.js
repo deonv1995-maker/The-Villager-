@@ -82,8 +82,8 @@ export class BuildDrawerSystem{
     .build-drawer-option{width:43px;height:42px}
     #build-drawer-place{width:52px}
     .build-mini{transform:scale(.88)}
-    body.build-drawer-ui #status{top:64px;max-width:calc(100vw - 52px)}
-    body.build-drawer-ui #material-hud{top:112px}
+    body.build-drawer-ui #status{top:8px;left:8px;max-width:155px}
+    body.build-drawer-ui #material-hud{top:34px;left:8px;max-width:145px}
    }
   `;
   document.head.appendChild(style);
