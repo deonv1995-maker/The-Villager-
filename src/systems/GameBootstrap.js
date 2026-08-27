@@ -17,7 +17,7 @@ import { UpperFloorSystem } from './gameplay/UpperFloorSystem.js?v=582';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=583';
 import { StairSystem } from './gameplay/StairSystem.js?v=582';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
-import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=590';
+import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=592';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -158,14 +158,14 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.91 · braced shoulder-log carry · weighted walking · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.92 · locked log placement · braced shoulder carry · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
     this.constructionTraversal.update(dt);
     this.playerController.update(dt);
     this.materials.update(dt);
-    this.buildModes.update(dt);
+    if(!this.survivalInteraction?.isPlacementLocked?.())this.buildModes.update(dt);
     this.foundationTerrain.update(dt);
     this.floorSupports.update(dt);
     this.harvesting.update(dt);
@@ -183,7 +183,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.91 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.92 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -205,11 +205,11 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.91 · Ranger · hands bracing shoulder log · weighted walk · animated placement'
-    :'Clean rebuild 0.5.91 · Ranger · braced shoulder-log carry · animation set pending';
+    ?'Clean rebuild 0.5.92 · Ranger · locked placement · braced shoulder carry · weighted walk'
+    :'Clean rebuild 0.5.92 · Ranger · locked placement · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.91 · braced shoulder-log carry · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.92 · locked placement · Ranger model unavailable';
   }
  }
 }
