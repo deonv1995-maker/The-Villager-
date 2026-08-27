@@ -20,7 +20,8 @@ export class BuildDrawerSystem{
    {id:'floor',label:'FLOOR',icon:'floor'},
    {id:'frame',label:'FRAME',icon:'frame'},
    {id:'wall',label:'WALL',icon:'wall'},
-   {id:'angle',label:'ANGLE',icon:'angle'}
+   {id:'angle',label:'ANGLE',icon:'angle'},
+   {id:'roof',label:'ROOF',icon:'roof'}
   ];
  }
 
@@ -56,7 +57,7 @@ export class BuildDrawerSystem{
    #build-drawer-toggle .drawer-glyph{width:22px;height:18px;position:relative}
    #build-drawer-toggle .drawer-glyph:before,#build-drawer-toggle .drawer-glyph:after{content:'';position:absolute;left:2px;right:2px;height:4px;border-radius:5px;background:#d2ae69;box-shadow:0 6px 0 #d2ae69,0 12px 0 #d2ae69}
    #build-drawer-panel{height:54px;display:flex;align-items:center;justify-content:flex-end;gap:5px;padding:4px 0 4px 7px;border:2px solid #3a2b21;border-radius:14px;background:#17251de8;box-shadow:0 3px 12px #0005;overflow:hidden;max-width:0;opacity:0;transform:translateX(14px) scaleX(.92);transform-origin:right center;transition:max-width .2s ease,opacity .14s ease,transform .2s ease,padding-right .2s ease;pointer-events:none;white-space:nowrap}
-   #build-drawer.expanded #build-drawer-panel{max-width:min(78vw,470px);opacity:1;transform:translateX(0) scaleX(1);padding-right:6px;pointer-events:auto}
+   #build-drawer.expanded #build-drawer-panel{max-width:min(84vw,540px);opacity:1;transform:translateX(0) scaleX(1);padding-right:6px;pointer-events:auto}
    #build-drawer:not(.has-material) #build-drawer-panel{max-width:0!important;opacity:0!important;pointer-events:none!important;padding-right:0!important}
    .build-drawer-option{width:48px;height:46px;border:2px solid #705a3e;border-radius:10px;background:#314632e8;color:#f4ead8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;touch-action:none;box-shadow:inset 0 0 8px #ffffff10}
    .build-drawer-option:active{transform:scale(.93)}
@@ -71,6 +72,8 @@ export class BuildDrawerSystem{
    .build-mini.frame:after{height:6px;left:3px;right:3px;bottom:1px}
    .build-mini.wall:before{left:3px;right:3px;top:3px;height:5px;box-shadow:0 7px 0 #9a6338,0 7px 0 1px #4c3322,0 14px 0 #9a6338,0 14px 0 1px #4c3322}
    .build-mini.angle:before{width:7px;height:30px;left:12px;top:-2px;transform:rotate(45deg);transform-origin:center}
+   .build-mini.roof:before{width:6px;height:22px;left:8px;top:4px;transform:rotate(46deg);transform-origin:center}
+   .build-mini.roof:after{width:6px;height:22px;right:8px;top:4px;transform:rotate(-46deg);transform-origin:center}
    #build-drawer-place{width:58px;background:#d2ae69;color:#33261c;border-color:#3a2b21}
    #build-drawer-place .place-arrow{font-size:20px;line-height:18px;font-weight:1000;margin-top:-2px}
    #build-drawer-place.busy{background:#8a7c62}
@@ -82,8 +85,6 @@ export class BuildDrawerSystem{
     .build-drawer-option{width:43px;height:42px}
     #build-drawer-place{width:52px}
     .build-mini{transform:scale(.88)}
-    body.build-drawer-ui #status{top:8px;left:8px;max-width:155px}
-    body.build-drawer-ui #material-hud{top:34px;left:8px;max-width:145px}
    }
   `;
   document.head.appendChild(style);
@@ -197,7 +198,13 @@ export class BuildDrawerSystem{
   document.body.classList.toggle('build-material-in-hand',carrying);
 
   const logInHand=type==='log';
-  for(const button of this.modeButtons.values())button.style.display=logInHand?'flex':'none';
+  const grassInHand=type==='grass';
+  if(grassInHand&&this.buildingModes?.mode!=='roof')this.selectMode('roof');
+
+  for(const [mode,button] of this.modeButtons){
+   const allowed=logInHand||(grassInHand&&mode==='roof');
+   button.style.display=allowed?'flex':'none';
+  }
 
   const busy=!!this.interaction?.pending
    ||this.materials?.isCarryAnimating?.('pickup')
@@ -205,20 +212,21 @@ export class BuildDrawerSystem{
    ||this.materials?.isCarryAnimating?.('recover');
   const locked=busy||this.interaction?.isPlacementLocked?.();
 
-  for(const button of this.modeButtons.values())button.disabled=!logInHand||locked;
+  for(const [mode,button] of this.modeButtons){
+   const allowed=logInHand||(grassInHand&&mode==='roof');
+   button.disabled=!allowed||locked;
+  }
   if(this.placeButton){
    this.placeButton.disabled=!carrying||locked;
    this.placeButton.classList.toggle('busy',locked);
    const label=this.placeButton.querySelector('.build-drawer-label');
    if(label)label.textContent=locked?'WAIT':'PLACE';
-   this.placeButton.setAttribute('aria-label',logInHand
-    ?(this.buildingModes?.actionLabel?.()||'Place log')
-    :`Place ${type||'material'}`);
+   this.placeButton.setAttribute('aria-label',
+    (logInHand||grassInHand)?(this.buildingModes?.actionLabel?.()||'Place material'):`Place ${type||'material'}`
+   );
   }
 
-  if(force||type!==this.lastMaterialType)this.updateModeSelection();
-  else this.updateModeSelection();
-
+  this.updateModeSelection();
   this.wasCarrying=carrying;
   this.lastMaterialType=type;
  }
