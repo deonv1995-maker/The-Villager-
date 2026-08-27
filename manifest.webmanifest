@@ -3,10 +3,11 @@
   "name": "The Villager",
   "short_name": "Villager",
   "description": "A mobile-first low-poly survival and building game.",
-  "start_url": "./",
+  "start_url": "./?build=621",
   "scope": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
   "background_color": "#101d15",
   "theme_color": "#101d15",
   "icons": [
