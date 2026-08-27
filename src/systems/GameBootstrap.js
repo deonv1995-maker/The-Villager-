@@ -1,13 +1,13 @@
 import { WorldManager } from './WorldManager.js?v=584';
 import { MobileControls } from './input/MobileControls.js?v=563';
-import { PlayerController } from './player/PlayerController.js?v=569';
+import { PlayerController } from './player/PlayerController.js?v=590';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
 import { PlayerVisual } from './player/PlayerVisual.js?v=538';
 import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552';
 import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=560';
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
-import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=589';
+import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=590';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=579';
@@ -17,7 +17,7 @@ import { UpperFloorSystem } from './gameplay/UpperFloorSystem.js?v=582';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=583';
 import { StairSystem } from './gameplay/StairSystem.js?v=582';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
-import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=566';
+import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=590';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -158,7 +158,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.89 · moving-log pickup · slope physics · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.90 · shoulder-log lift/carry/place · weighted walking · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -183,14 +183,14 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.89 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.90 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
  async tryKayKitRanger(status){
   const T=this.THREE;
   try{
-   const {KayKitPlayerVisual}=await import('./player/KayKitPlayerVisual.js?v=585');
+   const {KayKitPlayerVisual}=await import('./player/KayKitPlayerVisual.js?v=590');
    const ranger=new KayKitPlayerVisual(T,{
     modelUrls:kaykitUrls('Characters/gltf/Ranger.glb'),
     movementUrls:kaykitUrls('Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb'),
@@ -205,11 +205,11 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.89 · Ranger · catch moving logs · two-handed carry · slope physics'
-    :'Clean rebuild 0.5.89 · Ranger · catch moving logs · animation set pending';
+    ?'Clean rebuild 0.5.90 · Ranger · animated shoulder-log carry · weighted walk · animated placement'
+    :'Clean rebuild 0.5.90 · Ranger · shoulder-log carry · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.89 · moving-log pickup · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.90 · shoulder-log carry · Ranger model unavailable';
   }
  }
 }
