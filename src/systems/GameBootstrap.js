@@ -1,5 +1,5 @@
 import { WorldManager } from './WorldManager.js?v=584';
-import { MobileControls } from './input/MobileControls.js?v=609';
+import { MobileControls } from './input/MobileControls.js?v=610';
 import { PlayerController } from './player/PlayerController.js?v=609';
 import { SprintStaminaHudSystem } from './player/SprintStaminaHudSystem.js?v=609';
 import { ThirdPersonCamera } from './player/ThirdPersonCamera.js?v=529';
@@ -202,7 +202,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='0.6.09 · loading';
+   if(status)status.textContent='0.6.10 · loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const rawDt=Math.min(this.clock.getDelta(),.05);
@@ -252,7 +252,7 @@ export class GameBootstrap{
    loop();
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.6.09 · ERROR';status.style.background='#5b1818';}
+   if(status){status.textContent='0.6.10 · ERROR';status.style.background='#5b1818';}
   }
  }
 
@@ -269,7 +269,7 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
-   if(status)status.textContent=ranger.actions.size?'0.6.09 · Ranger':'0.6.09 · Ranger anim…';
+   if(status)status.textContent=ranger.actions.size?'0.6.10 · Ranger':'0.6.10 · Ranger anim…';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
    if(this.fallbackVisual){
@@ -277,7 +277,7 @@ export class GameBootstrap{
     this.playerVisual=this.fallbackVisual;
     this.world.playerVisual=this.fallbackVisual;
    }
-   if(status)status.textContent='0.6.09 · fallback';
+   if(status)status.textContent='0.6.10 · fallback';
   }
  }
 }
