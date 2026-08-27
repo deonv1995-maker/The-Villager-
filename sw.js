@@ -1,4 +1,4 @@
-const CACHE_NAME='the-villager-shell-0.6.19';
+const CACHE_NAME='the-villager-shell-0.6.20';
 const SHELL_ASSETS=[
  './',
  './index.html',
