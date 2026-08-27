@@ -1,4 +1,4 @@
-const CACHE_NAME='the-villager-shell-0.6.18';
+const CACHE_NAME='the-villager-shell-0.6.19';
 const SHELL_ASSETS=[
  './',
  './index.html',
@@ -38,7 +38,20 @@ self.addEventListener('fetch',event=>{
   return;
  }
 
- if(url.pathname.endsWith('/manifest.webmanifest')||url.pathname.endsWith('/icons/icon.svg')||url.pathname.endsWith('/icons/icon-maskable.svg')){
+ if(url.pathname.endsWith('/manifest.webmanifest')){
+  event.respondWith(
+   fetch(request,{cache:'no-store'})
+    .then(response=>{
+     const copy=response.clone();
+     caches.open(CACHE_NAME).then(cache=>cache.put(request,copy)).catch(()=>{});
+     return response;
+    })
+    .catch(()=>caches.match(request).then(cached=>cached||Response.error()))
+  );
+  return;
+ }
+
+ if(url.pathname.endsWith('/icons/icon.svg')||url.pathname.endsWith('/icons/icon-maskable.svg')){
   event.respondWith(
    caches.match(request).then(cached=>cached||fetch(request).then(response=>{
     const copy=response.clone();
