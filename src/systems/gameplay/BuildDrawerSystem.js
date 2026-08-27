@@ -8,6 +8,8 @@ export class BuildDrawerSystem{
   this.root=null;
   this.panel=null;
   this.toggleButton=null;
+  // Kept as placeButton for compatibility with older adapters; this slot is now
+  // the explicit DROP/cancel action. Actual placement lives beside JUMP.
   this.placeButton=null;
   this.modeButtons=new Map();
   this.expanded=false;
@@ -74,8 +76,8 @@ export class BuildDrawerSystem{
    .build-mini.angle:before{width:7px;height:30px;left:12px;top:-2px;transform:rotate(45deg);transform-origin:center}
    .build-mini.roof:before{width:6px;height:22px;left:8px;top:4px;transform:rotate(46deg);transform-origin:center}
    .build-mini.roof:after{width:6px;height:22px;right:8px;top:4px;transform:rotate(-46deg);transform-origin:center}
-   #build-drawer-place{width:58px;background:#d2ae69;color:#33261c;border-color:#3a2b21}
-   #build-drawer-place .place-arrow{font-size:20px;line-height:18px;font-weight:1000;margin-top:-2px}
+   #build-drawer-place{width:58px;background:#a86f55;color:#fff3df;border-color:#3a2b21}
+   #build-drawer-place .place-arrow{font-size:18px;line-height:18px;font-weight:1000;margin-top:-2px}
    #build-drawer-place.busy{background:#8a7c62}
    body.build-material-in-hand #action-button{display:none!important}
    @media(max-width:760px){
@@ -132,20 +134,20 @@ export class BuildDrawerSystem{
    this.modeButtons.set(mode.id,button);
   }
 
-  const place=document.createElement('button');
-  place.id='build-drawer-place';
-  place.type='button';
-  place.className='build-drawer-option';
-  place.dataset.gameUi='true';
-  place.setAttribute('aria-label','Place material');
-  place.innerHTML='<span class="place-arrow" aria-hidden="true">↓</span><span class="build-drawer-label">PLACE</span>';
-  place.addEventListener('pointerdown',e=>{
+  const drop=document.createElement('button');
+  drop.id='build-drawer-place';
+  drop.type='button';
+  drop.className='build-drawer-option';
+  drop.dataset.gameUi='true';
+  drop.setAttribute('aria-label','Drop carried material');
+  drop.innerHTML='<span class="place-arrow" aria-hidden="true">↘</span><span class="build-drawer-label">DROP</span>';
+  drop.addEventListener('pointerdown',e=>{
    e.preventDefault();
    e.stopPropagation();
-   if(place.disabled)return;
-   this.interaction?.perform?.();
+   if(drop.disabled)return;
+   this.interaction?.dropHeldMaterial?.();
   },{passive:false});
-  panel.appendChild(place);
+  panel.appendChild(drop);
 
   root.append(toggle,panel);
   document.body.appendChild(root);
@@ -153,7 +155,7 @@ export class BuildDrawerSystem{
   this.root=root;
   this.panel=panel;
   this.toggleButton=toggle;
-  this.placeButton=place;
+  this.placeButton=drop;
  }
 
  setExpanded(expanded){
@@ -220,10 +222,8 @@ export class BuildDrawerSystem{
    this.placeButton.disabled=!carrying||locked;
    this.placeButton.classList.toggle('busy',locked);
    const label=this.placeButton.querySelector('.build-drawer-label');
-   if(label)label.textContent=locked?'WAIT':'PLACE';
-   this.placeButton.setAttribute('aria-label',
-    (logInHand||grassInHand)?(this.buildingModes?.actionLabel?.()||'Place material'):`Place ${type||'material'}`
-   );
+   if(label)label.textContent=locked?'WAIT':'DROP';
+   this.placeButton.setAttribute('aria-label',`Drop ${type||'material'}`);
   }
 
   this.updateModeSelection();
