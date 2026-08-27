@@ -7,7 +7,7 @@ import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552'
 import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=560';
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
-import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=588';
+import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=589';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=579';
@@ -158,7 +158,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.88 · chopping · two-handed carry · slope-aligned rolling logs · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.89 · moving-log pickup · slope physics · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -183,7 +183,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.88 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.89 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -205,11 +205,11 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.88 · Ranger · chopping · two-handed carry · slope-aligned physical logs'
-    :'Clean rebuild 0.5.88 · Ranger · slope-aligned logs · animation set pending';
+    ?'Clean rebuild 0.5.89 · Ranger · catch moving logs · two-handed carry · slope physics'
+    :'Clean rebuild 0.5.89 · Ranger · catch moving logs · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.88 · slope-aligned rolling logs · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.89 · moving-log pickup · Ranger model unavailable';
   }
  }
 }
