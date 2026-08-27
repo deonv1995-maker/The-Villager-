@@ -10,6 +10,8 @@ export class PlayerController {
   this.moveSpeed=5.2;
   this.turnSpeed=12;
   this.maxMoveSubstep=.22;
+  this.logCarrySpeedScale=.56;
+  this.logInteractionSpeedScale=.10;
 
   // Vertical locomotion is owned here so terrain traversal remains the single
   // authority for horizontal movement while jump/fall state stays independent.
@@ -59,6 +61,13 @@ export class PlayerController {
   this.jumpStartedThisFrame=true;
  }
 
+ movementWeightScale(){
+  const materials=this.world?.materials;
+  if(materials?.isCarryAnimating?.())return this.logInteractionSpeedScale;
+  if(materials?.carried?.type==='log')return this.logCarrySpeedScale;
+  return 1;
+ }
+
  updateHorizontal(dt){
   const input=this.input?.move||{x:0,y:0};
   let x=input.x,y=input.y;
@@ -77,7 +86,7 @@ export class PlayerController {
   this.move.copy(this.right).multiplyScalar(x).addScaledVector(this.forward,-y);
   if(this.move.lengthSq()>.0001)this.move.normalize();
 
-  const distance=this.moveSpeed*this.moveAmount*dt;
+  const distance=this.moveSpeed*this.movementWeightScale()*this.moveAmount*dt;
   const substeps=Math.max(1,Math.ceil(distance/this.maxMoveSubstep));
   const step=distance/substeps;
 
