@@ -10,7 +10,7 @@ import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSyst
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=591';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=594';
-import { BuildDrawerSystem } from './gameplay/BuildDrawerSystem.js?v=600';
+import { BuildDrawerSystem } from './gameplay/BuildDrawerSystem.js?v=601';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=597';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=594';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
@@ -152,7 +152,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.6.00 · top build drawer · non-overlapping stairs · Ranger loading';
+   if(status)status.textContent='0.6.01 · loading Ranger';
    const loop=()=>{
     requestAnimationFrame(loop);
     const rawDt=Math.min(this.clock.getDelta(),.05);
@@ -194,7 +194,7 @@ export class GameBootstrap{
    loop();
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.6.00 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.6.01 ERROR';status.title=err?.message||String(err);status.style.background='#5b1818';}
   }
  }
 
@@ -211,9 +211,7 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
-   if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.6.00 · Ranger · top build drawer · multi-storey construction'
-    :'Clean rebuild 0.6.00 · Ranger · top build drawer · animation set pending';
+   if(status)status.textContent=ranger.actions.size?'0.6.01 · Ranger':'0.6.01 · Ranger · anim pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
    if(this.fallbackVisual){
@@ -221,7 +219,7 @@ export class GameBootstrap{
     this.playerVisual=this.fallbackVisual;
     this.world.playerVisual=this.fallbackVisual;
    }
-   if(status)status.textContent='Clean rebuild 0.6.00 · Ranger unavailable · fallback character active';
+   if(status)status.textContent='0.6.01 · fallback';
   }
  }
 }
