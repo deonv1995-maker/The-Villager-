@@ -9,6 +9,9 @@ export class PlayerController {
 
   this.moveSpeed=5.2;
   this.sprintSpeedScale=1.58;
+  this.carrySprintScale=1.26;
+  this.dragTwoSprintScale=1.35;
+  this.dragThreeSprintScale=1.38;
   this.turnSpeed=12;
   this.maxMoveSubstep=.22;
   this.logCarrySpeedScale=.56;
@@ -17,6 +20,9 @@ export class PlayerController {
   this.staminaMax=100;
   this.stamina=this.staminaMax;
   this.staminaDrainPerSecond=25;
+  this.carryStaminaDrainPerSecond=28;
+  this.dragTwoStaminaDrainPerSecond=31;
+  this.dragThreeStaminaDrainPerSecond=34;
   this.staminaRechargePerSecond=22;
   this.staminaRechargeDelay=.55;
   this.staminaRechargeTimer=0;
@@ -25,8 +31,6 @@ export class PlayerController {
   this.sprintStartedThisFrame=false;
   this.sprintEndedThisFrame=false;
 
-  // Vertical locomotion is owned here so terrain traversal remains the single
-  // authority for horizontal movement while jump/fall state stays independent.
   this.jumpSpeed=7.7;
   this.gravity=19.5;
   this.maxFallSpeed=24;
@@ -59,9 +63,7 @@ export class PlayerController {
   if(this.isGrounded)this.coyoteTimer=this.coyoteDuration;
   else this.coyoteTimer=Math.max(0,this.coyoteTimer-dt);
 
-  if(this.jumpBufferTimer>0&&this.coyoteTimer>0){
-    this.startJump();
-  }
+  if(this.jumpBufferTimer>0&&this.coyoteTimer>0)this.startJump();
 
   this.updateSprint(dt);
   this.updateHorizontal(dt);
@@ -83,11 +85,39 @@ export class PlayerController {
   return 1;
  }
 
+ sprintLoadProfile(){
+  const hauling=this.world?.logHauling;
+  if(hauling?.isBusy?.())return 'blocked';
+  const count=hauling?.count?.()||0;
+  if(count>=3)return 'drag3';
+  if(count===2)return 'drag2';
+  const materials=this.world?.materials;
+  if(materials?.isCarryAnimating?.())return 'blocked';
+  if(materials?.carried?.type==='log')return 'carry';
+  return 'free';
+ }
+
+ sprintScale(){
+  const profile=this.sprintLoadProfile();
+  if(profile==='carry')return this.carrySprintScale;
+  if(profile==='drag2')return this.dragTwoSprintScale;
+  if(profile==='drag3')return this.dragThreeSprintScale;
+  return this.sprintSpeedScale;
+ }
+
+ sprintDrainRate(){
+  const profile=this.sprintLoadProfile();
+  if(profile==='carry')return this.carryStaminaDrainPerSecond;
+  if(profile==='drag2')return this.dragTwoStaminaDrainPerSecond;
+  if(profile==='drag3')return this.dragThreeStaminaDrainPerSecond;
+  return this.staminaDrainPerSecond;
+ }
+
  canSprint(){
   const move=this.input?.move||{x:0,y:0};
   const moving=Math.hypot(move.x,move.y)>.10;
-  const weight=this.movementWeightScale();
-  return moving&&this.isGrounded&&weight>=.90&&this.stamina>.01;
+  const profile=this.sprintLoadProfile();
+  return moving&&this.isGrounded&&profile!=='blocked'&&this.stamina>.01;
  }
 
  updateSprint(dt){
@@ -96,7 +126,7 @@ export class PlayerController {
   this.isSprinting=this.sprintHeld&&this.canSprint();
 
   if(this.isSprinting){
-   this.stamina=Math.max(0,this.stamina-this.staminaDrainPerSecond*dt);
+   this.stamina=Math.max(0,this.stamina-this.sprintDrainRate()*dt);
    this.staminaRechargeTimer=this.staminaRechargeDelay;
    if(this.stamina<=.01)this.isSprinting=false;
   }else if(!this.sprintHeld){
@@ -128,7 +158,7 @@ export class PlayerController {
   this.move.copy(this.right).multiplyScalar(x).addScaledVector(this.forward,-y);
   if(this.move.lengthSq()>.0001)this.move.normalize();
 
-  const sprintScale=this.isSprinting?this.sprintSpeedScale:1;
+  const sprintScale=this.isSprinting?this.sprintScale():1;
   const distance=this.moveSpeed*this.movementWeightScale()*sprintScale*this.moveAmount*dt;
   const substeps=Math.max(1,Math.ceil(distance/this.maxMoveSubstep));
   const step=distance/substeps;
@@ -152,7 +182,6 @@ export class PlayerController {
   const nz=oz+this.move.z*step;
 
   if(this.world?.isWithinPlayableBounds&&!this.world.isWithinPlayableBounds(nx,nz))return false;
-
   if(this.tryMove(ox,oz,oy,nx,nz))return true;
 
   const xOnly=ox+this.move.x*step;
@@ -192,10 +221,7 @@ export class PlayerController {
   }
 
   const fromFootY=this.player.position.y-this.groundOffset;
-  this.verticalVelocity=Math.max(
-   this.verticalVelocity-this.gravity*dt,
-   -this.maxFallSpeed
-  );
+  this.verticalVelocity=Math.max(this.verticalVelocity-this.gravity*dt,-this.maxFallSpeed);
   const toFootY=fromFootY+this.verticalVelocity*dt;
   this.player.position.y=toFootY+this.groundOffset;
 
@@ -204,10 +230,7 @@ export class PlayerController {
   let landingFootY;
   if(this.world?.landingSurfaceHeightForSweep){
    landingFootY=this.world.landingSurfaceHeightForSweep(
-    this.player.position.x,
-    this.player.position.z,
-    fromFootY,
-    toFootY
+    this.player.position.x,this.player.position.z,fromFootY,toFootY
    );
   }else{
    landingFootY=this.world?.surfaceHeightAt
@@ -216,14 +239,9 @@ export class PlayerController {
   }
 
   const constructionLanding=this.world?.constructionTraversal?.surfaceHeightForSweep?.(
-   this.player.position.x,
-   this.player.position.z,
-   fromFootY,
-   toFootY
+   this.player.position.x,this.player.position.z,fromFootY,toFootY
   );
-  if(Number.isFinite(constructionLanding)){
-   landingFootY=Math.max(landingFootY,constructionLanding);
-  }
+  if(Number.isFinite(constructionLanding))landingFootY=Math.max(landingFootY,constructionLanding);
 
   if(fromFootY>=landingFootY-.06&&toFootY<=landingFootY){
    this.player.position.y=landingFootY+this.groundOffset;
@@ -239,10 +257,7 @@ export class PlayerController {
   let ground;
   if(this.world?.landingSurfaceHeightAt){
    ground=this.world.landingSurfaceHeightAt(
-    this.player.position.x,
-    this.player.position.z,
-    footY,
-    this.isGrounded
+    this.player.position.x,this.player.position.z,footY,this.isGrounded
    );
   }else{
    ground=this.world?.surfaceHeightAt
@@ -251,13 +266,9 @@ export class PlayerController {
   }
 
   const constructionGround=this.world?.constructionTraversal?.surfaceHeightAt?.(
-   this.player.position.x,
-   this.player.position.z,
-   footY,
-   this.isGrounded
+   this.player.position.x,this.player.position.z,footY,this.isGrounded
   );
   if(Number.isFinite(constructionGround))ground=Math.max(ground,constructionGround);
-
   return ground+this.groundOffset;
  }
 
@@ -273,10 +284,7 @@ export class PlayerController {
   const floorWalk=this.world?.constructionTraversal?.supportsWalkSegment?.(
    fromX,fromZ,currentY,toX,toZ
   );
-  if(floorWalk&&[
-   'procedural-cliff','step-up','drop','slope'
-  ].includes(result.reason))return true;
-
+  if(floorWalk&&['procedural-cliff','step-up','drop','slope'].includes(result.reason))return true;
   return false;
  }
 
@@ -303,6 +311,7 @@ export class PlayerController {
    sprintHeld:this.sprintHeld,
    sprintStarted:this.sprintStartedThisFrame,
    sprintEnded:this.sprintEndedThisFrame,
+   sprintLoad:this.sprintLoadProfile(),
    staminaRatio:this.staminaRatio
   };
  }
