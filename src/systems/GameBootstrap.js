@@ -11,7 +11,7 @@ import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=591';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=594';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=579';
-import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=576';
+import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=594';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
 import { UpperFloorSystem } from './gameplay/UpperFloorSystem.js?v=582';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=583';
@@ -63,16 +63,14 @@ export class GameBootstrap{
    this.player.position.set(0,this.world.heightAt(0,0),0);
    this.scene.add(this.player);
 
-   // Keep the old procedural character only as an emergency fallback. It stays
-   // invisible during a normal boot so the player never sees a character swap.
    this.fallbackVisual=new PlayerVisual(T);
    this.fallbackVisual.root.visible=false;
    this.playerVisual=this.fallbackVisual;
    this.player.add(this.fallbackVisual.root);
    this.world.playerVisual=this.playerVisual;
 
-   // Start loading the Ranger immediately while the rest of the world systems are
-   // initialized. This removes the old artificial 250 ms delay.
+   // Load the actual Ranger immediately. The hidden procedural model is revealed
+   // only if the Ranger fails, so normal startup never shows a character swap.
    this.tryKayKitRanger(status);
 
    this.input=new MobileControls({
@@ -185,10 +183,8 @@ export class GameBootstrap{
     this.frameAccumulator+=rawDt;
     if(this.frameAccumulator<this.targetFrameInterval*.92)return;
 
-    // Do not carry a slow-frame backlog forward. The old limiter subtracted only
-    // one 60 Hz slice, so a hitch could leave queued time that was replayed over
-    // several frames and looked like fast-forward. Consume the current interval
-    // once, clamp a genuine stall, then start fresh.
+    // A stall is never replayed as queued simulation time. That was the source of
+    // the occasional fast-forward after a slow frame in 0.5.93.
     const dt=Math.min(this.frameAccumulator,1/30);
     this.frameAccumulator=0;
 
@@ -199,12 +195,9 @@ export class GameBootstrap{
     this.reactions.update(dt);
     this.survivalInteraction.update(dt);
 
-    // Keep the placement ghost full-rate while it is relevant. It is small and
-    // this makes positioning feel immediate without reintroducing the heavy world
-    // work removed in 0.5.93.
+    // Placement feedback stays full-rate for precise mobile positioning.
     if(!this.survivalInteraction?.isPlacementLocked?.())this.buildModes.update(dt);
 
-    // Grass bending remains presentation-only and safely runs at 30 Hz.
     this.presentationAccumulator+=dt;
     if(this.presentationAccumulator>=1/30){
      const presentationDt=this.presentationAccumulator;
@@ -213,7 +206,6 @@ export class GameBootstrap{
      this.fineGrassFields.update(presentationDt);
     }
 
-    // Foundation/support maintenance only reacts to completed structures.
     this.maintenanceAccumulator+=dt;
     if(this.maintenanceAccumulator>=.12){
      this.maintenanceAccumulator=0;
@@ -253,7 +245,7 @@ export class GameBootstrap{
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.94 · Ranger · crisp rendering · smooth timing · locked placement'
+    ?'Clean rebuild 0.5.94 · Ranger · crisp rendering · smooth timing · optimized placement'
     :'Clean rebuild 0.5.94 · Ranger · crisp rendering · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
