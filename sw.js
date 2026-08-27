@@ -1,6 +1,6 @@
-const CACHE_NAME='the-villager-shell-0.6.20';
+const CACHE_NAME='the-villager-shell-0.6.21';
 const SHELL_ASSETS=[
- './',
+ './?build=621',
  './index.html',
  './manifest.webmanifest',
  './icons/icon.svg',
@@ -13,10 +13,15 @@ self.addEventListener('install',event=>{
 });
 
 self.addEventListener('activate',event=>{
- event.waitUntil(
-  caches.keys().then(keys=>Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key))))
- );
- self.clients.claim();
+ event.waitUntil((async()=>{
+  const keys=await caches.keys();
+  await Promise.all(keys.filter(key=>key!==CACHE_NAME).map(key=>caches.delete(key)));
+  await self.clients.claim();
+  const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  for(const client of clients){
+   try{await client.navigate(client.url);}catch(error){console.debug('[SW refresh]',error);}
+  }
+ })());
 });
 
 self.addEventListener('fetch',event=>{
