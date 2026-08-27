@@ -17,8 +17,14 @@ export class KayKitPlayerVisual{
   this.loaded=false;
   this.jumpActionName=null;
   this.chopActionName=null;
+  this.pickupActionName=null;
+  this.placeActionName=null;
   this.chopDuration=.56;
+  this.pickupDuration=.82;
+  this.placeDuration=.72;
   this.chopTimer=0;
+  this.pickupTimer=0;
+  this.placeTimer=0;
   this.carryingType=null;
   this.bones=new Map();
 
@@ -80,14 +86,18 @@ export class KayKitPlayerVisual{
    jump.clampWhenFinished=true;
   }
 
-  // The bundled General set contains interaction-style clips but not a dedicated
-  // woodcutting set. Use the closest available full-body action and layer a
-  // deterministic two-arm chopping motion on the Ranger skeleton after mixing.
+  // The General pack supplies the full-body timing. Procedural arm targets are
+  // layered afterwards so the hands line up with our actual shoulder-carried log.
   this.chopActionName=this.findPreferredAction(['interact','pickup','pick_up','pick up','attack','heavy']);
-  if(this.chopActionName){
-   const chop=this.actions.get(this.chopActionName);
-   chop.setLoop(this.T.LoopOnce,1);
-   chop.clampWhenFinished=false;
+  this.pickupActionName=this.findPreferredAction(['pickup','pick_up','pick up','interact','grab','heavy']);
+  this.placeActionName=this.findPreferredAction(['interact','pickup','pick_up','putdown','put_down','drop']);
+
+  for(const name of [this.chopActionName,this.pickupActionName,this.placeActionName]){
+   const action=name?this.actions.get(name):null;
+   if(action){
+    action.setLoop(this.T.LoopOnce,1);
+    action.clampWhenFinished=false;
+   }
   }
 
   this.loaded=true;
@@ -138,8 +148,26 @@ export class KayKitPlayerVisual{
 
  triggerChop(){
   if(!this.loaded)return;
+  this.pickupTimer=0;
+  this.placeTimer=0;
   this.chopTimer=this.chopDuration;
   if(this.chopActionName)this.play(this.chopActionName,.045,1.16,true);
+ }
+
+ triggerPickup(){
+  if(!this.loaded)return;
+  this.chopTimer=0;
+  this.placeTimer=0;
+  this.pickupTimer=this.pickupDuration;
+  if(this.pickupActionName)this.play(this.pickupActionName,.05,.92,true);
+ }
+
+ triggerPlace(){
+  if(!this.loaded)return;
+  this.chopTimer=0;
+  this.pickupTimer=0;
+  this.placeTimer=this.placeDuration;
+  if(this.placeActionName)this.play(this.placeActionName,.05,.96,true);
  }
 
  bone(name){return this.bones.get(name.toLowerCase())||null;}
@@ -181,11 +209,53 @@ export class KayKitPlayerVisual{
   this.aimBoneAt(lower,wrist,handTarget,weight);
  }
 
- applyCarryPose(weight=.94){
-  // Grip a full log across the torso with both hands while leaving the mixer in
-  // charge of legs, hips and locomotion. This keeps the carry pose while walking.
-  this.poseArm('l',{x:.60,y:1.50,z:.42},{x:.56,y:1.24,z:.76},weight);
-  this.poseArm('r',{x:-.60,y:1.50,z:.42},{x:-.56,y:1.24,z:.76},weight);
+ smooth(value){
+  const t=Math.max(0,Math.min(1,value));
+  return t*t*(3-2*t);
+ }
+
+ mixPoint(a,b,t){
+  return {
+   x:a.x+(b.x-a.x)*t,
+   y:a.y+(b.y-a.y)*t,
+   z:a.z+(b.z-a.z)*t
+  };
+ }
+
+ applyCarryPose(weight=.98){
+  // The log lies across the shoulders rather than floating in front of the chest.
+  // Both hands brace it close to the shoulder line while locomotion keeps control
+  // of the hips and legs underneath this upper-body pose.
+  this.poseArm('l',{x:.58,y:1.73,z:.18},{x:.62,y:1.82,z:.13},weight);
+  this.poseArm('r',{x:-.48,y:1.69,z:.21},{x:-.34,y:1.80,z:.14},weight);
+ }
+
+ applyPickupPose(){
+  const elapsed=this.pickupDuration-this.pickupTimer;
+  const t=Math.max(0,Math.min(1,elapsed/this.pickupDuration));
+  const lift=this.smooth((t-.12)/.88);
+
+  const leftElbow=this.mixPoint({x:.55,y:.94,z:.82},{x:.58,y:1.73,z:.18},lift);
+  const leftHand=this.mixPoint({x:.55,y:.54,z:1.12},{x:.62,y:1.82,z:.13},lift);
+  const rightElbow=this.mixPoint({x:-.55,y:.96,z:.80},{x:-.48,y:1.69,z:.21},lift);
+  const rightHand=this.mixPoint({x:-.55,y:.56,z:1.08},{x:-.34,y:1.80,z:.14},lift);
+
+  this.poseArm('l',leftElbow,leftHand,.99);
+  this.poseArm('r',rightElbow,rightHand,.99);
+ }
+
+ applyPlacePose(){
+  const elapsed=this.placeDuration-this.placeTimer;
+  const t=Math.max(0,Math.min(1,elapsed/this.placeDuration));
+  const lower=this.smooth(t);
+
+  const leftElbow=this.mixPoint({x:.58,y:1.73,z:.18},{x:.53,y:1.03,z:.86},lower);
+  const leftHand=this.mixPoint({x:.62,y:1.82,z:.13},{x:.54,y:.58,z:1.28},lower);
+  const rightElbow=this.mixPoint({x:-.48,y:1.69,z:.21},{x:-.53,y:1.04,z:.84},lower);
+  const rightHand=this.mixPoint({x:-.34,y:1.80,z:.14},{x:-.54,y:.60,z:1.24},lower);
+
+  this.poseArm('l',leftElbow,leftHand,.99);
+  this.poseArm('r',rightElbow,rightHand,.99);
  }
 
  applyChopPose(){
@@ -209,11 +279,26 @@ export class KayKitPlayerVisual{
   if(!this.loaded)return;
 
   const chopping=this.chopTimer>0;
+  const pickingUp=this.pickupTimer>0;
+  const placing=this.placeTimer>0;
   if(chopping)this.chopTimer=Math.max(0,this.chopTimer-dt);
+  if(pickingUp)this.pickupTimer=Math.max(0,this.pickupTimer-dt);
+  if(placing)this.placeTimer=Math.max(0,this.placeTimer-dt);
 
-  if(this.actions.size&&!chopping){
+  const interaction=chopping||pickingUp||placing;
+  const carryingLog=this.carryingType==='log';
+
+  if(this.actions.size&&!interaction){
    if(!locomotion.isGrounded&&this.jumpActionName){
     this.play(this.jumpActionName,.08,1,!!locomotion.jumpStarted);
+   }else if(carryingLog){
+    // A shoulder log never uses the running cycle. Even at full stick input the
+    // Ranger trudges with the walking clip at a deliberately heavy cadence.
+    if(moveAmount<.06){
+     this.play(this.actions.has('Idle_A')?'Idle_A':'Idle',.15,.82);
+    }else{
+     this.play(this.actions.has('Walking_A')?'Walking_A':'Walking',.16,.50+moveAmount*.18);
+    }
    }else if(moveAmount<.06){
     this.play(this.actions.has('Idle_A')?'Idle_A':'Idle');
    }else if(moveAmount>.72&&this.actions.has('Running_A')){
@@ -227,7 +312,9 @@ export class KayKitPlayerVisual{
   this.model?.updateMatrixWorld(true);
 
   if(chopping)this.applyChopPose();
-  else if(this.carryingType==='log')this.applyCarryPose();
+  else if(pickingUp)this.applyPickupPose();
+  else if(placing)this.applyPlacePose();
+  else if(carryingLog)this.applyCarryPose();
 
   this.model?.updateMatrixWorld(true);
  }
