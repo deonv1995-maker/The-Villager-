@@ -8,10 +8,22 @@ export class PlayerController {
   this.groundOffset=groundOffset;
 
   this.moveSpeed=5.2;
+  this.sprintSpeedScale=1.58;
   this.turnSpeed=12;
   this.maxMoveSubstep=.22;
   this.logCarrySpeedScale=.56;
   this.logInteractionSpeedScale=.10;
+
+  this.staminaMax=100;
+  this.stamina=this.staminaMax;
+  this.staminaDrainPerSecond=25;
+  this.staminaRechargePerSecond=22;
+  this.staminaRechargeDelay=.55;
+  this.staminaRechargeTimer=0;
+  this.isSprinting=false;
+  this.sprintHeld=false;
+  this.sprintStartedThisFrame=false;
+  this.sprintEndedThisFrame=false;
 
   // Vertical locomotion is owned here so terrain traversal remains the single
   // authority for horizontal movement while jump/fall state stays independent.
@@ -38,6 +50,8 @@ export class PlayerController {
  update(dt){
   this.jumpStartedThisFrame=false;
   this.landedThisFrame=false;
+  this.sprintStartedThisFrame=false;
+  this.sprintEndedThisFrame=false;
 
   if(this.input?.consumeJump?.())this.jumpBufferTimer=this.jumpBufferDuration;
   else this.jumpBufferTimer=Math.max(0,this.jumpBufferTimer-dt);
@@ -49,6 +63,7 @@ export class PlayerController {
     this.startJump();
   }
 
+  this.updateSprint(dt);
   this.updateHorizontal(dt);
   this.updateVertical(dt);
  }
@@ -66,6 +81,33 @@ export class PlayerController {
   if(materials?.isCarryAnimating?.())return this.logInteractionSpeedScale;
   if(materials?.carried?.type==='log')return this.logCarrySpeedScale;
   return 1;
+ }
+
+ canSprint(){
+  const move=this.input?.move||{x:0,y:0};
+  const moving=Math.hypot(move.x,move.y)>.10;
+  const weight=this.movementWeightScale();
+  return moving&&this.isGrounded&&weight>=.90&&this.stamina>.01;
+ }
+
+ updateSprint(dt){
+  const wasSprinting=this.isSprinting;
+  this.sprintHeld=!!this.input?.sprintHeld;
+  this.isSprinting=this.sprintHeld&&this.canSprint();
+
+  if(this.isSprinting){
+   this.stamina=Math.max(0,this.stamina-this.staminaDrainPerSecond*dt);
+   this.staminaRechargeTimer=this.staminaRechargeDelay;
+   if(this.stamina<=.01)this.isSprinting=false;
+  }else if(!this.sprintHeld){
+   this.staminaRechargeTimer=Math.max(0,this.staminaRechargeTimer-dt);
+   if(this.staminaRechargeTimer<=0){
+    this.stamina=Math.min(this.staminaMax,this.stamina+this.staminaRechargePerSecond*dt);
+   }
+  }
+
+  if(this.isSprinting&&!wasSprinting)this.sprintStartedThisFrame=true;
+  if(!this.isSprinting&&wasSprinting)this.sprintEndedThisFrame=true;
  }
 
  updateHorizontal(dt){
@@ -86,7 +128,8 @@ export class PlayerController {
   this.move.copy(this.right).multiplyScalar(x).addScaledVector(this.forward,-y);
   if(this.move.lengthSq()>.0001)this.move.normalize();
 
-  const distance=this.moveSpeed*this.movementWeightScale()*this.moveAmount*dt;
+  const sprintScale=this.isSprinting?this.sprintSpeedScale:1;
+  const distance=this.moveSpeed*this.movementWeightScale()*sprintScale*this.moveAmount*dt;
   const substeps=Math.max(1,Math.ceil(distance/this.maxMoveSubstep));
   const step=distance/substeps;
 
@@ -158,8 +201,6 @@ export class PlayerController {
 
   if(this.verticalVelocity>0)return;
 
-  // Descending uses swept support queries. World rocks and construction floors
-  // are both sampled so a fast frame cannot tunnel through a placed floor.
   let landingFootY;
   if(this.world?.landingSurfaceHeightForSweep){
    landingFootY=this.world.landingSurfaceHeightForSweep(
@@ -209,8 +250,6 @@ export class PlayerController {
     :this.world?.heightAt?.(this.player.position.x,this.player.position.z)??0;
   }
 
-  // Construction floors use their real rectangular footprint rather than the
-  // elliptical approximation used by rocks. This keeps seams and corners stable.
   const constructionGround=this.world?.constructionTraversal?.surfaceHeightAt?.(
    this.player.position.x,
    this.player.position.z,
@@ -223,9 +262,6 @@ export class PlayerController {
  }
 
  canMove(fromX,fromZ,currentY,toX,toZ){
-  // Player-built frames and walls have narrow authored collision. Test those
-  // before terrain so overlapping construction pieces cannot fall back to the
-  // broad rock-collider behaviour that used to trap the Ranger.
   if(this.world?.constructionTraversal?.blocksMovement?.(
    fromX,fromZ,currentY,toX,toZ
   ))return false;
@@ -234,9 +270,6 @@ export class PlayerController {
   const result=this.world.resolveMovement(fromX,fromZ,currentY,toX,toZ);
   if(result.allowed)return true;
 
-  // A continuous snapped floor is a legitimate traversal surface. It may bridge
-  // terrain slope/drop/cliff geometry underneath, so those terrain-only reasons
-  // are ignored while every sample of the move remains on the same floor plane.
   const floorWalk=this.world?.constructionTraversal?.supportsWalkSegment?.(
    fromX,fromZ,currentY,toX,toZ
   );
@@ -254,6 +287,10 @@ export class PlayerController {
   return true;
  }
 
+ get staminaRatio(){
+  return this.staminaMax>0?Math.max(0,Math.min(1,this.stamina/this.staminaMax)):0;
+ }
+
  get locomotionState(){
   return {
    isGrounded:this.isGrounded,
@@ -261,7 +298,12 @@ export class PlayerController {
    isFalling:!this.isGrounded&&this.verticalVelocity<=0,
    verticalVelocity:this.verticalVelocity,
    jumpStarted:this.jumpStartedThisFrame,
-   landed:this.landedThisFrame
+   landed:this.landedThisFrame,
+   isSprinting:this.isSprinting,
+   sprintHeld:this.sprintHeld,
+   sprintStarted:this.sprintStartedThisFrame,
+   sprintEnded:this.sprintEndedThisFrame,
+   staminaRatio:this.staminaRatio
   };
  }
 }
