@@ -8,9 +8,12 @@ import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=56
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=594';
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=591';
+import { GrassMaterialSystem } from './gameplay/GrassMaterialSystem.js?v=602';
+import { GrassCarryVisualSystem } from './gameplay/GrassCarryVisualSystem.js?v=602';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
+import { GrassHarvestingSystem } from './gameplay/GrassHarvestingSystem.js?v=602';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=594';
-import { BuildDrawerSystem } from './gameplay/BuildDrawerSystem.js?v=601';
+import { BuildDrawerSystem } from './gameplay/BuildDrawerSystem.js?v=602';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=597';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=594';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
@@ -19,6 +22,7 @@ import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSys
 import { StairSystem } from './gameplay/StairSystem.js?v=582';
 import { StairLandingTransitionSystem } from './gameplay/StairLandingTransitionSystem.js?v=598';
 import { StairPlacementOccupancySystem } from './gameplay/StairPlacementOccupancySystem.js?v=599';
+import { RoofingSystem } from './gameplay/RoofingSystem.js?v=602';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=595';
 
@@ -97,6 +101,10 @@ export class GameBootstrap{
    this.materials=new WorldMaterialSystem(T,{world:this.world,scene:this.scene,player:this.player,hudRoot:document.getElementById('material-hud')});
    this.materials.initialize();
 
+   this.grassMaterials=new GrassMaterialSystem(T,{materials:this.materials,player:this.player});
+   this.grassMaterials.initialize();
+   this.grassCarryVisual=new GrassCarryVisualSystem({world:this.world,materials:this.materials});
+
    this.buildModes=new BuildingModeSystem(T,{world:this.world,scene:this.scene,player:this.player,materials:this.materials,button:document.getElementById('build-mode-button'),feedbackElement:document.getElementById('gameplay-feedback')});
    this.buildModes.initialize();
 
@@ -124,8 +132,13 @@ export class GameBootstrap{
    this.stairLandings=new StairLandingTransitionSystem({world:this.world,constructionTraversal:this.constructionTraversal,stairs:this.stairs,buildingModes:this.buildModes});
    this.stairLandings.initialize();
 
+   this.roofing=new RoofingSystem(T,{buildingModes:this.buildModes,materials:this.materials,upperFloors:this.upperFloors});
+   this.roofing.initialize();
+
    this.harvesting=new HarvestingSystem(T,{world:this.world,player:this.player,materials:this.materials});
    this.harvesting.initialize();
+   this.grassHarvesting=new GrassHarvestingSystem({harvesting:this.harvesting,fineGrass:this.fineGrassFields,materials:this.materials,player:this.player,world:this.world});
+   this.grassHarvesting.initialize();
 
    this.reactions=new ConstructionReactionSystem(T,{world:this.world,scene:this.scene,player:this.player,materials:this.materials});
    this.reactions.initialize();
@@ -152,7 +165,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='0.6.01 · loading Ranger';
+   if(status)status.textContent='0.6.02 · loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const rawDt=Math.min(this.clock.getDelta(),.05);
@@ -187,6 +200,7 @@ export class GameBootstrap{
 
     this.playerVisual.setCarrying?.(this.materials?.carried?.type||null);
     this.playerVisual.update(dt,this.playerController.moveAmount,this.playerController.locomotionState);
+    this.grassCarryVisual.update();
     this.cameraController.update(dt);
     this.renderPerformance.update(dt);
     this.renderer.render(this.scene,this.camera);
@@ -194,7 +208,7 @@ export class GameBootstrap{
    loop();
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.6.01 ERROR';status.title=err?.message||String(err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.6.02 · ERROR';status.style.background='#5b1818';}
   }
  }
 
@@ -211,7 +225,7 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
-   if(status)status.textContent=ranger.actions.size?'0.6.01 · Ranger':'0.6.01 · Ranger · anim pending';
+   if(status)status.textContent=ranger.actions.size?'0.6.02 · Ranger':'0.6.02 · Ranger anim…';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
    if(this.fallbackVisual){
@@ -219,7 +233,7 @@ export class GameBootstrap{
     this.playerVisual=this.fallbackVisual;
     this.world.playerVisual=this.fallbackVisual;
    }
-   if(status)status.textContent='0.6.01 · fallback';
+   if(status)status.textContent='0.6.02 · fallback';
   }
  }
 }
