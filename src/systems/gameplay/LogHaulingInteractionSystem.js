@@ -146,7 +146,8 @@ export class LogHaulingInteractionSystem{
    if(this.materials.tempLogQuaternion)item.object.quaternion.copy(this.materials.tempLogQuaternion);
   }else{
    const ground=this.materials.world?.heightAt?.(x,z)??0;
-   item.object.position.set(x,ground+(item.type==='grass'?.34:.24),z);
+   const lift=item.type==='grass'?.34:.24;
+   item.object.position.set(x,ground+lift,z);
    if(item.type==='grass')item.object.rotation.set(.08,yaw,-1.05);
   }
 
