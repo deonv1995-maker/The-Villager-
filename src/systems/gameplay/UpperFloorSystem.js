@@ -4,12 +4,12 @@ export class UpperFloorSystem{
   this.foundationTerrain=foundationTerrain;
   this.floorSupports=floorSupports;
 
-  this.snapRange=2.35;
-  this.heightTolerance=.18;
-  this.columnPositionTolerance=.14;
-  this.perpendicularTolerance=.12;
+  this.snapRange=2.45;
+  this.heightTolerance=.24;
+  this.sourceStoreyTolerance=.48;
   this.occupancyTolerance=.16;
   this.floorSeatInset=.10;
+  this.polygonEdgeTolerance=.08;
 
   this.originalFloorSnapBase=null;
   this.originalActionLabel=null;
@@ -27,8 +27,8 @@ export class UpperFloorSystem{
   this.originalActionLabel=this.buildingModes.actionLabel.bind(this.buildingModes);
   this.buildingModes.actionLabel=()=>this.actionLabel();
 
-  // Upper-storey floors rest on the timber framework. They must not excavate the
-  // terrain below or spawn automatic deck posts all the way down to the ground.
+  // Upper decks rest on timber framework. Never excavate terrain or generate
+  // ground-to-deck support posts for these elevated floor pieces.
   if(this.foundationTerrain?.registerFloor){
    this.originalRegisterFloor=this.foundationTerrain.registerFloor.bind(this.foundationTerrain);
    this.foundationTerrain.registerFloor=floor=>{
@@ -47,129 +47,175 @@ export class UpperFloorSystem{
   }
  }
 
- columns(){return this.buildingModes.frameColumns();}
+ frames(){return this.buildingModes.activePlacements('frame');}
  beams(){
-  return this.buildingModes.activePlacements('beam')
-   .filter(beam=>beam.snapKind==='frame-pair-top'&&beam.anchorIds?.length>=2);
+  return this.buildingModes.activePlacements('beam').filter(beam=>
+   beam.snapKind==='frame-pair-top'&&beam.anchorIds?.length>=2
+  );
  }
 
- pairKey(a,b){return [a,b].sort((x,y)=>x-y).join(':');}
-
- beamMap(){
+ frameMap(){
   const map=new Map();
-  for(const beam of this.beams())map.set(this.pairKey(beam.anchorIds[0],beam.anchorIds[1]),beam);
+  for(const frame of this.frames())map.set(frame.id,frame);
   return map;
  }
 
- connected(map,a,b){return map.get(this.pairKey(a.topId,b.topId))||null;}
+ perimeterFrameworks(){
+  const frameById=this.frameMap();
+  const beams=this.beams().filter(beam=>
+   frameById.has(beam.anchorIds[0])&&frameById.has(beam.anchorIds[1])
+  );
+  const byFrame=new Map();
 
- vector(a,b){
-  const x=b.x-a.x,z=b.z-a.z;
-  const length=Math.hypot(x,z);
-  return {x,z,length};
- }
-
- oneLogApart(a,b){
-  return Math.abs(Math.hypot(a.x-b.x,a.z-b.z)-this.buildingModes.logLength)<=this.columnPositionTolerance;
- }
-
- perpendicular(a,b){
-  if(a.length<.001||b.length<.001)return false;
-  return Math.abs((a.x*b.x+a.z*b.z)/(a.length*b.length))<=this.perpendicularTolerance;
- }
-
- findColumnNear(columns,x,z,height){
-  let best=null,bestDistance=this.columnPositionTolerance;
-  for(const column of columns){
-   if(Math.abs(column.maxY-height)>this.heightTolerance)continue;
-   const distance=Math.hypot(column.x-x,column.z-z);
-   if(distance<bestDistance){best=column;bestDistance=distance;}
-  }
-  return best;
- }
-
- frameworkBays(){
-  const columns=this.columns();
-  const beams=this.beamMap();
-  const bays=[];
-  const seen=new Set();
-
-  for(const a of columns){
-   const neighbours=columns.filter(b=>
-    b!==a&&
-    Math.abs(b.maxY-a.maxY)<=this.heightTolerance&&
-    this.oneLogApart(a,b)&&
-    this.connected(beams,a,b)
-   );
-
-   for(let i=0;i<neighbours.length;i++){
-    const b=neighbours[i];
-    const ab=this.vector(a,b);
-    for(let j=i+1;j<neighbours.length;j++){
-     const c=neighbours[j];
-     const ac=this.vector(a,c);
-     if(!this.perpendicular(ab,ac))continue;
-
-     const d=this.findColumnNear(columns,b.x+c.x-a.x,b.z+c.z-a.z,a.maxY);
-     if(!d||d===a||d===b||d===c)continue;
-     const abBeam=this.connected(beams,a,b);
-     const acBeam=this.connected(beams,a,c);
-     const bdBeam=this.connected(beams,b,d);
-     const cdBeam=this.connected(beams,c,d);
-     if(!abBeam||!acBeam||!bdBeam||!cdBeam)continue;
-
-     const ids=[a.topId,b.topId,c.topId,d.topId].sort((x,y)=>x-y);
-     const key=ids.join(':');
-     if(seen.has(key))continue;
-     seen.add(key);
-
-     const ux=ab.x/ab.length,uz=ab.z/ab.length;
-     let vx=ac.x/ac.length,vz=ac.z/ac.length;
-     if(ux*vz-uz*vx<0){vx*=-1;vz*=-1;}
-
-     bays.push({
-      key,
-      centerX:(a.x+b.x+c.x+d.x)*.25,
-      centerZ:(a.z+b.z+c.z+d.z)*.25,
-      ux,uz,vx,vz,
-      yaw:Math.atan2(-uz,ux),
-      beamCenterY:(abBeam.centerY+acBeam.centerY+bdBeam.centerY+cdBeam.centerY)*.25,
-      beamIds:[abBeam.id,acBeam.id,bdBeam.id,cdBeam.id]
-     });
-    }
+  for(const beam of beams){
+   for(const id of beam.anchorIds.slice(0,2)){
+    let list=byFrame.get(id);
+    if(!list){list=[];byFrame.set(id,list);}
+    list.push(beam);
    }
   }
-  return bays;
+
+  const visited=new Set();
+  const regions=[];
+  for(const seed of beams){
+   if(visited.has(seed.id))continue;
+   const queue=[seed];
+   const component=[];
+   const seedY=seed.centerY;
+   visited.add(seed.id);
+
+   while(queue.length){
+    const beam=queue.pop();
+    component.push(beam);
+    for(const frameId of beam.anchorIds.slice(0,2)){
+     for(const next of byFrame.get(frameId)||[]){
+      if(visited.has(next.id))continue;
+      if(Math.abs(next.centerY-seedY)>this.heightTolerance)continue;
+      visited.add(next.id);
+      queue.push(next);
+     }
+    }
+   }
+
+   const region=this.closedRegion(component,frameById);
+   if(region)regions.push(region);
+  }
+  return regions;
+ }
+
+ closedRegion(beams,frameById){
+  if(beams.length<4)return null;
+  const adjacency=new Map();
+  const beamIds=[];
+  let beamY=0;
+
+  const add=(a,b)=>{
+   let list=adjacency.get(a);
+   if(!list){list=[];adjacency.set(a,list);}
+   if(!list.includes(b))list.push(b);
+  };
+
+  for(const beam of beams){
+   const [a,b]=beam.anchorIds;
+   if(!frameById.has(a)||!frameById.has(b))return null;
+   add(a,b);add(b,a);
+   beamIds.push(beam.id);
+   beamY+=beam.centerY;
+  }
+
+  // A completed perimeter is one closed loop. Mid-wall posts are fine: each
+  // perimeter post still has exactly two top beams attached to it.
+  const ids=[...adjacency.keys()];
+  if(ids.length<4||ids.some(id=>adjacency.get(id)?.length!==2))return null;
+
+  const ordered=[];
+  const start=ids[0];
+  let previous=null;
+  let current=start;
+  for(let guard=0;guard<=ids.length;guard++){
+   const frame=frameById.get(current);
+   if(!frame)return null;
+   ordered.push({id:current,x:frame.x,z:frame.z});
+   const neighbours=adjacency.get(current);
+   const next=neighbours[0]===previous?neighbours[1]:neighbours[0];
+   previous=current;
+   current=next;
+   if(current===start)break;
+  }
+
+  if(current!==start||ordered.length!==ids.length)return null;
+  return {
+   polygon:ordered,
+   beamCenterY:beamY/beams.length,
+   beamIds
+  };
+ }
+
+ pointSegmentDistanceSq(px,pz,ax,az,bx,bz){
+  const dx=bx-ax,dz=bz-az;
+  const lengthSq=dx*dx+dz*dz;
+  if(lengthSq<1e-8){
+   const ox=px-ax,oz=pz-az;
+   return ox*ox+oz*oz;
+  }
+  const t=Math.max(0,Math.min(1,((px-ax)*dx+(pz-az)*dz)/lengthSq));
+  const x=ax+dx*t,z=az+dz*t;
+  const ox=px-x,oz=pz-z;
+  return ox*ox+oz*oz;
+ }
+
+ pointInsideRegion(region,x,z){
+  const polygon=region?.polygon;
+  if(!polygon?.length)return false;
+  const edgeSq=this.polygonEdgeTolerance*this.polygonEdgeTolerance;
+  let inside=false;
+
+  for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){
+   const a=polygon[j],b=polygon[i];
+   if(this.pointSegmentDistanceSq(x,z,a.x,a.z,b.x,b.z)<=edgeSq)return true;
+   const crosses=((a.z>z)!==(b.z>z))&&
+    (x<(b.x-a.x)*(z-a.z)/((b.z-a.z)||1e-9)+a.x);
+   if(crosses)inside=!inside;
+  }
+  return inside;
+ }
+
+ sourceFloors(region){
+  const logLength=this.buildingModes.logLength;
+  return this.buildingModes.activePlacements('floor').filter(floor=>{
+   if(!this.pointInsideRegion(region,floor.x,floor.z))return false;
+   const rise=region.beamCenterY-floor.maxY;
+   return rise>0&&Math.abs(rise-logLength)<=this.sourceStoreyTolerance;
+  });
  }
 
  stripOccupied(x,z,centerY){
   return this.buildingModes.activePlacements('floor').some(floor=>
    floor.snapKind==='upper-floor-beam'&&
    Math.hypot(floor.x-x,floor.z-z)<=this.occupancyTolerance&&
-   Math.abs(floor.centerY-centerY)<=.18
+   Math.abs(floor.centerY-centerY)<=this.heightTolerance
   );
  }
 
  candidates(){
   const result=[];
-  const width=this.buildingModes.floorWidth;
+  for(const region of this.perimeterFrameworks()){
+   const centerY=region.beamCenterY+this.floorSeatInset;
 
-  for(const bay of this.frameworkBays()){
-   // The split floor logs now pass into the centre zone of the horizontal beam.
-   // This deliberate timber overlap removes the floating stacked-on-top look and
-   // makes the upper deck read as a notched structural joint.
-   const centerY=bay.beamCenterY+this.floorSeatInset;
-   for(const offset of [-width,0,width]){
-    const x=bay.centerX+bay.vx*offset;
-    const z=bay.centerZ+bay.vz*offset;
-    if(this.stripOccupied(x,z,centerY))continue;
+   // Mirror the real deck footprint from the storey below. This lets the outer
+   // perimeter carry a large open room without inventing centre posts merely to
+   // satisfy the old one-square-bay snap rule.
+   for(const source of this.sourceFloors(region)){
+    if(this.stripOccupied(source.x,source.z,centerY))continue;
     result.push({
-     x,z,yaw:bay.yaw,
+     x:source.x,
+     z:source.z,
+     yaw:source.yaw,
      centerY,
      ground:centerY-.275,
      snapKind:'upper-floor-beam',
-     anchorIds:[...bay.beamIds],
-     upperFloorBayKey:bay.key
+     anchorIds:[...region.beamIds],
+     upperFloorSourceId:source.id
     });
    }
   }
@@ -185,7 +231,8 @@ export class UpperFloorSystem{
 
  actionLabel(){
   if(this.buildingModes.mode==='floor'){
-   const base=this.buildingModes.resolvedBase('floor');
+   const base=this.buildingModes.currentPreviewBase?.()
+    ||this.buildingModes.resolvedBase('floor');
    if(base?.snapKind==='upper-floor-beam')return 'SNAP UPPER FLOOR';
   }
   return this.originalActionLabel();
