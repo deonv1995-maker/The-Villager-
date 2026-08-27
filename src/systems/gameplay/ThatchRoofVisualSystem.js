@@ -47,15 +47,11 @@ export class ThatchRoofVisualSystem{
   const ridgeOverlap=.12;
   const totalLength=slope+eaveOverhang+ridgeOverlap;
 
-  // Solid low-poly body gives the roof a thick cottage-thatch silhouette without
-  // expensive transparent grass cards.
   const body=this.mesh(this.unitBox,this.baseMaterial);
   body.scale.set(totalLength,.16,width);
   body.position.set((ridgeOverlap-eaveOverhang)*.5,.035,0);
   group.add(body);
 
-  // Overlapping horizontal courses make each bay read as layered thatch rather
-  // than a flat green panel. The slight width variation softens the side outline.
   const rows=5;
   const rowStep=slope/rows;
   for(let i=0;i<rows;i++){
@@ -67,22 +63,21 @@ export class ThatchRoofVisualSystem{
    group.add(course);
   }
 
-  // Chunky uneven eave tassels provide the soft/frayed lower edge seen in the
-  // reference while remaining ordinary opaque geometry for mobile performance.
   const clumps=9;
   for(let i=0;i<clumps;i++){
    const t=i/(clumps-1);
    const variation=Math.sin((i+1)*2.17)*.045;
    const clump=this.mesh(this.unitBox,i%3===0?this.shadowMaterial:this.lightMaterial);
    clump.scale.set(.25+((i*7)%4)*.035,.075,width/clumps*.86);
-   clump.position.set(-slope*.5-eaveOverhang*.68-((i%2)*.035),.075+variation,
-    -width*.5+(t*width));
+   clump.position.set(
+    -slope*.5-eaveOverhang*.68-((i%2)*.035),
+    .075+variation,
+    -width*.5+t*width
+   );
    clump.rotation.z=(i%2?1:-1)*.035;
    group.add(clump);
   }
 
-  // Sparse raised straw ribs break up the broad surfaces without adding many
-  // triangles. They run down the pitch and visually stitch neighbouring courses.
   for(let i=-2;i<=2;i++){
    const rib=this.mesh(this.unitBox,this.lightMaterial);
    rib.scale.set(totalLength*.95,.028,Math.max(.025,width/48));
@@ -129,16 +124,15 @@ export class ThatchRoofVisualSystem{
    const bundle=this.mesh(this.ridgeGeometry,i===0?this.lightMaterial:this.baseMaterial);
    bundle.scale.set(1,span,1);
    bundle.rotation.z=Math.PI/2;
-   bundle.position.set(0,i===0?.08:-.015,i*.16);
+   bundle.position.set(0,(i===0 ? .08 : -.015),i*.16);
    group.add(bundle);
   }
 
-  // A few small end tufts make the ridge look tied/bundled rather than machine cut.
   for(const end of [-1,1]){
    for(let i=-1;i<=1;i++){
     const tuft=this.mesh(this.unitBox,i===0?this.lightMaterial:this.layerMaterial);
     tuft.scale.set(.26,.08,.12);
-    tuft.position.set(end*span*.5,0.02,i*.13);
+    tuft.position.set(end*span*.5,.02,i*.13);
     tuft.rotation.z=end*.08;
     group.add(tuft);
    }
