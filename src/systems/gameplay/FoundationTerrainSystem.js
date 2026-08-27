@@ -16,24 +16,16 @@ export class FoundationTerrainSystem{
   this.processedPlacements=new Set();
   this.baseHeightAt=null;
 
-  // The first placed floor remains the construction datum. Terrain above that
-  // level is excavated; terrain below it is never filled, so downhill pieces can
-  // remain genuine deck overhangs.
   this.floorClearance=.09;
   this.coreMargin=.58;
   this.blendDistance=2.15;
   this.soilColor=new THREE.Color(0x795d3f);
 
-  // Vegetation follows the same terrain authority as the visible/collision
-  // surface. Ground cover inside the actual floor footprint is removed, while
-  // vegetation in the graded shoulder is lowered with the new terrain.
   this.floorVegetationPadding=.10;
   this.vegetationBlendPadding=.42;
   this.reprojectTypes=new Set(['grass','bush','tree','bareTree']);
   this.clearUnderFloorTypes=new Set(['grass','bush']);
 
-  // Environment and fine-grass populations load asynchronously. These markers
-  // let existing foundation cuts be replayed once those populations appear.
   this.lastEnvironmentChildCount=-1;
   this.lastFineGrassMesh=null;
  }
@@ -43,12 +35,8 @@ export class FoundationTerrainSystem{
   this.positionAttribute=this.terrainMesh?.geometry?.getAttribute?.('position')||null;
   this.colorAttribute=this.terrainMesh?.geometry?.getAttribute?.('color')||null;
 
-  if(this.positionAttribute){
-   this.originalPositions=new Float32Array(this.positionAttribute.array);
-  }
-  if(this.colorAttribute){
-   this.originalColors=new Float32Array(this.colorAttribute.array);
-  }
+  if(this.positionAttribute)this.originalPositions=new Float32Array(this.positionAttribute.array);
+  if(this.colorAttribute)this.originalColors=new Float32Array(this.colorAttribute.array);
 
   const terrain=this.world?.terrain;
   if(terrain?.heightAt){
@@ -71,10 +59,7 @@ export class FoundationTerrainSystem{
   const dz=z-cut.z;
   const c=Math.cos(cut.yaw);
   const s=Math.sin(cut.yaw);
-  return {
-   x:dx*c-dz*s,
-   z:dx*s+dz*c
-  };
+  return {x:dx*c-dz*s,z:dx*s+dz*c};
  }
 
  insideRect(local,halfX,halfZ){
@@ -96,13 +81,9 @@ export class FoundationTerrainSystem{
  }
 
  cutHeightAt(cut,x,z,naturalY){
-  // Never raise the downhill side. Only terrain that would cover the floor gets
-  // excavated; this preserves the requested deck behavior on lower ground.
   if(naturalY<=cut.cutY)return naturalY;
-
   const distance=this.outsideDistance(cut,x,z);
   if(distance>cut.blendDistance)return naturalY;
-
   const t=this.smoothstep01(distance/cut.blendDistance);
   return cut.cutY+(naturalY-cut.cutY)*t;
  }
@@ -135,6 +116,15 @@ export class FoundationTerrainSystem{
   };
  }
 
+ vertexCouldBeAffected(cut,x,z){
+  const radius=Math.hypot(cut.halfX+cut.blendDistance,cut.halfZ+cut.blendDistance);
+  const dx=x-cut.x,dz=z-cut.z;
+  if(dx*dx+dz*dz>radius*radius)return false;
+  const local=this.localPoint(cut,x,z);
+  return Math.abs(local.x)<=cut.halfX+cut.blendDistance
+   &&Math.abs(local.z)<=cut.halfZ+cut.blendDistance;
+ }
+
  applyCutsToTerrain(activeCut=null){
   if(!this.positionAttribute||!this.originalPositions)return false;
 
@@ -145,8 +135,21 @@ export class FoundationTerrainSystem{
   for(let i=0;i<positions.length;i+=3){
    const x=this.originalPositions[i];
    const z=this.originalPositions[i+2];
+   if(activeCut&&!this.vertexCouldBeAffected(activeCut,x,z))continue;
+
    const naturalY=this.originalPositions[i+1];
-   const nextY=this.heightAt(x,z);
+   let nextY;
+   if(activeCut){
+    // Earlier cuts are already baked into the live vertex. A new floor can only
+    // lower that result further, so there is no reason to recompute every old cut
+    // for every vertex on every placement.
+    nextY=Math.min(
+     positions[i+1],
+     this.cutHeightAt(activeCut,x,z,naturalY)
+    );
+   }else{
+    nextY=this.heightAt(x,z);
+   }
 
    if(Math.abs(nextY-positions[i+1])>.002){
     positions[i+1]=nextY;
@@ -156,9 +159,7 @@ export class FoundationTerrainSystem{
    if(colors&&this.originalColors&&nextY<naturalY-.002){
     const lowered=naturalY-nextY;
     const distance=activeCut?this.outsideDistance(activeCut,x,z):0;
-    const edge=activeCut
-     ?1-this.smoothstep01(distance/activeCut.blendDistance)
-     :1;
+    const edge=activeCut?1-this.smoothstep01(distance/activeCut.blendDistance):1;
     const strength=Math.min(.78,lowered/1.35)*(.55+.45*edge);
     colors[i]=this.originalColors[i]+(this.soilColor.r-this.originalColors[i])*strength;
     colors[i+1]=this.originalColors[i+1]+(this.soilColor.g-this.originalColors[i+1])*strength;
@@ -172,7 +173,6 @@ export class FoundationTerrainSystem{
    this.terrainMesh.geometry.computeVertexNormals();
    this.terrainMesh.geometry.computeBoundingSphere();
   }
-
   return changed;
  }
 
@@ -187,14 +187,8 @@ export class FoundationTerrainSystem{
   const p=new this.T.Vector3();
   object.getWorldPosition(p);
   p.y=y;
-
-  if(object.parent){
-   const local=object.parent.worldToLocal(p.clone());
-   object.position.copy(local);
-  }else{
-   object.position.copy(p);
-  }
-
+  if(object.parent)object.position.copy(object.parent.worldToLocal(p.clone()));
+  else object.position.copy(p);
   object.updateMatrix?.();
   object.updateWorldMatrix?.(true,true);
  }
@@ -205,16 +199,21 @@ export class FoundationTerrainSystem{
 
   const worldPos=new this.T.Vector3();
   const footprint=this.floorFootprint();
+  const broadRadius=Math.hypot(
+   cut.halfX+cut.blendDistance+this.vegetationBlendPadding,
+   cut.halfZ+cut.blendDistance+this.vegetationBlendPadding
+  );
+  const broadRadiusSq=broadRadius*broadRadius;
 
   for(const object of root.children){
    const type=object.userData?.environmentType;
    if(!this.reprojectTypes.has(type)||object.visible===false)continue;
 
    object.getWorldPosition(worldPos);
+   const dx=worldPos.x-cut.x,dz=worldPos.z-cut.z;
+   if(dx*dx+dz*dz>broadRadiusSq)continue;
    const local=this.localPoint(cut,worldPos.x,worldPos.z);
 
-   // Grass and bushes disappear only under the true timber footprint. Trees stay
-   // physical resources/obstacles and are never silently deleted by construction.
    if(this.clearUnderFloorTypes.has(type)
     &&this.insideRect(local,footprint.halfX,footprint.halfZ)){
     object.visible=false;
@@ -227,9 +226,6 @@ export class FoundationTerrainSystem{
    this.ensureTerrainOffset(object,worldPos.x,worldPos.y,worldPos.z);
    const offset=object.userData.foundationTerrainOffset??0;
    const nextY=this.heightAt(worldPos.x,worldPos.z)+offset;
-
-   // Foundation grading only lowers terrain. Avoid any upward vegetation popping
-   // when several adjacent floor cuts overlap.
    if(nextY>=worldPos.y-.002)continue;
    this.setObjectWorldY(object,nextY);
   }
@@ -240,13 +236,33 @@ export class FoundationTerrainSystem{
   entry.bendX=0;
   entry.bendZ=0;
   entry.compression=0;
-
-  // Do not use a zero-scale transform: singular instance matrices can produce
-  // the black star-shaped artifacts seen around the floor. Move the hidden tuft
-  // safely below the foundation instead while retaining a valid transform.
   entry.y=Math.min(entry.y,cut.cutY-6);
   grass.active?.delete?.(entry);
   grass.writeEntryMatrix(entry);
+ }
+
+ fineGrassCandidatesForCut(cut){
+  const grass=this.fineGrass;
+  if(!grass?.instanceGrid?.size||!grass.instanceCellSize)return grass?.entries||[];
+
+  const cell=grass.instanceCellSize;
+  const radius=Math.hypot(
+   cut.halfX+cut.blendDistance+this.vegetationBlendPadding,
+   cut.halfZ+cut.blendDistance+this.vegetationBlendPadding
+  );
+  const minX=Math.floor((cut.x-radius)/cell);
+  const maxX=Math.floor((cut.x+radius)/cell);
+  const minZ=Math.floor((cut.z-radius)/cell);
+  const maxZ=Math.floor((cut.z+radius)/cell);
+  const result=[];
+  for(let ix=minX;ix<=maxX;ix++){
+   for(let iz=minZ;iz<=maxZ;iz++){
+    const key=grass.instanceKey?.(ix,iz)??`${ix}:${iz}`;
+    const bucket=grass.instanceGrid.get(key);
+    if(bucket)result.push(...bucket);
+   }
+  }
+  return result;
  }
 
  syncFineGrassForCut(cut){
@@ -254,9 +270,10 @@ export class FoundationTerrainSystem{
   if(!grass?.mesh||!grass.entries?.length||!grass.writeEntryMatrix)return;
 
   const footprint=this.floorFootprint();
+  const candidates=this.fineGrassCandidatesForCut(cut);
   let changed=false;
 
-  for(const entry of grass.entries){
+  for(const entry of candidates){
    const local=this.localPoint(cut,entry.x,entry.z);
 
    if(this.insideRect(local,footprint.halfX,footprint.halfZ)){
@@ -268,7 +285,6 @@ export class FoundationTerrainSystem{
    }
 
    if(entry.foundationHidden)continue;
-
    const distance=this.outsideDistance(cut,entry.x,entry.z);
    if(distance>cut.blendDistance+this.vegetationBlendPadding)continue;
 
@@ -301,7 +317,6 @@ export class FoundationTerrainSystem{
 
   const cut=this.makeCutFromFloor(floor);
   this.cuts.push(cut);
-
   this.applyCutsToTerrain(cut);
   this.syncEnvironmentForCut(cut);
   this.syncFineGrassForCut(cut);
