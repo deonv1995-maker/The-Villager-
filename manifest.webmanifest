@@ -3,7 +3,7 @@
   "name": "The Villager",
   "short_name": "Villager",
   "description": "A mobile-first low-poly survival and building game.",
-  "start_url": "./?build=622",
+  "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
   "display_override": ["fullscreen", "standalone"],
