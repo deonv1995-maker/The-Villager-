@@ -6,10 +6,10 @@ import { PlayerVisual } from './player/PlayerVisual.js?v=538';
 import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552';
 import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=560';
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
-import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=593';
+import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=594';
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=591';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
-import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
+import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=594';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=579';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=576';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
@@ -17,7 +17,7 @@ import { UpperFloorSystem } from './gameplay/UpperFloorSystem.js?v=582';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=583';
 import { StairSystem } from './gameplay/StairSystem.js?v=582';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
-import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=592';
+import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=594';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -34,6 +34,7 @@ export class GameBootstrap{
   this.targetFrameInterval=1/60;
   this.presentationAccumulator=0;
   this.maintenanceAccumulator=0;
+  this.fallbackVisual=null;
  }
 
  start(){
@@ -45,7 +46,7 @@ export class GameBootstrap{
    this.camera=new T.PerspectiveCamera(55,innerWidth/innerHeight,.1,700);
    this.renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
    const coarse=globalThis.matchMedia?.('(pointer: coarse)')?.matches;
-   this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,coarse?1.0:1.20));
+   this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,coarse?1.15:1.20));
    this.renderer.setSize(innerWidth,innerHeight);
    document.body.insertBefore(this.renderer.domElement,document.body.firstChild);
 
@@ -61,9 +62,18 @@ export class GameBootstrap{
    this.player.name='PlayerRoot';
    this.player.position.set(0,this.world.heightAt(0,0),0);
    this.scene.add(this.player);
-   this.playerVisual=new PlayerVisual(T);
-   this.player.add(this.playerVisual.root);
+
+   // Keep the old procedural character only as an emergency fallback. It stays
+   // invisible during a normal boot so the player never sees a character swap.
+   this.fallbackVisual=new PlayerVisual(T);
+   this.fallbackVisual.root.visible=false;
+   this.playerVisual=this.fallbackVisual;
+   this.player.add(this.fallbackVisual.root);
    this.world.playerVisual=this.playerVisual;
+
+   // Start loading the Ranger immediately while the rest of the world systems are
+   // initialized. This removes the old artificial 250 ms delay.
+   this.tryKayKitRanger(status);
 
    this.input=new MobileControls({
     leftRoot:document.getElementById('move-stick'),
@@ -167,21 +177,21 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.93 · mobile performance pass · locked placement · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.94 · crisp mobile rendering · smooth timing · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
 
-    // Cap simulation/render presentation near 60 Hz on high-refresh mobile
-    // panels. A small tolerance keeps normal 60 Hz screens from accidentally
-    // dropping to 30 due to timer jitter.
     const rawDt=Math.min(this.clock.getDelta(),.05);
     this.frameAccumulator+=rawDt;
     if(this.frameAccumulator<this.targetFrameInterval*.92)return;
-    const dt=Math.min(this.frameAccumulator,.05);
-    this.frameAccumulator=Math.max(0,this.frameAccumulator-this.targetFrameInterval);
 
-    // Full-rate gameplay: movement, collisions, log physics, harvesting, carry
-    // animation and camera all remain responsive.
+    // Do not carry a slow-frame backlog forward. The old limiter subtracted only
+    // one 60 Hz slice, so a hitch could leave queued time that was replayed over
+    // several frames and looked like fast-forward. Consume the current interval
+    // once, clamp a genuine stall, then start fresh.
+    const dt=Math.min(this.frameAccumulator,1/30);
+    this.frameAccumulator=0;
+
     this.constructionTraversal.update(dt);
     this.playerController.update(dt);
     this.materials.update(dt);
@@ -189,22 +199,23 @@ export class GameBootstrap{
     this.reactions.update(dt);
     this.survivalInteraction.update(dt);
 
-    // Presentation-only work does not need display-refresh frequency. 30 Hz is
-    // visually smooth for grass bending and a translucent construction ghost,
-    // while substantially reducing matrix uploads and placement candidate scans.
+    // Keep the placement ghost full-rate while it is relevant. It is small and
+    // this makes positioning feel immediate without reintroducing the heavy world
+    // work removed in 0.5.93.
+    if(!this.survivalInteraction?.isPlacementLocked?.())this.buildModes.update(dt);
+
+    // Grass bending remains presentation-only and safely runs at 30 Hz.
     this.presentationAccumulator+=dt;
     if(this.presentationAccumulator>=1/30){
      const presentationDt=this.presentationAccumulator;
      this.presentationAccumulator=0;
-     if(!this.survivalInteraction?.isPlacementLocked?.())this.buildModes.update(presentationDt);
      this.grassInteraction.update(presentationDt);
      this.fineGrassFields.update(presentationDt);
     }
 
-    // Foundation excavation/support generation only reacts to placed structures;
-    // scanning it every render frame was wasted work between placements.
+    // Foundation/support maintenance only reacts to completed structures.
     this.maintenanceAccumulator+=dt;
-    if(this.maintenanceAccumulator>=.10){
+    if(this.maintenanceAccumulator>=.12){
      this.maintenanceAccumulator=0;
      this.foundationTerrain.update();
      this.floorSupports.update();
@@ -217,10 +228,9 @@ export class GameBootstrap{
     this.renderer.render(this.scene,this.camera);
    };
    loop();
-   setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.93 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.94 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -243,11 +253,16 @@ export class GameBootstrap{
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.93 · Ranger · optimized GPU · locked placement · shoulder carry'
-    :'Clean rebuild 0.5.93 · Ranger · optimized GPU · animation set pending';
+    ?'Clean rebuild 0.5.94 · Ranger · crisp rendering · smooth timing · locked placement'
+    :'Clean rebuild 0.5.94 · Ranger · crisp rendering · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.93 · optimized mobile rendering · Ranger model unavailable';
+   if(this.fallbackVisual){
+    this.fallbackVisual.root.visible=true;
+    this.playerVisual=this.fallbackVisual;
+    this.world.playerVisual=this.fallbackVisual;
+   }
+   if(status)status.textContent='Clean rebuild 0.5.94 · Ranger unavailable · fallback character active';
   }
  }
 }
