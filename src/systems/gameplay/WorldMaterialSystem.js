@@ -21,8 +21,7 @@ export class WorldMaterialSystem{
   this.logRadius=.27;
 
   // Lightweight terrain rigid-body approximation for loose harvested logs.
-  // This deliberately avoids a general physics engine: only moving logs are
-  // simulated, which keeps the mobile cost proportional to recent harvesting.
+  // Only recently moving logs are simulated, keeping the mobile cost bounded.
   this.logGravity=18.5;
   this.logBounce=.22;
   this.logGroundDrag=3.15;
@@ -32,6 +31,8 @@ export class WorldMaterialSystem{
   this.logSettleSpeed=.19;
   this.logSettleTime=.65;
   this.logGroundProbe=.68;
+  this.logSlopeTiltResponse=13.5;
+  this.logMaxTerrainTilt=Math.PI*.30;
 
   this.materials={
    bark:new THREE.MeshStandardMaterial({color:0x6f472c,roughness:.96,metalness:0,flatShading:true}),
@@ -64,7 +65,14 @@ export class WorldMaterialSystem{
    halfLog,
    splitFace:new THREE.BoxGeometry(this.logLength,.018,.52)
   };
+
   this.tempPosition=new THREE.Vector3();
+  this.tempLogX=new THREE.Vector3();
+  this.tempLogY=new THREE.Vector3();
+  this.tempLogZ=new THREE.Vector3();
+  this.tempWorldUp=new THREE.Vector3(0,1,0);
+  this.tempLogMatrix=new THREE.Matrix4();
+  this.tempLogQuaternion=new THREE.Quaternion();
  }
 
  initialize(){
@@ -78,9 +86,8 @@ export class WorldMaterialSystem{
   const group=new T.Group();
   group.name='RawLog';
 
-  // Keep yaw/translation on the root and cylinder rolling on a child. Rotating
-  // the child around local X makes a loose log visibly roll without corrupting
-  // the heading used by building placement and physics.
+  // Root handles position, heading and terrain tilt. The child rotates around the
+  // log's local X axis so visible rolling never corrupts its terrain alignment.
   const rollGroup=new T.Group();
   rollGroup.name='LogRollVisual';
   group.add(rollGroup);
@@ -104,8 +111,6 @@ export class WorldMaterialSystem{
   return group;
  }
 
- // Shared factory for structural half logs. The rounded bark surface remains on
- // the underside while a thin lighter cut face makes the split visually obvious.
  makeHalfLogVisual(){
   const T=this.T;
   const group=new T.Group();
@@ -153,6 +158,7 @@ export class WorldMaterialSystem{
     vx:0,vy:0,vz:0,
     spinY:0,
     rollSpeed:0,
+    headingY:yaw,
     settleTimer:0,
     grounded:false
    }:null
@@ -166,15 +172,81 @@ export class WorldMaterialSystem{
   if(roll)roll.rotation.x=0;
  }
 
+ logHeading(item){
+  const heading=item?.physics?.headingY;
+  return Number.isFinite(heading)?heading:(item?.object?.rotation?.y||0);
+ }
+
+ logAxis(item){
+  const yaw=this.logHeading(item);
+  return {x:Math.cos(yaw),z:-Math.sin(yaw)};
+ }
+
+ // Samples both ends (plus midpoints) and derives the real 3D long-axis of a log
+ // resting on the terrain. The resulting quaternion is stored in tempLogQuaternion
+ // and the returned value is the minimum safe centre height for that orientation.
+ computeTerrainLogPose(item,x,z){
+  const yaw=this.logHeading(item);
+  const horizontalX=Math.cos(yaw);
+  const horizontalZ=-Math.sin(yaw);
+  const reach=this.logHalfLength*.86;
+  const halfReach=reach*.5;
+  const heightAt=(px,pz)=>this.world?.heightAt?.(px,pz)??0;
+
+  const hMinus=heightAt(x-horizontalX*reach,z-horizontalZ*reach);
+  const hPlus=heightAt(x+horizontalX*reach,z+horizontalZ*reach);
+  const hMinusMid=heightAt(x-horizontalX*halfReach,z-horizontalZ*halfReach);
+  const hPlusMid=heightAt(x+horizontalX*halfReach,z+horizontalZ*halfReach);
+  const hCenter=heightAt(x,z);
+
+  const run=Math.max(.001,reach*2);
+  const rawTilt=Math.atan2(hPlus-hMinus,run);
+  const tilt=Math.max(-this.logMaxTerrainTilt,Math.min(this.logMaxTerrainTilt,rawTilt));
+  const cosTilt=Math.cos(tilt);
+  const sinTilt=Math.sin(tilt);
+
+  this.tempLogX.set(horizontalX*cosTilt,sinTilt,horizontalZ*cosTilt).normalize();
+  this.tempLogZ.crossVectors(this.tempLogX,this.tempWorldUp);
+  if(this.tempLogZ.lengthSq()<.0001)this.tempLogZ.set(-horizontalZ,0,horizontalX);
+  else this.tempLogZ.normalize();
+  this.tempLogY.crossVectors(this.tempLogZ,this.tempLogX).normalize();
+  this.tempLogMatrix.makeBasis(this.tempLogX,this.tempLogY,this.tempLogZ);
+  this.tempLogQuaternion.setFromRotationMatrix(this.tempLogMatrix);
+
+  const endRise=this.tempLogX.y*reach;
+  const midRise=this.tempLogX.y*halfReach;
+  return Math.max(
+   hCenter+this.logRadius,
+   hMinus+this.logRadius+endRise,
+   hPlus+this.logRadius-endRise,
+   hMinusMid+this.logRadius+midRise,
+   hPlusMid+this.logRadius-midRise
+  );
+ }
+
+ alignLogToTerrain(item,dt=0,snap=false){
+  if(!item?.object)return 0;
+  const object=item.object;
+  const supportY=this.computeTerrainLogPose(item,object.position.x,object.position.z);
+  if(snap||dt<=0)object.quaternion.copy(this.tempLogQuaternion);
+  else{
+   const blend=1-Math.exp(-this.logSlopeTiltResponse*dt);
+   object.quaternion.slerp(this.tempLogQuaternion,blend);
+  }
+  return supportY;
+ }
+
  spawnLog(x,z,yaw=0){
-  const y=(this.world?.heightAt?.(x,z)??0)+this.logRadius;
-  return this.createItem('log',x,y,z,yaw);
+  const item=this.createItem('log',x,(this.world?.heightAt?.(x,z)??0)+this.logRadius,z,yaw);
+  item.object.position.y=this.alignLogToTerrain(item,0,true);
+  return item;
  }
 
  spawnPhysicalLog(x,y,z,yaw=0,velocity={}){
   const item=this.createItem('log',x,y,z,yaw);
   const physics=item.physics;
   physics.active=true;
+  physics.headingY=yaw;
   physics.vx=Number.isFinite(velocity.vx)?velocity.vx:0;
   physics.vy=Number.isFinite(velocity.vy)?velocity.vy:0;
   physics.vz=Number.isFinite(velocity.vz)?velocity.vz:0;
@@ -210,7 +282,6 @@ export class WorldMaterialSystem{
 
   for(const item of this.items){
    if(item.state!=='loose'||!item.object?.parent)continue;
-   // Let freshly fallen logs finish rolling before they can be picked up.
    if(item.physics?.active)continue;
    item.object.getWorldPosition(this.tempPosition);
    const dx=this.tempPosition.x-px,dz=this.tempPosition.z-pz;
@@ -232,9 +303,12 @@ export class WorldMaterialSystem{
   this.carried=item;
 
   if(item.type==='log'){
-   if(item.physics){item.physics.active=false;item.physics.vx=item.physics.vy=item.physics.vz=0;}
+   if(item.physics){
+    item.physics.active=false;
+    item.physics.vx=item.physics.vy=item.physics.vz=0;
+    item.physics.spinY=item.physics.rollSpeed=0;
+   }
    this.resetLogVisualRoll(item);
-   // Across the torso so the Ranger's two procedural hand targets grip the log.
    item.object.position.set(0,1.24,.76);
    item.object.rotation.set(0,0,0);
   }else{
@@ -285,6 +359,7 @@ export class WorldMaterialSystem{
   item.state='placed';
   if(item.physics){
    item.physics.active=false;
+   item.physics.headingY=target.rotationY;
    item.physics.vx=item.physics.vy=item.physics.vz=0;
    item.physics.spinY=item.physics.rollSpeed=0;
   }
@@ -309,19 +384,8 @@ export class WorldMaterialSystem{
   return true;
  }
 
- logAxis(item){
-  const yaw=item.object.rotation.y||0;
-  return {x:Math.cos(yaw),z:-Math.sin(yaw)};
- }
-
  terrainLogSupportY(item,x,z){
-  const axis=this.logAxis(item);
-  const reach=this.logHalfLength*.86;
-  const heightAt=(px,pz)=>this.world?.heightAt?.(px,pz)??0;
-  const h0=heightAt(x,z);
-  const h1=heightAt(x+axis.x*reach,z+axis.z*reach);
-  const h2=heightAt(x-axis.x*reach,z-axis.z*reach);
-  return Math.max(h0,h1,h2)+this.logRadius;
+  return this.computeTerrainLogPose(item,x,z);
  }
 
  terrainDownhill(x,z){
@@ -338,6 +402,7 @@ export class WorldMaterialSystem{
   if(!p?.active||item.state!=='loose'||!object?.parent)return;
 
   p.vy-=this.logGravity*dt;
+  p.headingY+=p.spinY*dt;
 
   let nx=object.position.x+p.vx*dt;
   let nz=object.position.z+p.vz*dt;
@@ -351,15 +416,17 @@ export class WorldMaterialSystem{
   object.position.x=nx;
   object.position.z=nz;
   object.position.y+=p.vy*dt;
-  object.rotation.y+=p.spinY*dt;
 
-  const supportY=this.terrainLogSupportY(item,nx,nz);
+  const supportY=this.computeTerrainLogPose(item,nx,nz);
   let grounded=false;
   if(object.position.y<=supportY){
    const impact=Math.max(0,-p.vy);
    object.position.y=supportY;
    grounded=true;
    p.grounded=true;
+
+   const tiltBlend=1-Math.exp(-this.logSlopeTiltResponse*dt);
+   object.quaternion.slerp(this.tempLogQuaternion,tiltBlend);
 
    if(impact>1.15)p.vy=impact*this.logBounce;
    else p.vy=0;
@@ -401,7 +468,8 @@ export class WorldMaterialSystem{
     p.vx=p.vy=p.vz=0;
     p.spinY=p.rollSpeed=0;
     p.settleTimer=0;
-    object.position.y=this.terrainLogSupportY(item,object.position.x,object.position.z);
+    object.position.y=this.computeTerrainLogPose(item,object.position.x,object.position.z);
+    object.quaternion.copy(this.tempLogQuaternion);
    }
   }else p.settleTimer=0;
  }
