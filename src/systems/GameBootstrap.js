@@ -8,12 +8,12 @@ import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=56
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=594';
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=591';
-import { GrassMaterialSystem } from './gameplay/GrassMaterialSystem.js?v=602';
-import { GrassCarryVisualSystem } from './gameplay/GrassCarryVisualSystem.js?v=602';
+import { GrassMaterialSystem } from './gameplay/GrassMaterialSystem.js?v=603';
+import { GrassCarryVisualSystem } from './gameplay/GrassCarryVisualSystem.js?v=603';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
-import { GrassHarvestingSystem } from './gameplay/GrassHarvestingSystem.js?v=602';
+import { GrassHarvestingSystem } from './gameplay/GrassHarvestingSystem.js?v=603';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=594';
-import { BuildDrawerSystem } from './gameplay/BuildDrawerSystem.js?v=602';
+import { BuildDrawerSystem } from './gameplay/BuildDrawerSystem.js?v=603';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=597';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=594';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
@@ -22,9 +22,9 @@ import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSys
 import { StairSystem } from './gameplay/StairSystem.js?v=582';
 import { StairLandingTransitionSystem } from './gameplay/StairLandingTransitionSystem.js?v=598';
 import { StairPlacementOccupancySystem } from './gameplay/StairPlacementOccupancySystem.js?v=599';
-import { RoofingSystem } from './gameplay/RoofingSystem.js?v=602';
+import { RoofingSystem } from './gameplay/RoofingSystem.js?v=603';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
-import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=595';
+import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=603';
 
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
@@ -165,7 +165,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='0.6.02 · loading';
+   if(status)status.textContent='0.6.03 · loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const rawDt=Math.min(this.clock.getDelta(),.05);
@@ -208,7 +208,7 @@ export class GameBootstrap{
    loop();
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.6.02 · ERROR';status.style.background='#5b1818';}
+   if(status){status.textContent='0.6.03 · ERROR';status.style.background='#5b1818';}
   }
  }
 
@@ -225,7 +225,7 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
-   if(status)status.textContent=ranger.actions.size?'0.6.02 · Ranger':'0.6.02 · Ranger anim…';
+   if(status)status.textContent=ranger.actions.size?'0.6.03 · Ranger':'0.6.03 · Ranger anim…';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
    if(this.fallbackVisual){
@@ -233,7 +233,7 @@ export class GameBootstrap{
     this.playerVisual=this.fallbackVisual;
     this.world.playerVisual=this.fallbackVisual;
    }
-   if(status)status.textContent='0.6.02 · fallback';
+   if(status)status.textContent='0.6.03 · fallback';
   }
  }
 }
