@@ -1,3 +1,5 @@
+import { WeightedSprintVisualSystem } from './WeightedSprintVisualSystem.js?v=611';
+
 export class PlayerController {
  constructor(THREE,{player,input,cameraController,world,groundOffset=0}){
   this.T=THREE;
@@ -30,6 +32,7 @@ export class PlayerController {
   this.sprintHeld=false;
   this.sprintStartedThisFrame=false;
   this.sprintEndedThisFrame=false;
+  this.weightedSprintVisual=null;
 
   this.jumpSpeed=7.7;
   this.gravity=19.5;
@@ -51,7 +54,22 @@ export class PlayerController {
   this.moveAmount=0;
  }
 
+ ensureWeightedSprintVisual(){
+  if(this.weightedSprintVisual)return;
+  const hauling=this.world?.logHauling;
+  const materials=this.world?.materials;
+  if(!hauling||!materials)return;
+  this.weightedSprintVisual=new WeightedSprintVisualSystem({
+   world:this.world,
+   playerController:this,
+   materials,
+   hauling
+  });
+  this.weightedSprintVisual.initialize();
+ }
+
  update(dt){
+  this.ensureWeightedSprintVisual();
   this.jumpStartedThisFrame=false;
   this.landedThisFrame=false;
   this.sprintStartedThisFrame=false;
