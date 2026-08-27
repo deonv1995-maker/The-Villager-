@@ -4,10 +4,18 @@ export class WeightedSprintVisualSystem{
   this.playerController=playerController;
   this.materials=materials;
   this.hauling=hauling;
+  this.originalHaulUpdateVisual=null;
  }
 
  initialize(){
   if(this.world)this.world.weightedSprintVisual=this;
+  if(this.hauling?.updateVisual&&!this.originalHaulUpdateVisual){
+   this.originalHaulUpdateVisual=this.hauling.updateVisual.bind(this.hauling);
+   this.hauling.updateVisual=(dt,moveAmount=0)=>{
+    this.originalHaulUpdateVisual(dt,moveAmount);
+    this.update();
+   };
+  }
  }
 
  walkingName(visual){
@@ -32,10 +40,10 @@ export class WeightedSprintVisualSystem{
  applyDragPull(visual,count){
   if(!visual?.poseArm)return;
   const three=count>=3;
-  const elbowY=three?.97:1.02;
-  const handY=three?.63:.69;
-  const elbowZ=three?-.29:-.25;
-  const handZ=three?-.61:-.56;
+  const elbowY=three ? .97 : 1.02;
+  const handY=three ? .63 : .69;
+  const elbowZ=three ? -.29 : -.25;
+  const handZ=three ? -.61 : -.56;
   visual.poseArm('l',{x:.44,y:elbowY,z:elbowZ},{x:.21,y:handY,z:handZ},.995);
   visual.poseArm('r',{x:-.44,y:elbowY,z:elbowZ},{x:-.21,y:handY,z:handZ},.995);
  }
@@ -58,8 +66,8 @@ export class WeightedSprintVisualSystem{
    visual.applyCarryPose?.(.995);
   }else if(dragging){
    const three=count>=3;
-   if(walk&&pc.moveAmount>.06)visual.play?.(walk,.10,three?.58:.66);
-   this.applyTorsoLean(visual,three?.26:.21);
+   if(walk&&pc.moveAmount>.06)visual.play?.(walk,.10,three ? .58 : .66);
+   this.applyTorsoLean(visual,three ? .26 : .21);
    this.applyDragPull(visual,count);
   }
 
