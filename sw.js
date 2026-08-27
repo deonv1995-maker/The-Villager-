@@ -1,6 +1,6 @@
-const CACHE_NAME='the-villager-shell-0.6.21';
+const CACHE_NAME='the-villager-shell-0.6.22';
 const SHELL_ASSETS=[
- './?build=621',
+ './?build=622',
  './index.html',
  './manifest.webmanifest',
  './icons/icon.svg',
