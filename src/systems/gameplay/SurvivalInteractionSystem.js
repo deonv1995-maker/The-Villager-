@@ -167,7 +167,8 @@ export class SurvivalInteractionSystem{
   if(interaction.type==='place'){
    const placed=this.materials.placeCarried();
    if(placed){
-    this.showFeedback(`${placed.type==='log'?'Log':'Stone'} placed`);
+    const label=placed.type==='log'?'Log':placed.type==='grass'?'Grass roof':'Stone';
+    this.showFeedback(`${label} placed`);
     this.current=null;
     this.updateButton();
     return true;
