@@ -35,7 +35,7 @@ export class LogHaulingSystem{
   if(this.playerController?.movementWeightScale){
    this.originalMovementWeightScale=this.playerController.movementWeightScale.bind(this.playerController);
    this.playerController.movementWeightScale=()=>{
-    if(this.isBusy())return .08;
+    if(this.isBusy())return 0;
     if(this.stack.length>=3)return .34;
     if(this.stack.length===2)return .42;
     return this.originalMovementWeightScale();
@@ -151,7 +151,7 @@ export class LogHaulingSystem{
    const pairFirst=new this.T.Vector3(secondStart.x-.58,pairY,secondStart.z);
 
    this.transition={
-    phase:'merge2',elapsed:0,duration:1.08,
+    phase:'merge2',elapsed:0,duration:1.08,lockedYaw:this.player.rotation.y,
     first:shoulder,second:item,
     firstStart:shoulder.object.position.clone(),
     firstStartQ:shoulder.object.quaternion.clone(),
@@ -169,7 +169,7 @@ export class LogHaulingSystem{
    if(!this.prepareLog(item))return false;
    this.stack.push(item);
    this.transition={
-    phase:'merge3',elapsed:0,duration:.88,
+    phase:'merge3',elapsed:0,duration:.88,lockedYaw:this.player.rotation.y,
     third:item,
     thirdStart:item.object.position.clone(),
     thirdStartQ:item.object.quaternion.clone()
@@ -240,7 +240,7 @@ export class LogHaulingSystem{
 
  beginDrop(){
   if(this.stack.length<2||this.isBusy())return false;
-  this.transition={phase:'drop',elapsed:0,duration:.48};
+  this.transition={phase:'drop',elapsed:0,duration:.48,lockedYaw:this.player.rotation.y};
   this.world?.playerVisual?.triggerPlace?.();
   this.updateHud();
   return true;
@@ -268,7 +268,7 @@ export class LogHaulingSystem{
     item.physics.spinY=item.physics.rollSpeed=0;
     item.physics.settleTimer=0;
     item.physics.grounded=false;
-    item.physics.headingY=this.player.rotation.y-Math.PI/2;
+    item.physics.headingY=item.object.rotation.y;
    }
   }
   this.stack.length=0;
@@ -277,6 +277,7 @@ export class LogHaulingSystem{
  update(dt){
   const tr=this.transition;
   if(!tr)return;
+  if(this.player&&Number.isFinite(tr.lockedYaw))this.player.rotation.y=tr.lockedYaw;
   tr.elapsed=Math.min(tr.duration,tr.elapsed+dt);
   const t=tr.elapsed/tr.duration;
 
