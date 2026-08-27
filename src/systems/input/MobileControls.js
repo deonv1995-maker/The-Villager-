@@ -3,12 +3,48 @@ export class MobileControls{
     this.left={root:leftRoot,knob:leftKnob,pointerId:null,x:0,y:0,anchorX:0,anchorY:0};
     this.right={root:rightRoot,knob:rightKnob,pointerId:null,x:0,y:0,anchorX:0,anchorY:0};
     this.jumpRoot=jumpRoot||null;
-    this.sprintRoot=sprintRoot||null;
+    this.sprintRoot=this.ensureSprintRoot(sprintRoot);
     this.jumpQueued=false;
     this.jumpHeld=false;
     this.sprintHeld=false;
     this.bound=[];
     this.install();
+  }
+
+  ensureSprintRoot(root){
+    let button=root||document.getElementById('sprint-button');
+    if(!button){
+      button=document.createElement('button');
+      button.id='sprint-button';
+      button.type='button';
+      button.className='game-button';
+      button.dataset.gameUi='true';
+      button.textContent='SPRINT';
+      button.setAttribute('aria-label','Sprint');
+      document.body.appendChild(button);
+    }
+
+    // Keep this control independent from temporary action/build button styles.
+    // Inline values intentionally win over stale mobile CSS from an older build.
+    Object.assign(button.style,{
+      display:'flex',
+      visibility:'visible',
+      opacity:'1',
+      pointerEvents:'auto',
+      position:'fixed',
+      right:'26px',
+      bottom:'92px',
+      width:'44px',
+      height:'44px',
+      minWidth:'44px',
+      minHeight:'44px',
+      zIndex:'46',
+      fontSize:'8px',
+      alignItems:'center',
+      justifyContent:'center'
+    });
+    button.classList.remove('hidden-action');
+    return button;
   }
 
   install(){
