@@ -26,23 +26,17 @@ export class RenderingPerformanceSystem{
   this.lastAnchorX=Infinity;
   this.lastAnchorZ=Infinity;
   this.shadowMaintenanceTimer=0;
-  this.shadowMaintenanceInterval=this.isMobile?.14:.08;
+  this.shadowMaintenanceInterval=this.isMobile ? .14 : .08;
 
-  // The Ranger uses a cheap contact shadow instead of entering the directional
-  // shadow map every frame. This keeps animated character cost independent from
-  // the large static-world shadow map.
   this.contactShadow=null;
   this.contactShadowTexture=null;
   this.presentationReceiversConfigured=false;
   this.staticMaterialsConfigured=false;
   this.lambertCache=new WeakMap();
 
-  // Mobile defaults to native CSS-pixel density at most. High-DPI phones often
-  // have enough physical pixels to make 1.2x rendering disproportionately costly
-  // without a visible gameplay benefit at arm's length.
   this.devicePixelRatio=Math.max(1,window.devicePixelRatio||1);
   this.maxPixelRatio=Math.min(this.devicePixelRatio,this.isMobile?1.00:1.20);
-  this.minPixelRatio=Math.min(this.isMobile?.72:.90,this.maxPixelRatio);
+  this.minPixelRatio=Math.min(this.isMobile ? .72 : .90,this.maxPixelRatio);
   this.pixelRatio=this.maxPixelRatio;
   this.performanceTimer=0;
   this.performanceFrames=0;
@@ -199,8 +193,6 @@ export class RenderingPerformanceSystem{
 
  configureStaticMaterials(force=false){
   if(this.staticMaterialsConfigured&&!force)return;
-  // KayKit forest/cliff assets are deliberately matte low-poly objects. Lambert
-  // gives almost the same appearance here while removing unnecessary PBR work.
   this.optimizeMatteRoot(this.world?.environment?.root);
   this.optimizeMatteRoot(this.world?.cliffRocks?.root);
   this.optimizeMatteRoot(this.world?.features?.root);
@@ -289,8 +281,6 @@ export class RenderingPerformanceSystem{
  }
 
  casterSignature(){
-  // Player child count is intentionally excluded. Picking up/placing a carried
-  // prop changes that count, but the Ranger never casts into this shadow map.
   return [
    this.world?.environment?.root?.children?.length||0,
    this.world?.cliffRocks?.root?.children?.length||0,
@@ -420,7 +410,6 @@ export class RenderingPerformanceSystem{
 
  update(dt){
   this.updateContactShadow();
-
   this.shadowMaintenanceTimer-=dt;
   if(this.shadowMaintenanceTimer<=0){
    this.shadowMaintenanceTimer=this.shadowMaintenanceInterval;
@@ -428,7 +417,6 @@ export class RenderingPerformanceSystem{
    this.syncShadowCasters(false);
    if(!this.presentationReceiversConfigured)this.configurePresentationReceivers();
   }
-
   this.updateAdaptiveQuality(dt);
  }
 }
