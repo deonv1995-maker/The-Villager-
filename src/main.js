@@ -1,7 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=620';
+import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=621';
 
-const BUILD='0.6.20';
+const BUILD='0.6.21';
 const status=document.getElementById('status');
 const RECOVERY_BOOT='https://cdn.jsdelivr.net/gh/deonv1995-maker/The-Villager-@b92c156a2d47221b592181e8895de6004e595313/src/systems/GameBootstrap.js';
 
@@ -34,6 +34,16 @@ function bindOrientation(game){
  refresh();
 }
 
+function syncBuildBadge(suffix='Ranger'){
+ if(!status||String(status.textContent||'').includes('ERROR'))return;
+ status.textContent=`${BUILD} · ${suffix}`;
+}
+
+function keepBuildBadgeCurrent(){
+ syncBuildBadge('Ranger');
+ [600,1400,2800,4800,7000].forEach(delay=>setTimeout(()=>syncBuildBadge('Ranger'),delay));
+}
+
 function startGame(GameBootstrap){
  allowAnyOrientation();
  const game=new GameBootstrap(THREE);
@@ -52,26 +62,23 @@ function startGame(GameBootstrap){
  }
 
  bindOrientation(game);
+ keepBuildBadgeCurrent();
  return game;
 }
 
 async function launch(){
+ syncBuildBadge('loading');
  allowAnyOrientation();
  try{
-  const {GameBootstrap}=await import('./systems/GameBootstrap.js?v=620');
+  const {GameBootstrap}=await import('./systems/GameBootstrap.js?v=621');
   startGame(GameBootstrap);
-  setTimeout(()=>{
-   if(status&&!String(status.textContent||'').includes('ERROR'))status.textContent=`${BUILD} · Ranger`;
-  },2800);
  }catch(primaryError){
   console.error('[BOOT IMPORT]',primaryError);
-  if(status)status.textContent=`${BUILD} · recovery…`;
+  syncBuildBadge('recovery…');
   try{
    const {GameBootstrap}=await import(RECOVERY_BOOT);
    startGame(GameBootstrap);
-   setTimeout(()=>{
-    if(status&&!String(status.textContent||'').includes('ERROR'))status.textContent=`${BUILD} · recovery`;
-   },2200);
+   setTimeout(()=>syncBuildBadge('recovery'),2200);
   }catch(recoveryError){
    console.error('[BOOT RECOVERY]',recoveryError);
    if(status){
