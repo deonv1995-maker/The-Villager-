@@ -62,8 +62,6 @@ export class RenderingPerformanceSystem{
   this.configurePresentationReceivers();
   this.configureStaticMaterials();
 
-  // Environment assets populate asynchronously. Refresh exactly once when they
-  // become available rather than polling/traversing the whole forest constantly.
   const environment=this.world?.environment;
   if(environment?.loadKayKit){
    environment.loadKayKit().then(()=>{
@@ -86,9 +84,6 @@ export class RenderingPerformanceSystem{
   this.renderer.setPixelRatio(this.pixelRatio);
   this.renderer.shadowMap.enabled=true;
   this.renderer.shadowMap.type=T.PCFShadowMap;
-
-  // World geometry is static, so render the directional shadow map only when
-  // its player-centred window or caster set actually changes.
   this.renderer.shadowMap.autoUpdate=false;
   this.renderer.shadowMap.needsUpdate=true;
  }
@@ -188,17 +183,16 @@ export class RenderingPerformanceSystem{
   root.traverse?.(object=>{
    if(!object.isMesh)return;
    const materials=Array.isArray(object.material)?object.material:[object.material];
+   let objectChanged=false;
    const optimized=materials.map(material=>{
     if(!material?.isMeshStandardMaterial)return material;
     if((material.metalness??0)>.08)return material;
     if((material.roughness??1)<.70)return material;
     const next=this.matteLambertFrom(material);
-    if(next!==material)changed=true;
+    if(next!==material){changed=true;objectChanged=true;}
     return next;
    });
-   if(changed||optimized.some((m,i)=>m!==materials[i])){
-    object.material=Array.isArray(object.material)?optimized:optimized[0];
-   }
+   if(objectChanged)object.material=Array.isArray(object.material)?optimized:optimized[0];
   });
   return changed;
  }
@@ -226,8 +220,6 @@ export class RenderingPerformanceSystem{
  }
 
  configurePlayerShadow(){
-  // Animated skinned meshes no longer invalidate the world shadow map. The
-  // Ranger still receives world shadows while the contact decal grounds him.
   this.player?.traverse?.(object=>{
    if(!object.isMesh)return;
    object.castShadow=false;
@@ -236,10 +228,6 @@ export class RenderingPerformanceSystem{
  }
 
  configurePresentationReceivers(){
-  // Dense instanced grass already has lighting variation and would otherwise
-  // pay a shadow lookup for every blade fragment. Let the ground beneath it show
-  // tree/rock shadows instead. Its very rough PBR material is visually equivalent
-  // to a cheaper Lambert material in this low-poly presentation.
   const fine=this.scene.getObjectByName?.('FineGrassFieldInstances');
   if(fine){
    fine.castShadow=false;
@@ -302,8 +290,7 @@ export class RenderingPerformanceSystem{
 
  casterSignature(){
   // Player child count is intentionally excluded. Picking up/placing a carried
-  // prop changes that count, but the Ranger never casts into this shadow map, so
-  // refreshing the entire static shadow map on every interaction was pure cost.
+  // prop changes that count, but the Ranger never casts into this shadow map.
   return [
    this.world?.environment?.root?.children?.length||0,
    this.world?.cliffRocks?.root?.children?.length||0,
@@ -340,8 +327,6 @@ export class RenderingPerformanceSystem{
   const dz=pz-this.lastAnchorZ;
   if(!force&&dx*dx+dz*dz<this.shadowAnchorStep*this.shadowAnchorStep)return false;
 
-  // Snap the shadow window to a coarse world grid. Static tree/rock shadows then
-  // stay still between updates instead of swimming across the ground.
   const anchorX=Math.round(px/this.shadowAnchorStep)*this.shadowAnchorStep;
   const anchorZ=Math.round(pz/this.shadowAnchorStep)*this.shadowAnchorStep;
   const anchorY=this.world?.heightAt?.(anchorX,anchorZ)??this.player.position.y;
@@ -415,7 +400,7 @@ export class RenderingPerformanceSystem{
    const fastThreshold=this.isMobile?15.3:17.0;
    if(averageMs>slowThreshold){
     this.fastWindows=0;
-    this.applyPixelRatio(this.pixelRatio-(this.isMobile?.10:.10));
+    this.applyPixelRatio(this.pixelRatio-.10);
    }else if(averageMs<fastThreshold){
     this.fastWindows++;
     const windows=this.isMobile?4:3;
@@ -436,8 +421,6 @@ export class RenderingPerformanceSystem{
  update(dt){
   this.updateContactShadow();
 
-  // Shadow/caster maintenance does not need display-refresh frequency. The
-  // player can move several frames before the coarse static shadow window changes.
   this.shadowMaintenanceTimer-=dt;
   if(this.shadowMaintenanceTimer<=0){
    this.shadowMaintenanceTimer=this.shadowMaintenanceInterval;
