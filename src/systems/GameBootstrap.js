@@ -6,7 +6,7 @@ import { PlayerVisual } from './player/PlayerVisual.js?v=538';
 import { GrassInteractionSystem } from './world/GrassInteractionSystem.js?v=552';
 import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=560';
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
-import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
+import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=593';
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=591';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
@@ -27,7 +27,15 @@ const KAYKIT_ROOTS=[
 const kaykitUrls=path=>KAYKIT_ROOTS.map(root=>`${root}/${path}`);
 
 export class GameBootstrap{
- constructor(THREE){this.THREE=THREE;this.clock=new THREE.Clock();}
+ constructor(THREE){
+  this.THREE=THREE;
+  this.clock=new THREE.Clock();
+  this.frameAccumulator=0;
+  this.targetFrameInterval=1/60;
+  this.presentationAccumulator=0;
+  this.maintenanceAccumulator=0;
+ }
+
  start(){
   const T=this.THREE,status=document.getElementById('status');
   try{
@@ -36,7 +44,8 @@ export class GameBootstrap{
    this.scene.fog=new T.Fog(0x9bcf78,120,320);
    this.camera=new T.PerspectiveCamera(55,innerWidth/innerHeight,.1,700);
    this.renderer=new T.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-   this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.20));
+   const coarse=globalThis.matchMedia?.('(pointer: coarse)')?.matches;
+   this.renderer.setPixelRatio(Math.min(devicePixelRatio||1,coarse?1.0:1.20));
    this.renderer.setSize(innerWidth,innerHeight);
    document.body.insertBefore(this.renderer.domElement,document.body.firstChild);
 
@@ -158,21 +167,49 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.92 · locked log placement · braced shoulder carry · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.93 · mobile performance pass · locked placement · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
-    const dt=Math.min(this.clock.getDelta(),.05);
+
+    // Cap simulation/render presentation near 60 Hz on high-refresh mobile
+    // panels. A small tolerance keeps normal 60 Hz screens from accidentally
+    // dropping to 30 due to timer jitter.
+    const rawDt=Math.min(this.clock.getDelta(),.05);
+    this.frameAccumulator+=rawDt;
+    if(this.frameAccumulator<this.targetFrameInterval*.92)return;
+    const dt=Math.min(this.frameAccumulator,.05);
+    this.frameAccumulator=Math.max(0,this.frameAccumulator-this.targetFrameInterval);
+
+    // Full-rate gameplay: movement, collisions, log physics, harvesting, carry
+    // animation and camera all remain responsive.
     this.constructionTraversal.update(dt);
     this.playerController.update(dt);
     this.materials.update(dt);
-    if(!this.survivalInteraction?.isPlacementLocked?.())this.buildModes.update(dt);
-    this.foundationTerrain.update(dt);
-    this.floorSupports.update(dt);
     this.harvesting.update(dt);
     this.reactions.update(dt);
     this.survivalInteraction.update(dt);
-    this.grassInteraction.update(dt);
-    this.fineGrassFields.update(dt);
+
+    // Presentation-only work does not need display-refresh frequency. 30 Hz is
+    // visually smooth for grass bending and a translucent construction ghost,
+    // while substantially reducing matrix uploads and placement candidate scans.
+    this.presentationAccumulator+=dt;
+    if(this.presentationAccumulator>=1/30){
+     const presentationDt=this.presentationAccumulator;
+     this.presentationAccumulator=0;
+     if(!this.survivalInteraction?.isPlacementLocked?.())this.buildModes.update(presentationDt);
+     this.grassInteraction.update(presentationDt);
+     this.fineGrassFields.update(presentationDt);
+    }
+
+    // Foundation excavation/support generation only reacts to placed structures;
+    // scanning it every render frame was wasted work between placements.
+    this.maintenanceAccumulator+=dt;
+    if(this.maintenanceAccumulator>=.10){
+     this.maintenanceAccumulator=0;
+     this.foundationTerrain.update();
+     this.floorSupports.update();
+    }
+
     this.playerVisual.setCarrying?.(this.materials?.carried?.type||null);
     this.playerVisual.update(dt,this.playerController.moveAmount,this.playerController.locomotionState);
     this.cameraController.update(dt);
@@ -183,7 +220,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.92 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.93 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -204,12 +241,13 @@ export class GameBootstrap{
    this.playerVisual=ranger;
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
+   this.renderPerformance?.configurePlayerShadow?.();
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.92 · Ranger · locked placement · braced shoulder carry · weighted walk'
-    :'Clean rebuild 0.5.92 · Ranger · locked placement · animation set pending';
+    ?'Clean rebuild 0.5.93 · Ranger · optimized GPU · locked placement · shoulder carry'
+    :'Clean rebuild 0.5.93 · Ranger · optimized GPU · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.92 · locked placement · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.93 · optimized mobile rendering · Ranger model unavailable';
   }
  }
 }
