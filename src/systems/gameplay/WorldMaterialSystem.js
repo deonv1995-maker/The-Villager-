@@ -34,6 +34,20 @@ export class WorldMaterialSystem{
   this.logSlopeTiltResponse=13.5;
   this.logMaxTerrainTilt=Math.PI*.30;
 
+  // Carry motion belongs to the physical log object so the prop follows the same
+  // pickup/place timing as the Ranger instead of teleporting to a floating anchor.
+  this.logPickupDuration=.82;
+  this.logPlaceDuration=.72;
+  this.logRecoverDuration=.28;
+  this.logShoulderPosition=new THREE.Vector3(.06,1.82,.12);
+  this.logShoulderQuaternion=new THREE.Quaternion().setFromEuler(
+   new THREE.Euler(0,.08,-.11,'XYZ')
+  );
+  this.logLowerPosition=new THREE.Vector3(0,.58,1.34);
+  this.logLowerQuaternion=new THREE.Quaternion().setFromEuler(
+   new THREE.Euler(0,0,-.025,'XYZ')
+  );
+
   this.materials={
    bark:new THREE.MeshStandardMaterial({color:0x6f472c,roughness:.96,metalness:0,flatShading:true}),
    cut:new THREE.MeshStandardMaterial({color:0xb98555,roughness:.92,metalness:0}),
@@ -153,6 +167,7 @@ export class WorldMaterialSystem{
    state:'loose',
    radius:type==='log'?this.logLength*.48:.42,
    stackHeight:.46,
+   carryMotion:null,
    physics:type==='log'?{
     active:false,
     vx:0,vy:0,vz:0,
@@ -296,10 +311,30 @@ export class WorldMaterialSystem{
   return best;
  }
 
+ startCarryMotion(item,phase,targetPosition,targetQuaternion,duration){
+  if(!item?.object)return false;
+  item.carryMotion={
+   phase,
+   elapsed:0,
+   duration:Math.max(.01,duration),
+   startPosition:item.object.position.clone(),
+   startQuaternion:item.object.quaternion.clone(),
+   targetPosition:targetPosition.clone(),
+   targetQuaternion:targetQuaternion.clone()
+  };
+  this.updateHud();
+  return true;
+ }
+
+ isCarryAnimating(phase=null){
+  const motion=this.carried?.carryMotion;
+  return !!motion&&(!phase||motion.phase===phase);
+ }
+
+ carryAnimationPhase(){return this.carried?.carryMotion?.phase||null;}
+
  pickup(item){
   if(this.carried||!item||item.state!=='loose'||!item.object?.parent)return false;
-  item.object.removeFromParent();
-  this.player.add(item.object);
   item.state='carried';
   this.carried=item;
 
@@ -314,14 +349,60 @@ export class WorldMaterialSystem{
     item.physics.grounded=false;
    }
    this.resetLogVisualRoll(item);
-   item.object.position.set(0,1.24,.76);
-   item.object.rotation.set(0,0,0);
+
+   // Preserve the log's exact world transform at the instant of the grab, then
+   // animate that local transform up to the shoulder. This makes moving logs feel
+   // caught rather than teleported into a carry slot.
+   this.player.updateWorldMatrix(true,false);
+   item.object.updateWorldMatrix(true,false);
+   this.player.attach(item.object);
+   this.startCarryMotion(
+    item,'pickup',this.logShoulderPosition,this.logShoulderQuaternion,this.logPickupDuration
+   );
   }else{
+   item.object.removeFromParent();
+   this.player.add(item.object);
    item.object.position.set(.48,1.08,.48);
    item.object.rotation.set(.18,0,.12);
   }
   this.updateHud();
   return true;
+ }
+
+ beginPlaceAnimation(){
+  const item=this.carried;
+  if(!item||item.type!=='log'||item.carryMotion)return false;
+  return this.startCarryMotion(
+   item,'place',this.logLowerPosition,this.logLowerQuaternion,this.logPlaceDuration
+  );
+ }
+
+ returnCarriedToShoulder(){
+  const item=this.carried;
+  if(!item||item.type!=='log')return false;
+  return this.startCarryMotion(
+   item,'recover',this.logShoulderPosition,this.logShoulderQuaternion,this.logRecoverDuration
+  );
+ }
+
+ updateCarryMotion(item,dt){
+  const motion=item?.carryMotion;
+  if(!motion||!item?.object)return;
+  motion.elapsed=Math.min(motion.duration,motion.elapsed+dt);
+  const t=motion.elapsed/motion.duration;
+  const smooth=t*t*(3-2*t);
+
+  item.object.position.copy(motion.startPosition).lerp(motion.targetPosition,smooth);
+  if(motion.phase==='pickup')item.object.position.y+=Math.sin(Math.PI*t)*.10;
+  else if(motion.phase==='place')item.object.position.y+=Math.sin(Math.PI*t)*.05;
+  item.object.quaternion.copy(motion.startQuaternion).slerp(motion.targetQuaternion,smooth);
+
+  if(t>=1){
+   item.object.position.copy(motion.targetPosition);
+   item.object.quaternion.copy(motion.targetQuaternion);
+   item.carryMotion=null;
+   this.updateHud();
+  }
  }
 
  placementTarget(item){
@@ -356,6 +437,7 @@ export class WorldMaterialSystem{
   if(this.world?.isWithinPlayableBounds&&!this.world.isWithinPlayableBounds(target.x,target.z))return null;
   if(this.world?.environment?.terrainClearance?.(target.x,target.z))return null;
 
+  item.carryMotion=null;
   item.object.removeFromParent();
   this.root.add(item.object);
   this.resetLogVisualRoll(item);
@@ -382,6 +464,7 @@ export class WorldMaterialSystem{
  consume(item){
   if(!item||item.state==='consumed')return false;
   if(this.carried===item)this.carried=null;
+  item.carryMotion=null;
   item.object?.removeFromParent?.();
   item.state='consumed';
   if(item.physics)item.physics.active=false;
@@ -483,12 +566,21 @@ export class WorldMaterialSystem{
   for(const item of this.items){
    if(item.type==='log'&&item.physics?.active)this.updateLogPhysics(item,dt);
   }
+  if(this.carried?.carryMotion)this.updateCarryMotion(this.carried,dt);
  }
 
  updateHud(){
   if(!this.hudRoot)return;
   if(!this.carried){
    this.hudRoot.textContent='HANDS EMPTY · gather and place raw materials';
+   return;
+  }
+  if(this.carried.type==='log'){
+   const phase=this.carried.carryMotion?.phase;
+   if(phase==='pickup')this.hudRoot.textContent='LIFTING LOG · brace it onto the shoulder';
+   else if(phase==='place')this.hudRoot.textContent='LOWERING LOG · placing with control';
+   else if(phase==='recover')this.hudRoot.textContent='RE-BRACING LOG · back to shoulder';
+   else this.hudRoot.textContent='LOG ON SHOULDER · movement slowed by weight';
    return;
   }
   this.hudRoot.textContent=`CARRYING ${this.carried.type.toUpperCase()} · place it in the world`;
