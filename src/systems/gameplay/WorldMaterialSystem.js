@@ -39,9 +39,12 @@ export class WorldMaterialSystem{
   this.logPickupDuration=.82;
   this.logPlaceDuration=.72;
   this.logRecoverDuration=.28;
-  this.logShoulderPosition=new THREE.Vector3(.06,1.82,.12);
+  // Rest the log behind and slightly below the neck, angled across one shoulder.
+  // This leaves room for the forward hand to brace the load instead of the trunk
+  // passing through the Ranger's face like a horizontal bar.
+  this.logShoulderPosition=new THREE.Vector3(.08,1.70,-.18);
   this.logShoulderQuaternion=new THREE.Quaternion().setFromEuler(
-   new THREE.Euler(0,.08,-.11,'XYZ')
+   new THREE.Euler(0,-.28,.10,'XYZ')
   );
   this.logLowerPosition=new THREE.Vector3(0,.58,1.34);
   this.logLowerQuaternion=new THREE.Quaternion().setFromEuler(
