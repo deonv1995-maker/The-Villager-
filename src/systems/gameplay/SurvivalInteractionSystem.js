@@ -91,18 +91,24 @@ export class SurvivalInteractionSystem{
  beginLogPlacement(){
   if(!this.materials?.carried||this.materials.carried.type!=='log')return false;
 
-  // The construction preview now runs full-rate while carrying and stores its
-  // already-resolved base. Capture that exact result instead of forcing another
-  // placement search on the button press.
+  // The construction preview stores the already-resolved destination. Capture
+  // that exact result and the Ranger's facing direction at the same instant so
+  // neither the target nor his body can drift while he performs the set-down.
   const placementSnapshot=this.buildingModes?.capturePlacementSnapshot?.();
   if(!placementSnapshot||!placementSnapshot.valid){
    this.showFeedback('Cannot place here');
    return false;
   }
+  const lockedRotationY=this.player?.rotation?.y;
   if(!this.materials.beginPlaceAnimation?.())return false;
 
   this.playerVisual()?.triggerPlace?.();
-  this.pending={type:'place-log',label:'PLACING LOG',placementSnapshot};
+  this.pending={
+   type:'place-log',
+   label:'PLACING LOG',
+   placementSnapshot,
+   lockedRotationY:Number.isFinite(lockedRotationY)?lockedRotationY:null
+  };
   this.setBuildModeButtonLocked(true);
   this.current={type:'busy',label:'PLACING LOG'};
   this.updateButton();
@@ -112,6 +118,12 @@ export class SurvivalInteractionSystem{
  finishPendingPlacement(){
   const pending=this.pending;
   if(!pending||pending.type!=='place-log')return false;
+
+  // Keep the final animation frame on exactly the same facing direction as the
+  // first frame before committing the cached construction transform.
+  if(this.player&&Number.isFinite(pending.lockedRotationY)){
+   this.player.rotation.y=pending.lockedRotationY;
+  }
 
   const snapshot=pending.placementSnapshot;
   const placed=this.buildingModes?.placeCarriedLogSnapshot?.(snapshot)||null;
@@ -185,6 +197,15 @@ export class SurvivalInteractionSystem{
  }
 
  update(dt){
+  // PlayerController runs earlier in the frame and may receive movement input.
+  // Re-applying the press-time yaw here guarantees the rendered Ranger never
+  // twists during the lowering animation, without freezing the camera itself.
+  if(this.pending?.type==='place-log'
+   &&this.player
+   &&Number.isFinite(this.pending.lockedRotationY)){
+   this.player.rotation.y=this.pending.lockedRotationY;
+  }
+
   if(this.pending?.type==='place-log'&&!this.materials?.isCarryAnimating?.('place')){
    this.finishPendingPlacement();
   }
