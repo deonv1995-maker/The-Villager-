@@ -370,7 +370,8 @@ export class KayKitPlayerVisual{
    }
   }
 
-  this.updateCarryOverlay(dt,carryingLog&&!interaction?.92:0);
+  const overlayTarget=(carryingLog&&!interaction)?0.92:0;
+  this.updateCarryOverlay(dt,overlayTarget);
   this.mixer?.update(dt);
   this.model?.updateMatrixWorld(true);
 
