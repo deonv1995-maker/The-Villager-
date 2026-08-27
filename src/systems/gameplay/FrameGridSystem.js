@@ -5,6 +5,8 @@ export class FrameGridSystem{
   this.spacingTolerance=.10;
   this.perpendicularDotTolerance=.12;
   this.minimumFrameSeparationPadding=.04;
+  this.perimeterProbe=.18;
+  this.floorContainmentInset=.025;
   this.originalFloorSnapBase=null;
   this.originalFloorFrameCandidates=null;
  }
@@ -119,8 +121,9 @@ export class FrameGridSystem{
    if(this.oneLogVector(vector))arms.push(vector);
   }
 
-  // A valid frame location belongs to a complete square floor bay: there must
-  // be another structural corner one full log away along both perpendicular axes.
+  // Keep the proven structural spacing rule: a frame point must still connect to
+  // one-log arms on both perpendicular axes. Perimeter filtering happens after
+  // this so exterior walls retain the exact same bay dimensions as before.
   for(let i=0;i<arms.length;i++){
    for(let j=i+1;j<arms.length;j++){
     if(this.perpendicular(arms[i],arms[j]))return true;
@@ -129,9 +132,55 @@ export class FrameGridSystem{
   return false;
  }
 
+ pointInsideFloor(floor,x,z){
+  if(!floor||!this.sameFloorAxis(floor.yaw||0,floor.yaw||0))return false;
+  const modes=this.buildingModes;
+  const b=modes.basis(floor.yaw||0);
+  const dx=x-floor.x;
+  const dz=z-floor.z;
+  const localX=dx*b.xX+dz*b.xZ;
+  const localZ=dx*b.zX+dz*b.zZ;
+  const halfX=Math.max(.01,(modes.floorHalfLength??1.45)-this.floorContainmentInset);
+  const halfZ=Math.max(.01,(modes.floorHalfWidth??.48)-this.floorContainmentInset);
+  return Math.abs(localX)<=halfX&&Math.abs(localZ)<=halfZ;
+ }
+
+ floorCoversPoint(node,x,z){
+  for(const floor of this.buildingModes.activePlacements('floor')){
+   if(!this.sameFloorAxis(node.yaw,floor.yaw||0))continue;
+   if(this.pointInsideFloor(floor,x,z))return true;
+  }
+  return false;
+ }
+
+ quadrantCoverage(node){
+  const b=this.buildingModes.basis(node.yaw||0);
+  const p=this.perimeterProbe;
+  let covered=0;
+
+  // Probe a small point inside each of the four quadrants around the structural
+  // node. Four covered quadrants means this post would sit completely inside the
+  // floor plan; fewer than four means it lies on the building perimeter.
+  for(const sx of [-1,1]){
+   for(const sz of [-1,1]){
+    const x=node.x+b.xX*p*sx+b.zX*p*sz;
+    const z=node.z+b.xZ*p*sx+b.zZ*p*sz;
+    if(this.floorCoversPoint(node,x,z))covered++;
+   }
+  }
+  return covered;
+ }
+
+ isPerimeterCorner(node){
+  const covered=this.quadrantCoverage(node);
+  return covered>0&&covered<4;
+ }
+
  structuralFloorCorners(){
   const nodes=this.uniqueFloorCorners();
-  return nodes.filter(node=>this.isStructuralCorner(node,nodes));
+  return nodes.filter(node=>
+   this.isStructuralCorner(node,nodes)&&this.isPerimeterCorner(node)
+  );
  }
 
  occupied(node){
@@ -162,6 +211,10 @@ export class FrameGridSystem{
   const foundationFrames=this.buildingModes.foundationFrames();
   const candidates=[];
 
+  // Only the outside boundary participates in the automatic structural grid.
+  // Interior floor intersections deliberately stay open, allowing large rooms
+  // without columns through the centre. The player can still add other building
+  // pieces intentionally; this only removes the automatic interior requirement.
   for(const node of this.structuralFloorCorners()){
    if(this.occupied(node))continue;
    if(!this.respectsExistingFrameGrid(node,foundationFrames))continue;
