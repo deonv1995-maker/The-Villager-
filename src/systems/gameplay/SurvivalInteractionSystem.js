@@ -10,6 +10,7 @@ export class SurvivalInteractionSystem{
   this.refreshTimer=0;
   this.refreshInterval=.07;
   this.current=null;
+  this.pending=null;
   this.feedbackTimer=null;
 
   this.onAction=e=>{
@@ -36,7 +37,16 @@ export class SurvivalInteractionSystem{
   this.feedbackTimer=setTimeout(()=>this.feedbackElement.classList.remove('show'),820);
  }
 
+ playerVisual(){return this.materials?.world?.playerVisual||null;}
+
  resolve(){
+  if(this.pending)return {type:'busy',label:this.pending.label||'WORKING'};
+
+  const carryPhase=this.materials?.carryAnimationPhase?.();
+  if(carryPhase==='pickup')return {type:'busy',label:'LIFTING LOG'};
+  if(carryPhase==='place')return {type:'busy',label:'PLACING LOG'};
+  if(carryPhase==='recover')return {type:'busy',label:'RE-BRACING'};
+
   if(this.materials?.carried){
    if(this.materials.carried.type==='log'&&this.buildingModes){
     return {type:'place-log',label:this.buildingModes.actionLabel()};
@@ -73,16 +83,62 @@ export class SurvivalInteractionSystem{
   }
   button.textContent=this.current.label;
   button.classList.remove('hidden-action');
-  button.disabled=false;
+  button.disabled=this.current.type==='busy';
+ }
+
+ beginLogPlacement(){
+  if(!this.materials?.carried||this.materials.carried.type!=='log')return false;
+
+  // Preview validity already uses the authoritative construction rules and is
+  // refreshed every frame while a log is carried. Do not animate toward a known
+  // invalid destination.
+  if(this.buildingModes&&this.buildingModes.previewValid===false){
+   this.showFeedback('Cannot place here');
+   return false;
+  }
+
+  if(!this.materials.beginPlaceAnimation?.())return false;
+  this.playerVisual()?.triggerPlace?.();
+  this.pending={type:'place-log',label:'PLACING LOG'};
+  this.current={type:'busy',label:'PLACING LOG'};
+  this.updateButton();
+  return true;
+ }
+
+ finishPendingPlacement(){
+  const pending=this.pending;
+  if(!pending||pending.type!=='place-log')return false;
+
+  const placed=this.buildingModes?.placeCarriedLog?.();
+  this.pending=null;
+
+  if(placed){
+   const mode=this.buildingModes?.mode;
+   if(mode==='raw')this.showFeedback('Log placed');
+   else this.showFeedback(`${this.buildingModes.modeLabel(mode)} ${placed.snapKind?'snapped':'placed'}`);
+   this.current=null;
+   this.updateButton();
+   return true;
+  }
+
+  // If terrain/build validity changed during the short lowering motion, keep the
+  // material rather than deleting it and lift it back to the shoulder.
+  this.materials?.returnCarriedToShoulder?.();
+  this.showFeedback('Cannot place here');
+  this.current=null;
+  this.updateButton();
+  return false;
  }
 
  perform(){
+  if(this.pending)return false;
   const interaction=this.resolve();
-  if(!interaction)return false;
+  if(!interaction||interaction.type==='busy')return false;
 
   if(interaction.type==='pickup'){
    if(this.materials.pickup(interaction.item)){
-    this.showFeedback(`${interaction.item.type==='log'?'Log':'Stone'} picked up`);
+    if(interaction.item.type==='log')this.playerVisual()?.triggerPickup?.();
+    this.showFeedback(interaction.item.type==='log'?'Lifting log to shoulder':'Stone picked up');
     this.current=null;
     this.updateButton();
     return true;
@@ -91,17 +147,7 @@ export class SurvivalInteractionSystem{
   }
 
   if(interaction.type==='place-log'){
-   const placed=this.buildingModes.placeCarriedLog();
-   if(placed){
-    const mode=this.buildingModes.mode;
-    if(mode==='raw')this.showFeedback('Log placed');
-    else this.showFeedback(`${this.buildingModes.modeLabel(mode)} ${placed.snapKind?'snapped':'placed'}`);
-    this.current=null;
-    this.updateButton();
-    return true;
-   }
-   this.showFeedback('Cannot place here');
-   return false;
+   return this.beginLogPlacement();
   }
 
   if(interaction.type==='place'){
@@ -137,6 +183,10 @@ export class SurvivalInteractionSystem{
  }
 
  update(dt){
+  if(this.pending?.type==='place-log'&&!this.materials?.isCarryAnimating?.('place')){
+   this.finishPendingPlacement();
+  }
+
   this.refreshTimer-=dt;
   if(this.refreshTimer>0)return;
   this.refreshTimer=this.refreshInterval;
