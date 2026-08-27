@@ -163,8 +163,10 @@ export class HarvestingSystem{
 
  fallenDirection(entry){
   const baseYaw=entry.object.rotation.y||0;
-  const localYaw=entry.fallAxis==='z'?0:Math.PI/2;
-  return baseYaw+localYaw+(entry.fallSign<0?Math.PI:0);
+  // Match the actual direction of the tree's local Y axis after its X/Z fall
+  // rotation. This prevents the replacement logs appearing across the stump.
+  if(entry.fallAxis==='z')return baseYaw+(entry.fallSign>0?Math.PI:0);
+  return baseYaw+(entry.fallSign>0?-Math.PI/2:Math.PI/2);
  }
 
  spawnLogsFromTree(entry){
