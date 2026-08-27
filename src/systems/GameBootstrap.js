@@ -16,6 +16,7 @@ import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
 import { UpperFloorSystem } from './gameplay/UpperFloorSystem.js?v=597';
 import { ConstructionTraversalSystem } from './gameplay/ConstructionTraversalSystem.js?v=583';
 import { StairSystem } from './gameplay/StairSystem.js?v=582';
+import { StairLandingTransitionSystem } from './gameplay/StairLandingTransitionSystem.js?v=598';
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=595';
 
@@ -115,6 +116,9 @@ export class GameBootstrap{
    this.stairs=new StairSystem({world:this.world,buildingModes:this.buildModes,constructionTraversal:this.constructionTraversal,frameGrid:this.frameGrid});
    this.stairs.initialize();
 
+   this.stairLandings=new StairLandingTransitionSystem({world:this.world,constructionTraversal:this.constructionTraversal,stairs:this.stairs,buildingModes:this.buildModes});
+   this.stairLandings.initialize();
+
    this.harvesting=new HarvestingSystem(T,{world:this.world,player:this.player,materials:this.materials});
    this.harvesting.initialize();
 
@@ -135,7 +139,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.97 · multi-storey floors · perimeter framework · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.98 · open stair landings · multi-storey floors · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const rawDt=Math.min(this.clock.getDelta(),.05);
@@ -176,7 +180,7 @@ export class GameBootstrap{
    loop();
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.97 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.98 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -194,8 +198,8 @@ export class GameBootstrap{
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.97 · Ranger · multi-storey floors · open interiors'
-    :'Clean rebuild 0.5.97 · Ranger · multi-storey floors · animation set pending';
+    ?'Clean rebuild 0.5.98 · Ranger · open stair landings · multi-storey floors'
+    :'Clean rebuild 0.5.98 · Ranger · open stair landings · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
    if(this.fallbackVisual){
@@ -203,7 +207,7 @@ export class GameBootstrap{
     this.playerVisual=this.fallbackVisual;
     this.world.playerVisual=this.fallbackVisual;
    }
-   if(status)status.textContent='Clean rebuild 0.5.97 · Ranger unavailable · fallback character active';
+   if(status)status.textContent='Clean rebuild 0.5.98 · Ranger unavailable · fallback character active';
   }
  }
 }
