@@ -10,6 +10,8 @@ import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSyst
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=591';
 import { GrassMaterialSystem } from './gameplay/GrassMaterialSystem.js?v=603';
 import { GrassCarryVisualSystem } from './gameplay/GrassCarryVisualSystem.js?v=603';
+import { LogHaulingSystem } from './gameplay/LogHaulingSystem.js?v=604';
+import { LogHaulingInteractionSystem } from './gameplay/LogHaulingInteractionSystem.js?v=604';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
 import { GrassHarvestingSystem } from './gameplay/GrassHarvestingSystem.js?v=603';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=594';
@@ -105,6 +107,14 @@ export class GameBootstrap{
    this.grassMaterials.initialize();
    this.grassCarryVisual=new GrassCarryVisualSystem({world:this.world,materials:this.materials});
 
+   this.logHauling=new LogHaulingSystem(T,{
+    world:this.world,
+    player:this.player,
+    materials:this.materials,
+    playerController:this.playerController
+   });
+   this.logHauling.initialize();
+
    this.buildModes=new BuildingModeSystem(T,{world:this.world,scene:this.scene,player:this.player,materials:this.materials,button:document.getElementById('build-mode-button'),feedbackElement:document.getElementById('gameplay-feedback')});
    this.buildModes.initialize();
 
@@ -146,6 +156,13 @@ export class GameBootstrap{
    this.survivalInteraction=new SurvivalInteractionSystem({player:this.player,materials:this.materials,harvesting:this.harvesting,reactions:this.reactions,buildingModes:this.buildModes,actionButton:document.getElementById('action-button'),feedbackElement:document.getElementById('gameplay-feedback')});
    this.survivalInteraction.initialize();
 
+   this.logHaulingInteraction=new LogHaulingInteractionSystem({
+    interaction:this.survivalInteraction,
+    hauling:this.logHauling,
+    materials:this.materials
+   });
+   this.logHaulingInteraction.initialize();
+
    this.buildDrawer=new BuildDrawerSystem({
     buildingModes:this.buildModes,
     materials:this.materials,
@@ -153,6 +170,7 @@ export class GameBootstrap{
     legacyModeButton:document.getElementById('build-mode-button')
    });
    this.buildDrawer.initialize();
+   this.logHaulingInteraction.bindBuildDrawer(this.buildDrawer);
 
    this.renderPerformance=new RenderingPerformanceSystem(T,{renderer:this.renderer,scene:this.scene,camera:this.camera,world:this.world,player:this.player,sun:this.sun});
    this.renderPerformance.initialize();
@@ -165,7 +183,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='0.6.03 · loading';
+   if(status)status.textContent='0.6.04 · loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const rawDt=Math.min(this.clock.getDelta(),.05);
@@ -177,6 +195,7 @@ export class GameBootstrap{
     this.constructionTraversal.update(dt);
     this.playerController.update(dt);
     this.materials.update(dt);
+    this.logHauling.update(dt);
     this.harvesting.update(dt);
     this.reactions.update(dt);
     this.survivalInteraction.update(dt);
@@ -198,8 +217,10 @@ export class GameBootstrap{
      this.floorSupports.update();
     }
 
-    this.playerVisual.setCarrying?.(this.materials?.carried?.type||null);
+    const haulVisual=this.logHauling?.visualCarryType?.();
+    this.playerVisual.setCarrying?.(haulVisual||this.materials?.carried?.type||null);
     this.playerVisual.update(dt,this.playerController.moveAmount,this.playerController.locomotionState);
+    this.logHauling.updateVisual(dt,this.playerController.moveAmount);
     this.grassCarryVisual.update();
     this.cameraController.update(dt);
     this.renderPerformance.update(dt);
@@ -208,7 +229,7 @@ export class GameBootstrap{
    loop();
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.6.03 · ERROR';status.style.background='#5b1818';}
+   if(status){status.textContent='0.6.04 · ERROR';status.style.background='#5b1818';}
   }
  }
 
@@ -225,7 +246,7 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
-   if(status)status.textContent=ranger.actions.size?'0.6.03 · Ranger':'0.6.03 · Ranger anim…';
+   if(status)status.textContent=ranger.actions.size?'0.6.04 · Ranger':'0.6.04 · Ranger anim…';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
    if(this.fallbackVisual){
@@ -233,7 +254,7 @@ export class GameBootstrap{
     this.playerVisual=this.fallbackVisual;
     this.world.playerVisual=this.fallbackVisual;
    }
-   if(status)status.textContent='0.6.03 · fallback';
+   if(status)status.textContent='0.6.04 · fallback';
   }
  }
 }
