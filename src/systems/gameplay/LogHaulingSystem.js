@@ -1,15 +1,17 @@
 export class LogHaulingSystem{
- constructor(THREE,{world,player,materials}){
+ constructor(THREE,{world,player,materials,playerController=null}){
   this.T=THREE;
   this.world=world;
   this.player=player;
   this.materials=materials;
+  this.playerController=playerController;
 
   this.maxLogs=3;
   this.pickupRange=2.65;
   this.stack=[];
   this.transition=null;
   this.originalUpdateHud=null;
+  this.originalMovementWeightScale=null;
   this.tempWorld=new THREE.Vector3();
 
   this.dragQuaternion=new THREE.Quaternion().setFromEuler(
@@ -28,6 +30,16 @@ export class LogHaulingSystem{
   if(this.materials.updateHud){
    this.originalUpdateHud=this.materials.updateHud.bind(this.materials);
    this.materials.updateHud=()=>this.updateHud();
+  }
+
+  if(this.playerController?.movementWeightScale){
+   this.originalMovementWeightScale=this.playerController.movementWeightScale.bind(this.playerController);
+   this.playerController.movementWeightScale=()=>{
+    if(this.isBusy())return .08;
+    if(this.stack.length>=3)return .34;
+    if(this.stack.length===2)return .42;
+    return this.originalMovementWeightScale();
+   };
   }
   this.updateHud();
  }
@@ -84,7 +96,7 @@ export class LogHaulingSystem{
    item.object.getWorldPosition(this.tempWorld);
    const dx=this.tempWorld.x-px,dz=this.tempWorld.z-pz;
    const distance=Math.hypot(dx,dz);
-   if(distance>.15&&distance>this.pickupRange)continue;
+   if(distance>this.pickupRange)continue;
    const dot=(dx*fx+dz*fz)/Math.max(.001,distance);
    if(distance>1.10&&dot<-.18)continue;
    const score=distance-dot*.30;
@@ -135,8 +147,8 @@ export class LogHaulingSystem{
 
    const secondStart=item.object.position.clone();
    const pairY=Math.max(.30,secondStart.y);
-   const pairSecond=new this.T.Vector3(secondStart.x, pairY, secondStart.z);
-   const pairFirst=new this.T.Vector3(secondStart.x-.58, pairY, secondStart.z);
+   const pairSecond=new this.T.Vector3(secondStart.x,pairY,secondStart.z);
+   const pairFirst=new this.T.Vector3(secondStart.x-.58,pairY,secondStart.z);
 
    this.transition={
     phase:'merge2',elapsed:0,duration:1.08,
