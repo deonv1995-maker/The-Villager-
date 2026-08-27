@@ -31,6 +31,7 @@ import { ThatchRoofVisualSystem } from './gameplay/ThatchRoofVisualSystem.js?v=6
 import { ConstructionReactionSystem } from './gameplay/ConstructionReactionSystem.js?v=564';
 import { SurvivalInteractionSystem } from './gameplay/SurvivalInteractionSystem.js?v=603';
 
+const BUILD='0.6.16';
 const KAYKIT_COMMIT='8742b69b6d965f369e7b8a87cee570a81184c403';
 const KAYKIT_ROOTS=[
  `https://raw.githubusercontent.com/ArtjomSchwenk/Koy/${KAYKIT_COMMIT}/Assets/Character/KayKit_Adventurers_2.0_FREE`,
@@ -202,7 +203,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='0.6.11 · loading';
+   if(status)status.textContent=`${BUILD} · loading`;
    const loop=()=>{
     requestAnimationFrame(loop);
     const rawDt=Math.min(this.clock.getDelta(),.05);
@@ -252,7 +253,7 @@ export class GameBootstrap{
    loop();
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.6.11 · ERROR';status.style.background='#5b1818';}
+   if(status){status.textContent=`${BUILD} · ERROR`;status.style.background='#5b1818';}
   }
  }
 
@@ -269,7 +270,7 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
-   if(status)status.textContent=ranger.actions.size?'0.6.11 · Ranger':'0.6.11 · Ranger anim…';
+   if(status)status.textContent=ranger.actions.size?`${BUILD} · Ranger`:`${BUILD} · Ranger anim…`;
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
    if(this.fallbackVisual){
@@ -277,7 +278,7 @@ export class GameBootstrap{
     this.playerVisual=this.fallbackVisual;
     this.world.playerVisual=this.fallbackVisual;
    }
-   if(status)status.textContent='0.6.11 · fallback';
+   if(status)status.textContent=`${BUILD} · fallback`;
   }
  }
 }
