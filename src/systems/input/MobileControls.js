@@ -1,10 +1,12 @@
 export class MobileControls{
-  constructor({leftRoot,leftKnob,rightRoot,rightKnob,jumpRoot}){
+  constructor({leftRoot,leftKnob,rightRoot,rightKnob,jumpRoot,sprintRoot}){
     this.left={root:leftRoot,knob:leftKnob,pointerId:null,x:0,y:0,anchorX:0,anchorY:0};
     this.right={root:rightRoot,knob:rightKnob,pointerId:null,x:0,y:0,anchorX:0,anchorY:0};
     this.jumpRoot=jumpRoot||null;
+    this.sprintRoot=sprintRoot||null;
     this.jumpQueued=false;
     this.jumpHeld=false;
+    this.sprintHeld=false;
     this.bound=[];
     this.install();
   }
@@ -12,11 +14,13 @@ export class MobileControls{
   install(){
     this.bindScreenZones();
     this.bindJump();
+    this.bindSprint();
     this.bindKeyboard();
   }
 
   isUiTarget(target){
     if(this.jumpRoot&&(target===this.jumpRoot||this.jumpRoot.contains?.(target)))return true;
+    if(this.sprintRoot&&(target===this.sprintRoot||this.sprintRoot.contains?.(target)))return true;
     return !!target?.closest?.('[data-game-ui]');
   }
 
@@ -116,17 +120,60 @@ export class MobileControls{
     this.bound.push([root,'pointerdown',onDown],[root,'pointerup',onEnd],[root,'pointercancel',onEnd]);
   }
 
+  bindSprint(){
+    const root=this.sprintRoot;
+    if(!root)return;
+    root.style.touchAction='none';
+
+    const onDown=e=>{
+      this.sprintHeld=true;
+      root.classList.add('pressed');
+      root.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const onEnd=e=>{
+      this.sprintHeld=false;
+      root.classList.remove('pressed');
+      e.preventDefault();
+      e.stopPropagation();
+    };
+
+    root.addEventListener('pointerdown',onDown,{passive:false});
+    root.addEventListener('pointerup',onEnd,{passive:false});
+    root.addEventListener('pointercancel',onEnd,{passive:false});
+    root.addEventListener('lostpointercapture',onEnd,{passive:false});
+    this.bound.push(
+      [root,'pointerdown',onDown],
+      [root,'pointerup',onEnd],
+      [root,'pointercancel',onEnd],
+      [root,'lostpointercapture',onEnd]
+    );
+  }
+
   bindKeyboard(){
     const onKeyDown=e=>{
-      if(e.code!=='Space')return;
-      if(!e.repeat)this.jumpQueued=true;
-      this.jumpHeld=true;
-      e.preventDefault();
+      if(e.code==='Space'){
+        if(!e.repeat)this.jumpQueued=true;
+        this.jumpHeld=true;
+        e.preventDefault();
+        return;
+      }
+      if(e.code==='ShiftLeft'||e.code==='ShiftRight'){
+        this.sprintHeld=true;
+        e.preventDefault();
+      }
     };
     const onKeyUp=e=>{
-      if(e.code!=='Space')return;
-      this.jumpHeld=false;
-      e.preventDefault();
+      if(e.code==='Space'){
+        this.jumpHeld=false;
+        e.preventDefault();
+        return;
+      }
+      if(e.code==='ShiftLeft'||e.code==='ShiftRight'){
+        this.sprintHeld=false;
+        e.preventDefault();
+      }
     };
     window.addEventListener('keydown',onKeyDown,{passive:false});
     window.addEventListener('keyup',onKeyUp,{passive:false});
@@ -149,5 +196,6 @@ export class MobileControls{
     this.endStick(this.right);
     this.jumpQueued=false;
     this.jumpHeld=false;
+    this.sprintHeld=false;
   }
 }
