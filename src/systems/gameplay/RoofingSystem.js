@@ -8,8 +8,6 @@ export class RoofingSystem{
   this.snapRange=3.15;
   this.heightTolerance=.30;
   this.slotTolerance=.28;
-  this.frameModes=new Set(['roofFrame']);
-  this.cladModes=new Set(['roofClad']);
   this.plankStages=3;
   this.minRise=.78;
   this.maxRise=2.05;
@@ -87,6 +85,15 @@ export class RoofingSystem{
  project(point,cx,cz,ux,uz,vx,vz){
   const dx=point.x-cx,dz=point.z-cz;
   return {u:dx*ux+dz*uz,v:dx*vx+dz*vz};
+ }
+
+ regionHasUpperDeck(region){
+  const targetY=region.beamCenterY+(this.upperFloors.floorSeatInset??.10);
+  return this.buildingModes.activePlacements('floor').some(floor=>
+   floor.snapKind==='upper-floor-beam'&&
+   Math.abs((floor.centerY??0)-targetY)<=this.heightTolerance&&
+   this.upperFloors.pointInsideRegion?.(region,floor.x,floor.z)
+  );
  }
 
  regionData(region){
@@ -294,6 +301,7 @@ export class RoofingSystem{
   const result=[];
   const regions=this.upperFloors.perimeterFrameworks?.()||[];
   for(const region of regions){
+   if(this.regionHasUpperDeck(region))continue;
    const data=this.regionData(region);
    if(!data)continue;
    const missing=this.missingFrameCandidates(data);
@@ -449,7 +457,7 @@ export class RoofingSystem{
   bm.previewValid=this.roofPlacementAllowed(base);
   bm.lastPreviewBase=bm.clonePlacementBase(base);
   bm.previewMaterial.color.setHex(bm.previewValid?0x65d879:0xd85d57);
-  bm.previewMaterial.opacity=bm.previewValid?.44:.34;
+  bm.previewMaterial.opacity=bm.previewValid ? .44 : .34;
   bm.preview.visible=true;
  }
 
@@ -460,7 +468,7 @@ export class RoofingSystem{
   if(base?.snapKind==='roof-plank-clad')return `CLAD ROOF ${Math.min(this.plankStages,base.roofStage+1)}/${this.plankStages}`;
   if(base?.snapKind==='roof-grass-clad')return 'THATCH ROOF BAY';
 
-  const regions=this.upperFloors.perimeterFrameworks?.()||[];
+  const regions=(this.upperFloors.perimeterFrameworks?.()||[]).filter(region=>!this.regionHasUpperDeck(region));
   if(!regions.length)return 'NEEDS TOP FRAME';
   if(this.materials?.carried?.type==='grass')return 'FINISH ROOF FRAME';
   return 'ROOF COMPLETE';
