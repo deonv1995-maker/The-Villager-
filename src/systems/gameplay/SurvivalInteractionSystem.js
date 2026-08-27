@@ -41,23 +41,11 @@ export class SurvivalInteractionSystem{
  playerVisual(){return this.materials?.world?.playerVisual||null;}
 
  isPlacementLocked(){
-  return this.pending?.type==='place-log'&&!!this.pending.placementLock;
+  return this.pending?.type==='place-log'&&!!this.pending.placementSnapshot;
  }
 
  setBuildModeButtonLocked(locked){
   if(this.buildingModes?.button)this.buildingModes.button.disabled=!!locked;
- }
-
- capturePlacementLock(){
-  if(!this.player)return null;
-  return {
-   x:this.player.position.x,
-   y:this.player.position.y,
-   z:this.player.position.z,
-   rotationY:this.player.rotation.y,
-   modeIndex:Number.isFinite(this.buildingModes?.modeIndex)?this.buildingModes.modeIndex:null,
-   mode:this.buildingModes?.mode||null
-  };
  }
 
  resolve(){
@@ -76,20 +64,13 @@ export class SurvivalInteractionSystem{
   }
 
   const loose=this.materials?.findNearestLoose?.();
-  if(loose){
-   return {type:'pickup',item:loose,label:`TAKE ${loose.type.toUpperCase()}`};
-  }
+  if(loose)return {type:'pickup',item:loose,label:`TAKE ${loose.type.toUpperCase()}`};
 
   const reaction=this.reactions?.findInteraction?.();
-  if(reaction){
-   return {type:'reaction',...reaction};
-  }
+  if(reaction)return {type:'reaction',...reaction};
 
   const harvest=this.harvesting?.currentTarget;
-  if(harvest){
-   return {type:'harvest',target:harvest,label:this.harvesting.actionLabelFor(harvest)};
-  }
-
+  if(harvest)return {type:'harvest',target:harvest,label:this.harvesting.actionLabelFor(harvest)};
   return null;
  }
 
@@ -110,21 +91,18 @@ export class SurvivalInteractionSystem{
  beginLogPlacement(){
   if(!this.materials?.carried||this.materials.carried.type!=='log')return false;
 
-  // Refresh once at the exact press moment, then freeze that visible target until
-  // the lowering animation finishes. Movement after this point must not move the
-  // ghost or change where the log is committed.
-  this.buildingModes?.updatePreview?.();
-  if(this.buildingModes&&this.buildingModes.previewValid===false){
+  // The construction preview now runs full-rate while carrying and stores its
+  // already-resolved base. Capture that exact result instead of forcing another
+  // placement search on the button press.
+  const placementSnapshot=this.buildingModes?.capturePlacementSnapshot?.();
+  if(!placementSnapshot||!placementSnapshot.valid){
    this.showFeedback('Cannot place here');
    return false;
   }
-
-  const placementLock=this.capturePlacementLock();
-  if(!placementLock)return false;
   if(!this.materials.beginPlaceAnimation?.())return false;
 
   this.playerVisual()?.triggerPlace?.();
-  this.pending={type:'place-log',label:'PLACING LOG',placementLock};
+  this.pending={type:'place-log',label:'PLACING LOG',placementSnapshot};
   this.setBuildModeButtonLocked(true);
   this.current={type:'busy',label:'PLACING LOG'};
   this.updateButton();
@@ -135,43 +113,13 @@ export class SurvivalInteractionSystem{
   const pending=this.pending;
   if(!pending||pending.type!=='place-log')return false;
 
-  const lock=pending.placementLock;
-  let placed=null;
-  const saved=this.player?{
-   x:this.player.position.x,
-   y:this.player.position.y,
-   z:this.player.position.z,
-   rotationY:this.player.rotation.y,
-   modeIndex:this.buildingModes?.modeIndex
-  }:null;
-
-  try{
-   // Re-run the authoritative construction commit as though the Ranger were still
-   // at the exact pose where PLACE was pressed. This preserves all existing snap,
-   // terrain and structural rules while making the chosen destination immutable.
-   if(lock&&this.player){
-    this.player.position.set(lock.x,lock.y,lock.z);
-    this.player.rotation.y=lock.rotationY;
-   }
-   if(lock&&Number.isFinite(lock.modeIndex)&&this.buildingModes){
-    this.buildingModes.modeIndex=lock.modeIndex;
-   }
-   placed=this.buildingModes?.placeCarriedLog?.()||null;
-  }finally{
-   if(saved&&this.player){
-    this.player.position.set(saved.x,saved.y,saved.z);
-    this.player.rotation.y=saved.rotationY;
-   }
-   if(saved&&Number.isFinite(saved.modeIndex)&&this.buildingModes){
-    this.buildingModes.modeIndex=saved.modeIndex;
-    this.buildingModes.updateButton?.();
-   }
-   this.setBuildModeButtonLocked(false);
-   this.pending=null;
-  }
+  const snapshot=pending.placementSnapshot;
+  const placed=this.buildingModes?.placeCarriedLogSnapshot?.(snapshot)||null;
+  this.setBuildModeButtonLocked(false);
+  this.pending=null;
 
   if(placed){
-   const mode=lock?.mode||this.buildingModes?.mode;
+   const mode=snapshot?.mode||this.buildingModes?.mode;
    if(mode==='raw')this.showFeedback('Log placed');
    else this.showFeedback(`${this.buildingModes.modeLabel(mode)} ${placed.snapKind?'snapped':'placed'}`);
    this.current=null;
@@ -179,8 +127,6 @@ export class SurvivalInteractionSystem{
    return true;
   }
 
-  // If validity changed while lowering, keep the material and return it to the
-  // shoulder. The placement lock is already released so the preview may resume.
   this.materials?.returnCarriedToShoulder?.();
   this.showFeedback('Cannot place here');
   this.current=null;
@@ -204,9 +150,7 @@ export class SurvivalInteractionSystem{
    return false;
   }
 
-  if(interaction.type==='place-log'){
-   return this.beginLogPlacement();
-  }
+  if(interaction.type==='place-log')return this.beginLogPlacement();
 
   if(interaction.type==='place'){
    const placed=this.materials.placeCarried();
