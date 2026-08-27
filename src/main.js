@@ -4,7 +4,12 @@ import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js
 const status=document.getElementById('status');
 const RECOVERY_BOOT='https://cdn.jsdelivr.net/gh/deonv1995-maker/The-Villager-@b92c156a2d47221b592181e8895de6004e595313/src/systems/GameBootstrap.js';
 
+function releaseOrientationLock(){
+ try{globalThis.screen?.orientation?.unlock?.();}catch(error){console.debug('[ORIENTATION]',error);}
+}
+
 function startGame(GameBootstrap){
+ releaseOrientationLock();
  const game=new GameBootstrap(THREE);
  game.start();
  globalThis.__villagerGame=game;
@@ -22,6 +27,7 @@ function startGame(GameBootstrap){
 }
 
 async function launch(){
+ releaseOrientationLock();
  try{
   const {GameBootstrap}=await import('./systems/GameBootstrap.js?v=616');
   startGame(GameBootstrap);
