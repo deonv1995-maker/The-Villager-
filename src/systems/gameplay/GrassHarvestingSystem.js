@@ -79,14 +79,43 @@ export class GrassHarvestingSystem{
   return grass.grassScore+.22<this.resourceScore(resource)?grass:resource;
  }
 
+ harvestPatch(x,z){
+  const field=this.fineGrass;
+  if(!field?.mesh||!field?.matrixDummy)return 0;
+  const candidates=field.nearbyEntries?.(x,z)||[];
+  const radiusSq=this.cutRadius*this.cutRadius;
+  let count=0;
+
+  for(const entry of candidates){
+   if(entry.harvested)continue;
+   const dx=entry.x-x,dz=entry.z-z;
+   if(dx*dx+dz*dz>radiusSq)continue;
+
+   entry.harvested=true;
+   entry.bendX=entry.bendZ=entry.compression=0;
+   field.active?.delete?.(entry);
+
+   const d=field.matrixDummy;
+   d.position.set(entry.x,entry.y-.05,entry.z);
+   d.rotation.set(entry.baseLeanX,entry.baseYaw,entry.baseLeanZ);
+   d.scale.set(.001,.001,.001);
+   d.updateMatrix();
+   field.mesh.setMatrixAt(entry.index,d.matrix);
+
+   count++;
+   if(count>=this.maxCutTufts)break;
+  }
+
+  if(count)field.mesh.instanceMatrix.needsUpdate=true;
+  return count;
+ }
+
  performGrass(target){
   if(this.harvesting.hitCooldownTimer>0||this.materials?.carried||!target?.active)return null;
   const entry=target.grassEntry;
   if(!entry||entry.harvested)return null;
 
-  const count=this.fineGrass.harvestPatch?.(
-   entry.x,entry.z,this.cutRadius,this.maxCutTufts
-  )||0;
+  const count=this.harvestPatch(entry.x,entry.z);
   if(count<1)return null;
 
   const bundle=this.materials?.createCarriedGrassBundle?.();
