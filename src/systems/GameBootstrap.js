@@ -10,6 +10,7 @@ import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSyst
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=591';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=594';
+import { BuildDrawerSystem } from './gameplay/BuildDrawerSystem.js?v=600';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=597';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=594';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
@@ -132,6 +133,14 @@ export class GameBootstrap{
    this.survivalInteraction=new SurvivalInteractionSystem({player:this.player,materials:this.materials,harvesting:this.harvesting,reactions:this.reactions,buildingModes:this.buildModes,actionButton:document.getElementById('action-button'),feedbackElement:document.getElementById('gameplay-feedback')});
    this.survivalInteraction.initialize();
 
+   this.buildDrawer=new BuildDrawerSystem({
+    buildingModes:this.buildModes,
+    materials:this.materials,
+    interaction:this.survivalInteraction,
+    legacyModeButton:document.getElementById('build-mode-button')
+   });
+   this.buildDrawer.initialize();
+
    this.renderPerformance=new RenderingPerformanceSystem(T,{renderer:this.renderer,scene:this.scene,camera:this.camera,world:this.world,player:this.player,sun:this.sun});
    this.renderPerformance.initialize();
 
@@ -143,7 +152,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.99 · non-overlapping stairs · open stair landings · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.6.00 · top build drawer · non-overlapping stairs · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const rawDt=Math.min(this.clock.getDelta(),.05);
@@ -158,6 +167,7 @@ export class GameBootstrap{
     this.harvesting.update(dt);
     this.reactions.update(dt);
     this.survivalInteraction.update(dt);
+    this.buildDrawer.update();
     if(!this.survivalInteraction?.isPlacementLocked?.())this.buildModes.update(dt);
 
     this.presentationAccumulator+=dt;
@@ -184,7 +194,7 @@ export class GameBootstrap{
    loop();
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.99 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.6.00 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -202,8 +212,8 @@ export class GameBootstrap{
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.99 · Ranger · non-overlapping stairs · open landings'
-    :'Clean rebuild 0.5.99 · Ranger · non-overlapping stairs · animation set pending';
+    ?'Clean rebuild 0.6.00 · Ranger · top build drawer · multi-storey construction'
+    :'Clean rebuild 0.6.00 · Ranger · top build drawer · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
    if(this.fallbackVisual){
@@ -211,7 +221,7 @@ export class GameBootstrap{
     this.playerVisual=this.fallbackVisual;
     this.world.playerVisual=this.fallbackVisual;
    }
-   if(status)status.textContent='Clean rebuild 0.5.99 · Ranger unavailable · fallback character active';
+   if(status)status.textContent='Clean rebuild 0.6.00 · Ranger unavailable · fallback character active';
   }
  }
 }
