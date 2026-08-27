@@ -19,10 +19,6 @@ export class BuildingModeSystem{
 
   this.logLength=this.materials?.logLength??2.90;
   this.logHalfLength=this.logLength*.5;
-
-  // Three split-log floor strips make one full log-width structural bay. This
-  // means the frame grid can be the same width in both directions while still
-  // requiring actual floor material underneath every ground-story post.
   this.floorWidth=this.logLength/3;
   this.floorHalfLength=this.logHalfLength;
   this.floorHalfWidth=this.floorWidth*.5;
@@ -49,6 +45,7 @@ export class BuildingModeSystem{
   this.preview=null;
   this.previewMode=null;
   this.previewValid=false;
+  this.lastPreviewBase=null;
   this.previewMaterial=new THREE.MeshBasicMaterial({
    color:0x65d879,
    transparent:true,
@@ -121,6 +118,11 @@ export class BuildingModeSystem{
    xX:Math.cos(yaw),xZ:-Math.sin(yaw),
    zX:Math.sin(yaw),zZ:Math.cos(yaw)
   };
+ }
+
+ clonePlacementBase(base){
+  if(!base)return null;
+  return {...base,anchorIds:[...(base.anchorIds||[])]};
  }
 
  placementBase(distance=this.placeDistance){
@@ -212,10 +214,6 @@ export class BuildingModeSystem{
     );
     if(occupied)continue;
 
-    // The very first post may use any floor corner. After that, every foundation
-    // post must be exactly one full raw-log length from an existing foundation
-    // post. Because three floor strips equal one log width, the bay is square in
-    // both directions instead of becoming narrow on one side.
     if(foundationFrames.length){
      const oneLogAway=foundationFrames.some(frame=>
       Math.abs(Math.hypot(frame.x-corner.x,frame.z-corner.z)-this.logLength)<=this.frameSpacingTolerance
@@ -272,6 +270,7 @@ export class BuildingModeSystem{
  }
 
  wallBaseHeight(base){
+  if(Number.isFinite(base?.lockedCenterY))return base.lockedCenterY;
   let highestTop=-Infinity;
   for(const placement of this.activePlacements('wall')){
    if(this.axisYawDelta(placement.yaw,base.yaw)>.14)continue;
@@ -291,10 +290,7 @@ export class BuildingModeSystem{
   if(!base)return false;
   if(this.world?.isWithinPlayableBounds&&!this.world.isWithinPlayableBounds(base.x,base.z))return false;
   if(this.world?.environment?.terrainClearance?.(base.x,base.z)&&!base.snapKind)return false;
-
-  if(mode==='frame'){
-   if(base.snapKind!=='floor-corner'&&base.snapKind!=='beam-top')return false;
-  }
+  if(mode==='frame'&&base.snapKind!=='floor-corner'&&base.snapKind!=='beam-top')return false;
   if(mode==='wall'&&!this.wallFitsFrameHeight(base))return false;
   if(!this.playerClearForPlacement(mode,base))return false;
   return true;
@@ -371,9 +367,6 @@ export class BuildingModeSystem{
   const columns=this.frameColumns();
   const candidates=[];
 
-  // A beam between two posts terminates at their centre lines and its own centre
-  // line drops to the exact top of the posts. The logs therefore visually joint
-  // into one another instead of hovering above the vertical frame.
   for(let i=0;i<columns.length;i++){
    const a=columns[i];
    for(let j=i+1;j<columns.length;j++){
@@ -396,8 +389,6 @@ export class BuildingModeSystem{
    }
   }
 
-  // Single-post beam placement remains available for extensions, but pair spans
-  // are preferred because they establish the clean structural bay automatically.
   for(const column of columns){
    candidates.push({
     x:column.x,z:column.z,
@@ -419,10 +410,6 @@ export class BuildingModeSystem{
 
  frameSnapBase(base){
   const candidates=[...this.floorFrameCandidates(base)];
-
-  // Upper posts start at the beam centre line, not on top of the beam's outer
-  // surface. The lower end of the vertical log therefore passes into the raw beam
-  // and creates a seamless timber joint.
   for(const beam of this.activePlacements('beam')){
    const b=this.basis(beam.yaw);
    const points=beam.snapKind==='frame-pair-top'
@@ -447,7 +434,6 @@ export class BuildingModeSystem{
     });
    }
   }
-
   return this.chooseCandidate(base,candidates,this.frameSnapRange);
  }
 
@@ -629,6 +615,7 @@ export class BuildingModeSystem{
   if(this.preview)this.preview.removeFromParent();
   this.preview=null;
   this.previewMode=null;
+  this.lastPreviewBase=null;
  }
 
  applyPreviewTransform(mode,base){
@@ -650,9 +637,7 @@ export class BuildingModeSystem{
    object.position.set(base.x,this.wallBaseHeight(base),base.z);
    object.rotation.set(0,base.yaw,0);
   }else if(mode==='angle'){
-   const centerY=Number.isFinite(base.centerY)
-    ?base.centerY
-    :base.ground+this.angleHalfProjection+.20;
+   const centerY=Number.isFinite(base.centerY)?base.centerY:base.ground+this.angleHalfProjection+.20;
    object.position.set(base.x,centerY,base.z);
    object.rotation.set(0,base.yaw-Math.PI/2,0);
   }
@@ -662,12 +647,14 @@ export class BuildingModeSystem{
   const carried=this.materials?.carried;
   if(!carried||carried.type!=='log'){
    this.destroyPreview();
+   this.previewValid=false;
    return;
   }
 
   const base=this.previewBase();
   if(!base){
    this.destroyPreview();
+   this.previewValid=false;
    return;
   }
 
@@ -679,60 +666,118 @@ export class BuildingModeSystem{
 
   this.applyPreviewTransform(this.mode,base);
   this.previewValid=this.placementAllowed(base,this.mode);
+  const lockedBase=this.clonePlacementBase(base);
+  if(this.mode==='wall')lockedBase.lockedCenterY=this.wallBaseHeight(base);
+  this.lastPreviewBase=lockedBase;
   this.previewMaterial.color.setHex(this.previewValid?0x65d879:0xd85d57);
   this.previewMaterial.opacity=this.previewValid?.44:.34;
   this.preview.visible=true;
  }
 
+ currentPreviewBase(){
+  if(this.previewMode===this.mode&&this.lastPreviewBase)return this.lastPreviewBase;
+  return null;
+ }
+
+ capturePlacementSnapshot(){
+  const item=this.materials?.carried;
+  if(!item||item.type!=='log')return null;
+  let base=this.currentPreviewBase();
+  let valid=this.previewValid;
+  if(!base){
+   base=this.previewBase();
+   if(!base)return null;
+   valid=this.placementAllowed(base,this.mode);
+   if(this.mode==='wall')base={...base,lockedCenterY:this.wallBaseHeight(base)};
+  }
+  return {
+   mode:this.mode,
+   modeIndex:this.modeIndex,
+   valid:!!valid,
+   base:this.clonePlacementBase(base)
+  };
+ }
+
  actionLabel(){
+  const cached=this.currentPreviewBase();
   if(this.mode==='raw'){
-   const base=this.rawSnapBase(this.rawPreviewBase());
+   const base=cached||this.rawSnapBase(this.rawPreviewBase());
    return base?.snapKind?'SNAP BEAM':'PLACE LOG';
   }
 
-  const base=this.resolvedBase(this.mode);
+  const base=cached||this.resolvedBase(this.mode);
   if(this.mode==='frame'&&!base.snapKind)return 'NEEDS FLOOR/BEAM';
   if(this.mode==='wall'&&!base.snapKind)return 'NEEDS FRAMES';
   if(this.mode==='wall'&&!this.wallFitsFrameHeight(base))return 'WALL FULL';
   return `${base.snapKind?'SNAP':'PLACE'} ${this.modeLabel()}`;
  }
 
- placeCarriedLog(){
+ placeRawCarriedAt(base){
   const item=this.materials?.carried;
-  if(!item||item.type!=='log')return null;
+  if(!item||item.type!=='log'||!item.object)return null;
+  const object=item.object;
+  item.carryMotion=null;
+  object.removeFromParent();
+  this.materials.root.add(object);
+  this.materials.resetLogVisualRoll?.(item);
 
-  if(this.mode==='raw'){
-   const base=this.rawSnapBase(this.rawPreviewBase());
-   if(base?.snapKind){
-    if(!this.placementAllowed(base,'raw'))return null;
+  const ground=Number.isFinite(base.ground)?base.ground:this.world.heightAt(base.x,base.z);
+  const y=Number.isFinite(base.y)?base.y:ground+(this.materials.logRadius??.27);
+  const rotationY=base.rotationY??base.yaw??0;
+  object.position.set(base.x,y,base.z);
+  object.rotation.set(0,rotationY,0);
+  item.state='placed';
+  if(item.physics){
+   item.physics.active=false;
+   item.physics.headingY=rotationY;
+   item.physics.vx=item.physics.vy=item.physics.vz=0;
+   item.physics.spinY=item.physics.rollSpeed=0;
+   item.physics.settleTimer=0;
+   item.physics.grounded=false;
+  }
+  this.materials.carried=null;
+  this.materials.updateHud?.();
+  return item;
+ }
+
+ placeCarriedLogSnapshot(snapshot){
+  const item=this.materials?.carried;
+  if(!item||item.type!=='log'||!snapshot?.valid||!snapshot.base)return null;
+  const mode=snapshot.mode;
+  const base=this.clonePlacementBase(snapshot.base);
+
+  if(mode==='raw'){
+   if(base.snapKind){
     const object=this.makeBeam(base);
     if(!this.consumeCarriedLog())return null;
     this.destroyPreview();
     return this.recordPlacement('beam',object,base,false);
    }
-   const placed=this.materials.placeCarried();
+   const placed=this.placeRawCarriedAt(base);
    if(placed)this.destroyPreview();
    return placed;
   }
 
-  const base=this.resolvedBase(this.mode);
-  if(!this.placementAllowed(base,this.mode))return null;
-
   let object=null;
   let standable=false;
-  if(this.mode==='floor'){
+  if(mode==='floor'){
    object=this.makeFloor(base);
    standable=true;
-  }else if(this.mode==='frame')object=this.makeFrame(base);
-  else if(this.mode==='wall')object=this.makeWall(base);
-  else if(this.mode==='angle')object=this.makeAngle(base);
+  }else if(mode==='frame')object=this.makeFrame(base);
+  else if(mode==='wall')object=this.makeWall(base);
+  else if(mode==='angle')object=this.makeAngle(base);
   if(!object)return null;
 
   if(!this.consumeCarriedLog())return null;
   this.destroyPreview();
-  const placement=this.recordPlacement(this.mode,object,base,standable);
-  this.clearAuthoredGrass(base.x,base.z,this.mode==='floor'?1.45:.95);
+  const placement=this.recordPlacement(mode,object,base,standable);
+  this.clearAuthoredGrass(base.x,base.z,mode==='floor'?1.45:.95);
   return placement;
+ }
+
+ placeCarriedLog(){
+  const snapshot=this.capturePlacementSnapshot();
+  return this.placeCarriedLogSnapshot(snapshot);
  }
 
  update(){
