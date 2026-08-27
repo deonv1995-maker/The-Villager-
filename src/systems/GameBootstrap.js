@@ -8,7 +8,7 @@ import { FineGrassFieldDecorator } from './world/FineGrassFieldDecorator.js?v=56
 import { GroundSurfaceDecorator } from './world/GroundSurfaceDecorator.js?v=560';
 import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSystem.js?v=562';
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=585';
-import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=586';
+import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=574';
 import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=579';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=576';
@@ -158,7 +158,7 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.86 · chopping motion · two-handed log carry · grounded rolling harvested logs · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.87 · chopping motion · two-handed log carry · grounded rolling harvested logs · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
     const dt=Math.min(this.clock.getDelta(),.05);
@@ -183,7 +183,7 @@ export class GameBootstrap{
    setTimeout(()=>this.tryKayKitRanger(status),250);
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.86 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.87 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -205,11 +205,11 @@ export class GameBootstrap{
    this.world.playerVisual=ranger;
    this.renderPerformance?.syncShadowCasters?.(true);
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.86 · Ranger · chopping animation · two-handed log carry · grounded rolling logs'
-    :'Clean rebuild 0.5.86 · Ranger · grounded physical logs · animation set pending';
+    ?'Clean rebuild 0.5.87 · Ranger · chopping animation · two-handed log carry · grounded rolling logs'
+    :'Clean rebuild 0.5.87 · Ranger · grounded physical logs · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
-   if(status)status.textContent='Clean rebuild 0.5.86 · grounded rolling harvested logs · Ranger model unavailable';
+   if(status)status.textContent='Clean rebuild 0.5.87 · grounded rolling harvested logs · Ranger model unavailable';
   }
  }
 }
