@@ -10,7 +10,7 @@ import { RenderingPerformanceSystem } from './rendering/RenderingPerformanceSyst
 import { WorldMaterialSystem } from './gameplay/WorldMaterialSystem.js?v=591';
 import { HarvestingSystem } from './gameplay/HarvestingSystem.js?v=587';
 import { BuildingModeSystem } from './gameplay/BuildingModeSystem.js?v=594';
-import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=579';
+import { FrameGridSystem } from './gameplay/FrameGridSystem.js?v=596';
 import { FoundationTerrainSystem } from './gameplay/FoundationTerrainSystem.js?v=594';
 import { FloorSupportSystem } from './gameplay/FloorSupportSystem.js?v=577';
 import { UpperFloorSystem } from './gameplay/UpperFloorSystem.js?v=582';
@@ -69,8 +69,6 @@ export class GameBootstrap{
    this.player.add(this.fallbackVisual.root);
    this.world.playerVisual=this.playerVisual;
 
-   // Load the actual Ranger immediately. The hidden procedural model is revealed
-   // only if the Ranger fails, so normal startup never shows a character swap.
    this.tryKayKitRanger(status);
 
    this.input=new MobileControls({
@@ -93,78 +91,40 @@ export class GameBootstrap{
    this.fineGrassFields=new FineGrassFieldDecorator(T,{world:this.world,scene:this.scene,player:this.player});
    this.fineGrassFields.initialize();
 
-   this.materials=new WorldMaterialSystem(T,{
-    world:this.world,scene:this.scene,player:this.player,
-    hudRoot:document.getElementById('material-hud')
-   });
+   this.materials=new WorldMaterialSystem(T,{world:this.world,scene:this.scene,player:this.player,hudRoot:document.getElementById('material-hud')});
    this.materials.initialize();
 
-   this.buildModes=new BuildingModeSystem(T,{
-    world:this.world,scene:this.scene,player:this.player,materials:this.materials,
-    button:document.getElementById('build-mode-button'),
-    feedbackElement:document.getElementById('gameplay-feedback')
-   });
+   this.buildModes=new BuildingModeSystem(T,{world:this.world,scene:this.scene,player:this.player,materials:this.materials,button:document.getElementById('build-mode-button'),feedbackElement:document.getElementById('gameplay-feedback')});
    this.buildModes.initialize();
 
    this.frameGrid=new FrameGridSystem({buildingModes:this.buildModes});
    this.frameGrid.initialize();
 
-   this.foundationTerrain=new FoundationTerrainSystem(T,{
-    world:this.world,
-    scene:this.scene,
-    buildingModes:this.buildModes,
-    fineGrass:this.fineGrassFields
-   });
+   this.foundationTerrain=new FoundationTerrainSystem(T,{world:this.world,scene:this.scene,buildingModes:this.buildModes,fineGrass:this.fineGrassFields});
    this.foundationTerrain.initialize();
 
-   this.floorSupports=new FloorSupportSystem(T,{
-    world:this.world,
-    buildingModes:this.buildModes,
-    foundationTerrain:this.foundationTerrain,
-    materials:this.materials
-   });
+   this.floorSupports=new FloorSupportSystem(T,{world:this.world,buildingModes:this.buildModes,foundationTerrain:this.foundationTerrain,materials:this.materials});
    this.floorSupports.initialize();
 
-   this.upperFloors=new UpperFloorSystem({
-    buildingModes:this.buildModes,
-    foundationTerrain:this.foundationTerrain,
-    floorSupports:this.floorSupports
-   });
+   this.upperFloors=new UpperFloorSystem({buildingModes:this.buildModes,foundationTerrain:this.foundationTerrain,floorSupports:this.floorSupports});
    this.upperFloors.initialize();
 
-   this.constructionTraversal=new ConstructionTraversalSystem({
-    world:this.world,buildingModes:this.buildModes
-   });
+   this.constructionTraversal=new ConstructionTraversalSystem({world:this.world,buildingModes:this.buildModes});
    this.constructionTraversal.initialize();
 
-   this.stairs=new StairSystem({
-    world:this.world,
-    buildingModes:this.buildModes,
-    constructionTraversal:this.constructionTraversal,
-    frameGrid:this.frameGrid
-   });
+   this.stairs=new StairSystem({world:this.world,buildingModes:this.buildModes,constructionTraversal:this.constructionTraversal,frameGrid:this.frameGrid});
    this.stairs.initialize();
 
    this.harvesting=new HarvestingSystem(T,{world:this.world,player:this.player,materials:this.materials});
    this.harvesting.initialize();
 
-   this.reactions=new ConstructionReactionSystem(T,{
-    world:this.world,scene:this.scene,player:this.player,materials:this.materials
-   });
+   this.reactions=new ConstructionReactionSystem(T,{world:this.world,scene:this.scene,player:this.player,materials:this.materials});
    this.reactions.initialize();
 
-   this.survivalInteraction=new SurvivalInteractionSystem({
-    player:this.player,materials:this.materials,harvesting:this.harvesting,
-    reactions:this.reactions,buildingModes:this.buildModes,
-    actionButton:document.getElementById('action-button'),
-    feedbackElement:document.getElementById('gameplay-feedback')
-   });
+   this.survivalInteraction=new SurvivalInteractionSystem({player:this.player,materials:this.materials,harvesting:this.harvesting,reactions:this.reactions,buildingModes:this.buildModes,actionButton:document.getElementById('action-button'),feedbackElement:document.getElementById('gameplay-feedback')});
    this.survivalInteraction.initialize();
 
-   this.renderPerformance=new RenderingPerformanceSystem(T,{
-    renderer:this.renderer,scene:this.scene,camera:this.camera,
-    world:this.world,player:this.player,sun:this.sun
-   });
+   this.renderPerformance=new RenderingPerformanceSystem(T,{renderer:this.renderer,scene:this.scene,camera:this.camera,world:this.world,player:this.player,sun:this.sun});
    this.renderPerformance.initialize();
 
    this.cameraController.update(1/60);
@@ -175,16 +135,12 @@ export class GameBootstrap{
     this.renderer.setSize(innerWidth,innerHeight);
    });
 
-   if(status)status.textContent='Clean rebuild 0.5.95 · locked placement facing · crisp rendering · Ranger loading';
+   if(status)status.textContent='Clean rebuild 0.5.96 · perimeter framework · open interiors · Ranger loading';
    const loop=()=>{
     requestAnimationFrame(loop);
-
     const rawDt=Math.min(this.clock.getDelta(),.05);
     this.frameAccumulator+=rawDt;
     if(this.frameAccumulator<this.targetFrameInterval*.92)return;
-
-    // A stall is never replayed as queued simulation time. That was the source of
-    // the occasional fast-forward after a slow frame in 0.5.93.
     const dt=Math.min(this.frameAccumulator,1/30);
     this.frameAccumulator=0;
 
@@ -194,8 +150,6 @@ export class GameBootstrap{
     this.harvesting.update(dt);
     this.reactions.update(dt);
     this.survivalInteraction.update(dt);
-
-    // Placement feedback stays full-rate for precise mobile positioning.
     if(!this.survivalInteraction?.isPlacementLocked?.())this.buildModes.update(dt);
 
     this.presentationAccumulator+=dt;
@@ -222,7 +176,7 @@ export class GameBootstrap{
    loop();
   }catch(err){
    console.error('[BOOT]',err);
-   if(status){status.textContent='0.5.95 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
+   if(status){status.textContent='0.5.96 STARTUP ERROR: '+(err?.message||err);status.style.background='#5b1818';}
   }
  }
 
@@ -230,12 +184,7 @@ export class GameBootstrap{
   const T=this.THREE;
   try{
    const {KayKitPlayerVisual}=await import('./player/KayKitPlayerVisual.js?v=591');
-   const ranger=new KayKitPlayerVisual(T,{
-    modelUrls:kaykitUrls('Characters/gltf/Ranger.glb'),
-    movementUrls:kaykitUrls('Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb'),
-    generalUrls:kaykitUrls('Animations/gltf/Rig_Medium/Rig_Medium_General.glb'),
-    targetHeight:2.7,facingYaw:0
-   });
+   const ranger=new KayKitPlayerVisual(T,{modelUrls:kaykitUrls('Characters/gltf/Ranger.glb'),movementUrls:kaykitUrls('Animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb'),generalUrls:kaykitUrls('Animations/gltf/Rig_Medium/Rig_Medium_General.glb'),targetHeight:2.7,facingYaw:0});
    await ranger.load();
    const old=this.playerVisual;
    this.player.add(ranger.root);
@@ -245,8 +194,8 @@ export class GameBootstrap{
    this.renderPerformance?.syncShadowCasters?.(true);
    this.renderPerformance?.configurePlayerShadow?.();
    if(status)status.textContent=ranger.actions.size
-    ?'Clean rebuild 0.5.95 · Ranger · locked placement facing · optimized placement'
-    :'Clean rebuild 0.5.95 · Ranger · locked placement facing · animation set pending';
+    ?'Clean rebuild 0.5.96 · Ranger · perimeter framework · open interiors'
+    :'Clean rebuild 0.5.96 · Ranger · perimeter framework · animation set pending';
   }catch(err){
    console.error('[KayKit Ranger model load]',err);
    if(this.fallbackVisual){
@@ -254,7 +203,7 @@ export class GameBootstrap{
     this.playerVisual=this.fallbackVisual;
     this.world.playerVisual=this.fallbackVisual;
    }
-   if(status)status.textContent='Clean rebuild 0.5.95 · Ranger unavailable · fallback character active';
+   if(status)status.textContent='Clean rebuild 0.5.96 · Ranger unavailable · fallback character active';
   }
  }
 }
