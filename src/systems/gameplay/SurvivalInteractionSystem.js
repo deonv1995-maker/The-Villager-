@@ -27,6 +27,7 @@ export class SurvivalInteractionSystem{
 
  dispose(){
   this.actionButton?.removeEventListener('pointerdown',this.onAction);
+  this.setBuildModeButtonLocked(false);
  }
 
  showFeedback(text){
@@ -38,6 +39,26 @@ export class SurvivalInteractionSystem{
  }
 
  playerVisual(){return this.materials?.world?.playerVisual||null;}
+
+ isPlacementLocked(){
+  return this.pending?.type==='place-log'&&!!this.pending.placementLock;
+ }
+
+ setBuildModeButtonLocked(locked){
+  if(this.buildingModes?.button)this.buildingModes.button.disabled=!!locked;
+ }
+
+ capturePlacementLock(){
+  if(!this.player)return null;
+  return {
+   x:this.player.position.x,
+   y:this.player.position.y,
+   z:this.player.position.z,
+   rotationY:this.player.rotation.y,
+   modeIndex:Number.isFinite(this.buildingModes?.modeIndex)?this.buildingModes.modeIndex:null,
+   mode:this.buildingModes?.mode||null
+  };
+ }
 
  resolve(){
   if(this.pending)return {type:'busy',label:this.pending.label||'WORKING'};
@@ -89,17 +110,22 @@ export class SurvivalInteractionSystem{
  beginLogPlacement(){
   if(!this.materials?.carried||this.materials.carried.type!=='log')return false;
 
-  // Preview validity already uses the authoritative construction rules and is
-  // refreshed every frame while a log is carried. Do not animate toward a known
-  // invalid destination.
+  // Refresh once at the exact press moment, then freeze that visible target until
+  // the lowering animation finishes. Movement after this point must not move the
+  // ghost or change where the log is committed.
+  this.buildingModes?.updatePreview?.();
   if(this.buildingModes&&this.buildingModes.previewValid===false){
    this.showFeedback('Cannot place here');
    return false;
   }
 
+  const placementLock=this.capturePlacementLock();
+  if(!placementLock)return false;
   if(!this.materials.beginPlaceAnimation?.())return false;
+
   this.playerVisual()?.triggerPlace?.();
-  this.pending={type:'place-log',label:'PLACING LOG'};
+  this.pending={type:'place-log',label:'PLACING LOG',placementLock};
+  this.setBuildModeButtonLocked(true);
   this.current={type:'busy',label:'PLACING LOG'};
   this.updateButton();
   return true;
@@ -109,11 +135,43 @@ export class SurvivalInteractionSystem{
   const pending=this.pending;
   if(!pending||pending.type!=='place-log')return false;
 
-  const placed=this.buildingModes?.placeCarriedLog?.();
-  this.pending=null;
+  const lock=pending.placementLock;
+  let placed=null;
+  const saved=this.player?{
+   x:this.player.position.x,
+   y:this.player.position.y,
+   z:this.player.position.z,
+   rotationY:this.player.rotation.y,
+   modeIndex:this.buildingModes?.modeIndex
+  }:null;
+
+  try{
+   // Re-run the authoritative construction commit as though the Ranger were still
+   // at the exact pose where PLACE was pressed. This preserves all existing snap,
+   // terrain and structural rules while making the chosen destination immutable.
+   if(lock&&this.player){
+    this.player.position.set(lock.x,lock.y,lock.z);
+    this.player.rotation.y=lock.rotationY;
+   }
+   if(lock&&Number.isFinite(lock.modeIndex)&&this.buildingModes){
+    this.buildingModes.modeIndex=lock.modeIndex;
+   }
+   placed=this.buildingModes?.placeCarriedLog?.()||null;
+  }finally{
+   if(saved&&this.player){
+    this.player.position.set(saved.x,saved.y,saved.z);
+    this.player.rotation.y=saved.rotationY;
+   }
+   if(saved&&Number.isFinite(saved.modeIndex)&&this.buildingModes){
+    this.buildingModes.modeIndex=saved.modeIndex;
+    this.buildingModes.updateButton?.();
+   }
+   this.setBuildModeButtonLocked(false);
+   this.pending=null;
+  }
 
   if(placed){
-   const mode=this.buildingModes?.mode;
+   const mode=lock?.mode||this.buildingModes?.mode;
    if(mode==='raw')this.showFeedback('Log placed');
    else this.showFeedback(`${this.buildingModes.modeLabel(mode)} ${placed.snapKind?'snapped':'placed'}`);
    this.current=null;
@@ -121,8 +179,8 @@ export class SurvivalInteractionSystem{
    return true;
   }
 
-  // If terrain/build validity changed during the short lowering motion, keep the
-  // material rather than deleting it and lift it back to the shoulder.
+  // If validity changed while lowering, keep the material and return it to the
+  // shoulder. The placement lock is already released so the preview may resume.
   this.materials?.returnCarriedToShoulder?.();
   this.showFeedback('Cannot place here');
   this.current=null;
