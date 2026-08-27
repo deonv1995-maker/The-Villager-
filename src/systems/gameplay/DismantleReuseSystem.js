@@ -4,8 +4,8 @@ export class DismantleReuseSystem{
   this.buildingModes=buildingModes;
   this.materials=materials;
   this.player=player;
-  this.range=2.65;
-  this.verticalRange=2.45;
+  this.range=3.25;
+  this.verticalRange=3.20;
   this.originalResolve=null;
   this.originalPerform=null;
   this.tmpWorld=buildingModes?.T?new buildingModes.T.Vector3():null;
@@ -17,21 +17,23 @@ export class DismantleReuseSystem{
   this.originalPerform=this.interaction.perform.bind(this.interaction);
 
   this.interaction.resolve=()=>{
-   const normal=this.originalResolve();
-   if(normal)return normal;
-   if(this.materials.carried||this.interaction.pending)return null;
+   // Dismantling is an empty-hands construction interaction and should not be
+   // hidden by nearby harvest/reaction targets. Busy/carry states still retain
+   // their normal authority.
+   if(this.interaction.pending||this.materials.carried)return this.originalResolve();
    const target=this.findTarget();
-   if(!target)return null;
-   return {type:'dismantle',target,label:`TAKE DOWN ${this.labelFor(target)}`};
+   if(target)return {type:'dismantle',target,label:`TAKE DOWN ${this.labelFor(target)}`};
+   return this.originalResolve();
   };
 
   this.interaction.perform=()=>{
    if(this.interaction.pending)return false;
    const resolved=this.interaction.resolve();
    if(resolved?.type!=='dismantle')return this.originalPerform();
+   const label=this.labelFor(resolved.target);
    const returned=this.dismantle(resolved.target);
    if(!returned)return false;
-   this.interaction.showFeedback?.(`${this.labelFor(resolved.target)} dismantled`);
+   this.interaction.showFeedback?.(`${label} dismantled`);
    this.interaction.current=null;
    this.interaction.updateButton?.();
    return true;
@@ -60,11 +62,9 @@ export class DismantleReuseSystem{
   const dx=x-px,dz=z-pz,dy=y-py;
   const horizontal=Math.hypot(dx,dz);
   if(horizontal>this.range||Math.abs(dy)>this.verticalRange)return Infinity;
-  const yaw=this.player?.rotation?.y??0;
-  const fx=Math.sin(yaw),fz=Math.cos(yaw);
-  const dot=horizontal>.001?(dx*fx+dz*fz)/horizontal:1;
-  if(horizontal>1.05&&dot<-.30)return Infinity;
-  return horizontal+Math.abs(dy)*.28-dot*.38;
+  // Keep targeting independent of the visual Ranger facing convention. The
+  // nearest valid placed piece wins, which is much more reliable on touch.
+  return horizontal+Math.abs(dy)*.34;
  }
 
  findTarget(){
@@ -149,9 +149,7 @@ export class DismantleReuseSystem{
    return this.spawnLooseGrass(x,z);
   }
 
-  // Every authored timber placement currently consumes exactly one log. This
-  // includes floors/walls (split on placement), stair tread batches, roof planks,
-  // rafters/ridges, beams, frames and angled/stair rails.
+  // Every authored timber placement currently consumes exactly one log.
   const log=this.materials.spawnLog?.(x,z,yaw)||null;
   if(log){
    log.state='loose';
