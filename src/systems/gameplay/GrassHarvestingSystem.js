@@ -13,6 +13,7 @@ export class GrassHarvestingSystem{
   this.originalFindTarget=null;
   this.originalActionLabel=null;
   this.originalPerform=null;
+  this.originalWriteEntryMatrix=null;
  }
 
  initialize(){
@@ -26,6 +27,21 @@ export class GrassHarvestingSystem{
    target?.profile?.kind==='grass'?'HARVEST GRASS':this.originalActionLabel(target);
   this.harvesting.perform=target=>
    target?.profile?.kind==='grass'?this.performGrass(target):this.originalPerform(target);
+
+  // Fine grass keeps animating around the player. Preserve harvested holes when
+  // that animation system rewrites an instance matrix later.
+  if(this.fineGrass?.writeEntryMatrix){
+   this.originalWriteEntryMatrix=this.fineGrass.writeEntryMatrix.bind(this.fineGrass);
+   this.fineGrass.writeEntryMatrix=entry=>{
+    if(!entry?.harvested)return this.originalWriteEntryMatrix(entry);
+    const field=this.fineGrass,d=field.matrixDummy;
+    d.position.set(entry.x,entry.y-.05,entry.z);
+    d.rotation.set(entry.baseLeanX,entry.baseYaw,entry.baseLeanZ);
+    d.scale.set(.001,.001,.001);
+    d.updateMatrix();
+    field.mesh?.setMatrixAt?.(entry.index,d.matrix);
+   };
+  }
  }
 
  grassCandidate(){
@@ -94,13 +110,7 @@ export class GrassHarvestingSystem{
    entry.harvested=true;
    entry.bendX=entry.bendZ=entry.compression=0;
    field.active?.delete?.(entry);
-
-   const d=field.matrixDummy;
-   d.position.set(entry.x,entry.y-.05,entry.z);
-   d.rotation.set(entry.baseLeanX,entry.baseYaw,entry.baseLeanZ);
-   d.scale.set(.001,.001,.001);
-   d.updateMatrix();
-   field.mesh.setMatrixAt(entry.index,d.matrix);
+   field.writeEntryMatrix(entry);
 
    count++;
    if(count>=this.maxCutTufts)break;
