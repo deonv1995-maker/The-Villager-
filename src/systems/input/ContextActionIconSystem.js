@@ -45,11 +45,12 @@ export class ContextActionIconSystem{
    #build-drawer-place .context-drop-icon{width:25px;height:25px;display:grid;place-items:center;pointer-events:none;color:currentColor}
    #build-drawer-place .context-drop-icon svg{width:100%;height:100%;display:block;overflow:visible}
 
+   .demolition-asset-icon{background:currentColor!important;-webkit-mask:url('./assets/ui/icons/actions/demolition.svg') center/contain no-repeat;mask:url('./assets/ui/icons/actions/demolition.svg') center/contain no-repeat}
+
    #disassembly-mode-button{right:0!important;top:64px!important;width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;border:3px solid #3a2b21!important;border-right:0!important;border-radius:14px 0 0 14px!important;background:#314632e8!important;color:#f4ead8!important;padding:0!important;display:grid!important;place-items:center!important;gap:0!important;box-shadow:0 3px 10px #0005!important}
    #disassembly-mode-button .disassembly-label{display:none!important}
    #disassembly-mode-button .disassembly-icon{display:none!important}
-   #disassembly-mode-button .context-tool-icon{width:29px;height:29px;display:grid;place-items:center;pointer-events:none}
-   #disassembly-mode-button .context-tool-icon svg{width:100%;height:100%;display:block;overflow:visible}
+   #disassembly-mode-button .context-tool-icon{width:29px;height:29px;display:grid;place-items:center;pointer-events:none;color:currentColor}
    #disassembly-mode-button.active{background:#a75d43!important;color:#fff5e7!important;border-color:#5a2f24!important;box-shadow:0 0 0 2px #d7a06466,0 3px 10px #0005!important}
 
    @media(max-width:760px){
@@ -81,7 +82,7 @@ export class ContextActionIconSystem{
   const button=this.disassemblyButton||document.getElementById('disassembly-mode-button');
   if(!button)return;
   this.disassemblyButton=button;
-  button.innerHTML=`<span class="context-tool-icon" aria-hidden="true">${this.iconSvg('demolition')}</span>`;
+  button.innerHTML='<span class="context-tool-icon demolition-asset-icon" aria-hidden="true"></span>';
   button.title='';
  }
 
@@ -131,7 +132,11 @@ export class ContextActionIconSystem{
   button.title='';
 
   if(this.lastActionIcon===visual.icon&&button.querySelector('.context-action-icon'))return;
-  button.innerHTML=`<span class="context-action-icon" aria-hidden="true">${this.iconSvg(visual.icon)}</span>`;
+  if(visual.icon==='demolition'){
+   button.innerHTML='<span class="context-action-icon demolition-asset-icon" aria-hidden="true"></span>';
+  }else{
+   button.innerHTML=`<span class="context-action-icon" aria-hidden="true">${this.iconSvg(visual.icon)}</span>`;
+  }
   this.lastActionIcon=visual.icon;
  }
 
@@ -161,17 +166,6 @@ export class ContextActionIconSystem{
      <path d="M34 24L14 54" fill="none"/>
      <path d="M31 20l8-10c7 1 13 5 17 11l-14 12z" fill="currentColor"/>
      <path d="M29 23l8 7" fill="none"/>
-    </g>
-   </svg>`;
-
-  if(type==='demolition')return `
-   <svg viewBox="0 0 64 64" aria-hidden="true">
-    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-     <path d="M34 12l9-7 14 14-8 9z" fill="currentColor" stroke-width="4.5"/>
-     <path d="M43 24L20 47" stroke-width="6"/>
-     <path d="M15 52l7-7" stroke-width="6"/>
-     <path d="M14 37l-8-4M12 45H4M18 31l-4-7" stroke-width="3.8"/>
-     <path d="M31 47h18l-4 8H27z" fill="currentColor" stroke-width="3.5"/>
     </g>
    </svg>`;
 
