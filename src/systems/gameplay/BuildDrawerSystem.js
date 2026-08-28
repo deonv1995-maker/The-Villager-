@@ -8,8 +8,6 @@ export class BuildDrawerSystem{
   this.root=null;
   this.panel=null;
   this.toggleButton=null;
-  // Kept as placeButton for compatibility with older adapters; this slot is now
-  // the explicit DROP/cancel action. Actual placement lives beside JUMP.
   this.placeButton=null;
   this.modeButtons=new Map();
   this.expanded=false;
@@ -53,40 +51,94 @@ export class BuildDrawerSystem{
   style.id='build-drawer-style';
   style.textContent=`
    .legacy-build-selector-hidden{display:none!important}
-   #build-drawer{position:fixed;top:10px;right:0;z-index:48;display:flex;flex-direction:row-reverse;align-items:center;gap:6px;pointer-events:auto;font-family:system-ui,sans-serif}
-   #build-drawer-toggle{width:46px;height:46px;border:3px solid #3a2b21;border-right:0;border-radius:14px 0 0 14px;background:#203d28e8;color:#f5e9cf;display:grid;place-items:center;touch-action:none;box-shadow:0 3px 10px #0005;font-weight:900}
-   #build-drawer-toggle:active{transform:scale(.94)}
-   #build-drawer-toggle .drawer-glyph{width:22px;height:18px;position:relative}
-   #build-drawer-toggle .drawer-glyph:before,#build-drawer-toggle .drawer-glyph:after{content:'';position:absolute;left:2px;right:2px;height:4px;border-radius:5px;background:#d2ae69;box-shadow:0 6px 0 #d2ae69,0 12px 0 #d2ae69}
-   #build-drawer-panel{height:54px;display:flex;align-items:center;justify-content:flex-end;gap:5px;padding:4px 0 4px 7px;border:2px solid #3a2b21;border-radius:14px;background:#17251de8;box-shadow:0 3px 12px #0005;overflow:hidden;max-width:0;opacity:0;transform:translateX(14px) scaleX(.92);transform-origin:right center;transition:max-width .2s ease,opacity .14s ease,transform .2s ease,padding-right .2s ease;pointer-events:none;white-space:nowrap}
-   #build-drawer.expanded #build-drawer-panel{max-width:min(84vw,540px);opacity:1;transform:translateX(0) scaleX(1);padding-right:6px;pointer-events:auto}
-   #build-drawer:not(.has-material) #build-drawer-panel{max-width:0!important;opacity:0!important;pointer-events:none!important;padding-right:0!important}
-   .build-drawer-option{width:48px;height:46px;border:2px solid #705a3e;border-radius:10px;background:#314632e8;color:#f4ead8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:2px;touch-action:none;box-shadow:inset 0 0 8px #ffffff10}
-   .build-drawer-option:active{transform:scale(.93)}
-   .build-drawer-option.selected{background:#8eaa70;border-color:#e4c985;color:#261f18;box-shadow:inset 0 0 10px #ffffff45,0 0 0 1px #2e241b}
-   .build-drawer-option:disabled{opacity:.42;filter:saturate(.6)}
-   .build-drawer-label{font-size:8px;line-height:9px;font-weight:900;letter-spacing:.2px}
-   .build-mini{width:30px;height:25px;position:relative;display:block}
-   .build-mini:before,.build-mini:after{content:'';position:absolute;background:#9a6338;border:1px solid #4c3322;border-radius:6px;box-sizing:border-box}
-   .build-mini.raw:before{left:2px;right:2px;top:10px;height:7px}
-   .build-mini.floor:before{left:2px;right:2px;top:6px;height:6px;box-shadow:0 9px 0 #9a6338,0 9px 0 1px #4c3322}
-   .build-mini.frame:before{width:7px;top:1px;bottom:1px;left:12px}
-   .build-mini.frame:after{height:6px;left:3px;right:3px;bottom:1px}
-   .build-mini.wall:before{left:3px;right:3px;top:3px;height:5px;box-shadow:0 7px 0 #9a6338,0 7px 0 1px #4c3322,0 14px 0 #9a6338,0 14px 0 1px #4c3322}
-   .build-mini.angle:before{width:7px;height:30px;left:12px;top:-2px;transform:rotate(45deg);transform-origin:center}
-   .build-mini.roof:before{width:6px;height:22px;left:8px;top:4px;transform:rotate(46deg);transform-origin:center}
-   .build-mini.roof:after{width:6px;height:22px;right:8px;top:4px;transform:rotate(-46deg);transform-origin:center}
-   #build-drawer-place{width:58px;background:#a86f55;color:#fff3df;border-color:#3a2b21}
-   #build-drawer-place .place-arrow{font-size:18px;line-height:18px;font-weight:1000;margin-top:-2px}
-   #build-drawer-place.busy{background:#8a7c62}
+
+   /* Build UI is a temporary bottom dock. It never shares the action-button row. */
+   #build-drawer{position:fixed;inset:0;z-index:48;pointer-events:none;font-family:system-ui,sans-serif}
+   #build-drawer-toggle{
+    position:absolute;right:0;top:10px;width:46px;height:46px;
+    border:3px solid #3a2b21;border-right:0;border-radius:13px 0 0 13px;
+    background:#203d28e8;color:#f5e9cf;display:grid;place-items:center;
+    touch-action:none;box-shadow:0 3px 10px #0005;font-weight:900;
+    pointer-events:none;opacity:0;transform:translateX(8px) scale(.96);
+    transition:opacity .14s ease,transform .14s ease;
+   }
+   #build-drawer.has-material #build-drawer-toggle{pointer-events:auto;opacity:1;transform:translateX(0) scale(1)}
+   #build-drawer-toggle:active{transform:translateY(1px) scale(.94)}
+   #build-drawer-toggle .drawer-glyph{width:24px;height:20px;position:relative;display:block}
+   #build-drawer-toggle .drawer-glyph:before{
+    content:'';position:absolute;left:3px;top:2px;width:17px;height:4px;border-radius:4px;
+    background:#d2ae69;box-shadow:-3px 7px 0 #d2ae69,2px 14px 0 #d2ae69;
+    transform:rotate(-5deg)
+   }
+
+   #build-drawer-panel{
+    position:absolute;left:50%;bottom:142px;
+    display:flex;align-items:center;justify-content:center;gap:4px;
+    max-width:calc(100vw - 18px);padding:5px 7px;
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+    border:2px solid #3a2b21;border-radius:13px;background:#17251df0;
+    box-shadow:0 5px 16px #0006;white-space:nowrap;
+    opacity:0;visibility:hidden;pointer-events:none;
+    transform:translate(-50%,12px) scale(.96);
+    transition:opacity .14s ease,transform .16s ease,visibility 0s linear .16s;
+   }
+   #build-drawer-panel::-webkit-scrollbar{display:none}
+   #build-drawer.expanded #build-drawer-panel{
+    opacity:1;visibility:visible;pointer-events:auto;
+    transform:translate(-50%,0) scale(1);transition-delay:0s;
+   }
+   #build-drawer:not(.has-material) #build-drawer-panel{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+
+   .build-drawer-option{
+    flex:0 0 42px;width:42px;height:46px;border:2px solid #66523a;border-radius:9px;
+    background:#2e4433;color:#f2e6cf;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:1px;padding:2px;touch-action:none;
+    box-shadow:inset 0 1px 0 #ffffff18,inset 0 -2px 0 #14231988;
+    transition:transform .07s ease,filter .1s ease,background .1s ease;
+   }
+   .build-drawer-option:active{transform:translateY(1px) scale(.94)}
+   .build-drawer-option.selected{
+    background:linear-gradient(180deg,#b4cd89,#819f64);border-color:#4c3927;color:#2d241a;
+    box-shadow:0 2px 0 #5e452d,inset 0 1px 0 #f5ffd466,inset 0 -2px 0 #536b414d;
+   }
+   .build-drawer-option:disabled{opacity:.43;filter:saturate(.55)}
+   .build-drawer-label{font-size:7px;line-height:8px;font-weight:900;letter-spacing:.15px}
+
+   .build-mini{width:27px;height:23px;position:relative;display:block}
+   .build-mini:before,.build-mini:after{content:'';position:absolute;background:#a76d3f;border:1px solid #4c3322;border-radius:5px;box-sizing:border-box}
+   .build-mini.raw:before{left:2px;right:2px;top:9px;height:6px}
+   .build-mini.floor:before{left:2px;right:2px;top:5px;height:5px;box-shadow:0 8px 0 #a76d3f,0 8px 0 1px #4c3322}
+   .build-mini.frame:before{width:6px;top:1px;bottom:1px;left:10px}
+   .build-mini.frame:after{height:5px;left:2px;right:2px;bottom:1px}
+   .build-mini.wall:before{left:2px;right:2px;top:2px;height:5px;box-shadow:0 7px 0 #a76d3f,0 7px 0 1px #4c3322,0 14px 0 #a76d3f,0 14px 0 1px #4c3322}
+   .build-mini.angle:before{width:6px;height:27px;left:10px;top:-2px;transform:rotate(45deg);transform-origin:center}
+   .build-mini.roof:before{width:5px;height:20px;left:7px;top:3px;transform:rotate(46deg);transform-origin:center}
+   .build-mini.roof:after{width:5px;height:20px;right:7px;top:3px;transform:rotate(-46deg);transform-origin:center}
+
+   #build-drawer-place{flex-basis:46px;width:46px;background:linear-gradient(180deg,#ba765b,#8f4e3d);color:#fff3df;border-color:#5a3329}
+   #build-drawer-place.busy{background:#786d5d}
+
+   /* While carrying, the generic action button is hidden unless hauling exposes
+      a genuinely different action such as ADD 2ND LOG. */
    body.build-material-in-hand #action-button{display:none!important}
-   @media(max-width:760px){
-    #build-drawer{top:8px}
-    #build-drawer-toggle{width:42px;height:42px}
-    #build-drawer-panel{height:49px;gap:3px}
-    .build-drawer-option{width:43px;height:42px}
-    #build-drawer-place{width:52px}
-    .build-mini{transform:scale(.88)}
+
+   @media(max-width:620px){
+    #build-drawer-toggle{top:8px;width:42px;height:42px}
+    #build-drawer-panel{bottom:136px;gap:3px;padding:4px 6px;max-width:calc(100vw - 12px)}
+    .build-drawer-option{flex-basis:40px;width:40px;height:44px}
+    #build-drawer-place{flex-basis:44px;width:44px}
+    .build-mini{transform:scale(.9)}
+   }
+
+   @media(max-width:380px){
+    #build-drawer-panel{gap:2px;padding-left:4px;padding-right:4px}
+    .build-drawer-option{flex-basis:38px;width:38px}
+    #build-drawer-place{flex-basis:41px;width:41px}
+    .build-drawer-label{font-size:6.5px}
+   }
+
+   @media(orientation:landscape) and (max-height:620px){
+    #build-drawer-panel{bottom:14px;left:43%;max-width:calc(100vw - 230px)}
    }
   `;
   document.head.appendChild(style);
@@ -102,7 +154,7 @@ export class BuildDrawerSystem{
   toggle.id='build-drawer-toggle';
   toggle.type='button';
   toggle.dataset.gameUi='true';
-  toggle.setAttribute('aria-label','Open build drawer');
+  toggle.setAttribute('aria-label','Open build palette');
   toggle.setAttribute('aria-expanded','false');
   toggle.innerHTML='<span class="drawer-glyph" aria-hidden="true"></span>';
   toggle.addEventListener('pointerdown',e=>{
@@ -115,6 +167,7 @@ export class BuildDrawerSystem{
   const panel=document.createElement('div');
   panel.id='build-drawer-panel';
   panel.dataset.gameUi='true';
+  panel.setAttribute('aria-hidden','true');
 
   for(const mode of this.modes){
    const button=document.createElement('button');
@@ -140,7 +193,7 @@ export class BuildDrawerSystem{
   drop.className='build-drawer-option';
   drop.dataset.gameUi='true';
   drop.setAttribute('aria-label','Drop carried material');
-  drop.innerHTML='<span class="place-arrow" aria-hidden="true">↘</span><span class="build-drawer-label">DROP</span>';
+  drop.innerHTML='<span class="place-arrow" aria-hidden="true">↓</span><span class="build-drawer-label">DROP</span>';
   drop.addEventListener('pointerdown',e=>{
    e.preventDefault();
    e.stopPropagation();
@@ -161,8 +214,9 @@ export class BuildDrawerSystem{
  setExpanded(expanded){
   this.expanded=!!expanded&&!!this.materials?.carried;
   this.root?.classList.toggle('expanded',this.expanded);
+  this.panel?.setAttribute('aria-hidden',this.expanded?'false':'true');
   this.toggleButton?.setAttribute('aria-expanded',this.expanded?'true':'false');
-  this.toggleButton?.setAttribute('aria-label',this.expanded?'Close build drawer':'Open build drawer');
+  this.toggleButton?.setAttribute('aria-label',this.expanded?'Close build palette':'Open build palette');
  }
 
  selectMode(mode){
@@ -193,11 +247,13 @@ export class BuildDrawerSystem{
   const carrying=!!carried;
   const type=carried?.type||null;
 
-  if(carrying&&!this.wasCarrying)this.setExpanded(true);
+  // Do not explode the palette open every time a material is picked up. The
+  // build toggle remains available, but normal movement/action space stays clean.
   if(!carrying&&this.wasCarrying)this.setExpanded(false);
 
   this.root.classList.toggle('has-material',carrying);
   document.body.classList.toggle('build-material-in-hand',carrying);
+  if(this.toggleButton)this.toggleButton.disabled=!carrying;
 
   const logInHand=type==='log';
   const grassInHand=type==='grass';
