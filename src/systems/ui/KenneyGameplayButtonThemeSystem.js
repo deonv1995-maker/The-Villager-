@@ -89,6 +89,20 @@ export class KenneyGameplayButtonThemeSystem{
     right:27px!important;bottom:94px!important;
    }
 
+   /* When one log is on the shoulder, PLACE and ADD 2ND LOG are both valid.
+      Keep them as separate controls instead of letting the theme stack them on
+      the same coordinates. The hauling interaction owns visibility; this theme
+      only guarantees clear spacing and tap access. */
+   body.kenney-gameplay-buttons.single-carry-place #action-button{
+    right:164px!important;
+    z-index:47!important;
+   }
+   body.kenney-gameplay-buttons.build-material-in-hand.haul-pickup-available #action-button{
+    display:flex!important;
+    opacity:1!important;
+    pointer-events:auto!important;
+   }
+
    /* Compact right-side tool rail. Flat, readable and consistent with the HUD. */
    body.kenney-gameplay-buttons #build-drawer-toggle,
    body.kenney-gameplay-buttons #disassembly-mode-button{
@@ -164,6 +178,9 @@ export class KenneyGameplayButtonThemeSystem{
     body.kenney-gameplay-buttons #carry-place-button{
      width:52px!important;height:52px!important;min-width:52px!important;min-height:52px!important;
      right:86px!important;bottom:20px!important;
+    }
+    body.kenney-gameplay-buttons.single-carry-place #action-button{
+     right:150px!important;
     }
     body.kenney-gameplay-buttons #sprint-button{
      width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
