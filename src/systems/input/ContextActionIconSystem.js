@@ -45,7 +45,7 @@ export class ContextActionIconSystem{
    #build-drawer-place .context-drop-icon{width:25px;height:25px;display:grid;place-items:center;pointer-events:none;color:currentColor}
    #build-drawer-place .context-drop-icon svg{width:100%;height:100%;display:block;overflow:visible}
 
-   .demolition-asset-icon{background:currentColor!important;-webkit-mask:url('./assets/ui/icons/actions/demolition.svg') center/contain no-repeat;mask:url('./assets/ui/icons/actions/demolition.svg') center/contain no-repeat}
+   .demolition-asset-icon{background:currentColor!important;-webkit-mask:url('./assets/ui/icons/actions/demolition.svg?v=638') center/contain no-repeat;mask:url('./assets/ui/icons/actions/demolition.svg?v=638') center/contain no-repeat}
 
    #disassembly-mode-button{right:0!important;top:64px!important;width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;border:3px solid #3a2b21!important;border-right:0!important;border-radius:14px 0 0 14px!important;background:#314632e8!important;color:#f4ead8!important;padding:0!important;display:grid!important;place-items:center!important;gap:0!important;box-shadow:0 3px 10px #0005!important}
    #disassembly-mode-button .disassembly-label{display:none!important}
