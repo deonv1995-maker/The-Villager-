@@ -38,9 +38,6 @@ export class KenneyGameplayButtonThemeSystem{
     transition:transform .07s ease,box-shadow .07s ease,filter .12s ease,opacity .12s ease!important;
    }
 
-   /* Thumb controls: JUMP anchors the cluster. PLACE/USE lives immediately to
-      its left. A second contextual action stacks above that slot instead of
-      growing horizontally across the screen. */
    body.kenney-gameplay-buttons #jump-button,
    body.kenney-gameplay-buttons #action-button,
    body.kenney-gameplay-buttons #carry-place-button,
@@ -98,15 +95,12 @@ export class KenneyGameplayButtonThemeSystem{
     right:27px!important;bottom:94px!important;
    }
 
-   /* One log on shoulder can expose PLACE + ADD 2ND LOG together. This is the
-      only state with two context buttons, so use a tidy vertical mini-column. */
    body.kenney-gameplay-buttons.single-carry-place.haul-pickup-available #action-button{
     display:flex!important;
     right:94px!important;bottom:86px!important;
     opacity:1!important;pointer-events:auto!important;z-index:47!important;
    }
 
-   /* Utility rail remains separate from gameplay actions. */
    body.kenney-gameplay-buttons #build-drawer-toggle,
    body.kenney-gameplay-buttons #disassembly-mode-button{
     right:0!important;
@@ -151,14 +145,22 @@ export class KenneyGameplayButtonThemeSystem{
     transform:translateY(1px) scale(.97)!important;
    }
 
-   body.kenney-gameplay-buttons #jump-button:disabled,
-   body.kenney-gameplay-buttons #action-button:disabled,
-   body.kenney-gameplay-buttons #carry-place-button:disabled,
-   body.kenney-gameplay-buttons #sprint-button:disabled,
-   body.kenney-gameplay-buttons #build-drawer-toggle:disabled,
-   body.kenney-gameplay-buttons #disassembly-mode-button:disabled{
+   body.kenney-gameplay-buttons #jump-button:disabled:not(.hidden-action),
+   body.kenney-gameplay-buttons #action-button:disabled:not(.hidden-action),
+   body.kenney-gameplay-buttons #carry-place-button:disabled:not(.hidden-action),
+   body.kenney-gameplay-buttons #sprint-button:disabled:not(.hidden-action),
+   body.kenney-gameplay-buttons #disassembly-mode-button:disabled:not(.hidden-action){
     opacity:.66!important;
     filter:saturate(.62) brightness(.94)!important;
+   }
+
+   /* Visibility always wins over decorative disabled styling. */
+   body.kenney-gameplay-buttons #action-button.hidden-action,
+   body.kenney-gameplay-buttons #carry-place-button.hidden-action{
+    opacity:0!important;pointer-events:none!important;
+   }
+   body.kenney-gameplay-buttons #build-drawer:not(.has-material) #build-drawer-toggle{
+    opacity:0!important;pointer-events:none!important;transform:translateX(8px) scale(.96)!important;
    }
 
    body.kenney-gameplay-buttons #build-drawer-toggle .drawer-glyph:before{
