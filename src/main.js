@@ -3,6 +3,7 @@ import { GameBootstrap } from './systems/GameBootstrap.js?v=611';
 import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=624';
 import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem.js?v=626';
 import { InteriorStructureTransparencySystem } from './systems/rendering/InteriorStructureTransparencySystem.js?v=627';
+import { EnvironmentVegetationColliderSystem } from './systems/world/EnvironmentVegetationColliderSystem.js?v=628';
 
 const game=new GameBootstrap(THREE);
 game.start();
@@ -31,3 +32,11 @@ const interiorTransparency=new InteriorStructureTransparencySystem({
 });
 interiorTransparency.initialize();
 game.interiorTransparency=interiorTransparency;
+
+const vegetationColliders=new EnvironmentVegetationColliderSystem({
+ world:game.world,
+ environment:game.world?.environment,
+ harvesting:game.harvesting
+});
+vegetationColliders.initialize();
+game.vegetationColliders=vegetationColliders;
