@@ -4,9 +4,14 @@ import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js
 import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem.js?v=630';
 import { InteriorStructureTransparencySystem } from './systems/rendering/InteriorStructureTransparencySystem.js?v=627';
 import { EnvironmentVegetationColliderSystem } from './systems/world/EnvironmentVegetationColliderSystem.js?v=629';
+import { KenneyFantasyUiThemeSystem } from './systems/ui/KenneyFantasyUiThemeSystem.js?v=632';
 
 const game=new GameBootstrap(THREE);
 game.start();
+
+const fantasyUiTheme=new KenneyFantasyUiThemeSystem();
+fantasyUiTheme.initialize();
+game.fantasyUiTheme=fantasyUiTheme;
 
 const dismantleReuse=new DismantleReuseSystem({
  interaction:game.survivalInteraction,
