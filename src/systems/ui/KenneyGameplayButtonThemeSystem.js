@@ -20,6 +20,8 @@ export class KenneyGameplayButtonThemeSystem{
     --control-dark-bottom:#263b2d;
     --control-rust-top:#bd765a;
     --control-rust-bottom:#8e4e3d;
+    --control-haul-top:#ddbb72;
+    --control-haul-bottom:#ad8050;
    }
 
    body.kenney-gameplay-buttons #jump-button,
@@ -33,11 +35,12 @@ export class KenneyGameplayButtonThemeSystem{
     box-sizing:border-box!important;
     background-image:none!important;
     background-repeat:no-repeat!important;
-    overflow:hidden!important;
     transition:transform .07s ease,box-shadow .07s ease,filter .12s ease,opacity .12s ease!important;
    }
 
-   /* Primary lower-right action cluster. One visual language, three sizes. */
+   /* Thumb controls: JUMP anchors the cluster. PLACE/USE lives immediately to
+      its left. A second contextual action stacks above that slot instead of
+      growing horizontally across the screen. */
    body.kenney-gameplay-buttons #jump-button,
    body.kenney-gameplay-buttons #action-button,
    body.kenney-gameplay-buttons #carry-place-button,
@@ -46,7 +49,6 @@ export class KenneyGameplayButtonThemeSystem{
     border-radius:50%!important;
     color:var(--control-ink)!important;
     padding:0!important;
-    display:flex!important;
     align-items:center!important;
     justify-content:center!important;
     box-shadow:
@@ -72,7 +74,15 @@ export class KenneyGameplayButtonThemeSystem{
      inset 0 -3px 0 #45623b48!important;
    }
 
-   /* Explicit dimensions prevent older gameplay styles from stretching controls. */
+   body.kenney-gameplay-buttons #action-button[data-action-icon="addLog"]{
+    background:linear-gradient(180deg,var(--control-haul-top),var(--control-haul-bottom))!important;
+   }
+   body.kenney-gameplay-buttons #action-button[data-action-icon="dropLogs"]{
+    background:linear-gradient(180deg,var(--control-rust-top),var(--control-rust-bottom))!important;
+    color:#fff1dc!important;
+    border-color:#60372c!important;
+   }
+
    body.kenney-gameplay-buttons #jump-button{
     width:64px!important;height:64px!important;min-width:64px!important;min-height:64px!important;
     right:18px!important;bottom:18px!important;
@@ -80,30 +90,23 @@ export class KenneyGameplayButtonThemeSystem{
    body.kenney-gameplay-buttons #action-button,
    body.kenney-gameplay-buttons #carry-place-button{
     width:56px!important;height:56px!important;min-width:56px!important;min-height:56px!important;
-    bottom:22px!important;
+    right:94px!important;bottom:22px!important;
    }
-   body.kenney-gameplay-buttons #action-button{right:94px!important}
-   body.kenney-gameplay-buttons #carry-place-button{right:94px!important;font-size:0!important;letter-spacing:0!important}
+   body.kenney-gameplay-buttons #carry-place-button{font-size:0!important;letter-spacing:0!important}
    body.kenney-gameplay-buttons #sprint-button{
     width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;
     right:27px!important;bottom:94px!important;
    }
 
-   /* When one log is on the shoulder, PLACE and ADD 2ND LOG are both valid.
-      Keep them as separate controls instead of letting the theme stack them on
-      the same coordinates. The hauling interaction owns visibility; this theme
-      only guarantees clear spacing and tap access. */
-   body.kenney-gameplay-buttons.single-carry-place #action-button{
-    right:164px!important;
-    z-index:47!important;
-   }
-   body.kenney-gameplay-buttons.build-material-in-hand.haul-pickup-available #action-button{
+   /* One log on shoulder can expose PLACE + ADD 2ND LOG together. This is the
+      only state with two context buttons, so use a tidy vertical mini-column. */
+   body.kenney-gameplay-buttons.single-carry-place.haul-pickup-available #action-button{
     display:flex!important;
-    opacity:1!important;
-    pointer-events:auto!important;
+    right:94px!important;bottom:86px!important;
+    opacity:1!important;pointer-events:auto!important;z-index:47!important;
    }
 
-   /* Compact right-side tool rail. Flat, readable and consistent with the HUD. */
+   /* Utility rail remains separate from gameplay actions. */
    body.kenney-gameplay-buttons #build-drawer-toggle,
    body.kenney-gameplay-buttons #disassembly-mode-button{
     right:0!important;
@@ -154,20 +157,19 @@ export class KenneyGameplayButtonThemeSystem{
    body.kenney-gameplay-buttons #sprint-button:disabled,
    body.kenney-gameplay-buttons #build-drawer-toggle:disabled,
    body.kenney-gameplay-buttons #disassembly-mode-button:disabled{
-    opacity:.72!important;
-    filter:saturate(.65) brightness(.94)!important;
+    opacity:.66!important;
+    filter:saturate(.62) brightness(.94)!important;
    }
 
-   body.kenney-gameplay-buttons #build-drawer-toggle .drawer-glyph:before,
-   body.kenney-gameplay-buttons #build-drawer-toggle .drawer-glyph:after{
+   body.kenney-gameplay-buttons #build-drawer-toggle .drawer-glyph:before{
     background:#e7c97c!important;
-    box-shadow:0 6px 0 #e7c97c,0 12px 0 #e7c97c!important;
+    box-shadow:-3px 7px 0 #e7c97c,2px 14px 0 #e7c97c!important;
    }
 
    body.kenney-gameplay-buttons #jump-button .jump-icon{width:36px!important;height:36px!important}
    body.kenney-gameplay-buttons #action-button .context-action-icon,
    body.kenney-gameplay-buttons #carry-place-button .context-place-icon{width:31px!important;height:31px!important}
-   body.kenney-gameplay-buttons #sprint-button::before{font-size:27px!important;font-weight:1000!important}
+   body.kenney-gameplay-buttons #sprint-button .sprint-icon{width:29px!important;height:29px!important}
 
    @media(max-width:620px){
     body.kenney-gameplay-buttons #jump-button{
@@ -179,8 +181,8 @@ export class KenneyGameplayButtonThemeSystem{
      width:52px!important;height:52px!important;min-width:52px!important;min-height:52px!important;
      right:86px!important;bottom:20px!important;
     }
-    body.kenney-gameplay-buttons.single-carry-place #action-button{
-     right:150px!important;
+    body.kenney-gameplay-buttons.single-carry-place.haul-pickup-available #action-button{
+     right:86px!important;bottom:80px!important;
     }
     body.kenney-gameplay-buttons #sprint-button{
      width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;
@@ -195,7 +197,7 @@ export class KenneyGameplayButtonThemeSystem{
     body.kenney-gameplay-buttons #jump-button .jump-icon{width:34px!important;height:34px!important}
     body.kenney-gameplay-buttons #action-button .context-action-icon,
     body.kenney-gameplay-buttons #carry-place-button .context-place-icon{width:29px!important;height:29px!important}
-    body.kenney-gameplay-buttons #sprint-button::before{font-size:25px!important}
+    body.kenney-gameplay-buttons #sprint-button .sprint-icon{width:27px!important;height:27px!important}
    }
   `;
 
