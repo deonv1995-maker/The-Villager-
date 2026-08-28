@@ -32,12 +32,21 @@ export class LogHaulingInteractionSystem{
   this.style=document.createElement('style');
   this.style.id='log-hauling-action-style';
   this.style.textContent=`
-   #carry-place-button{right:104px;background:#d2ae69dd}
-   body.single-carry-place #action-button{right:186px}
+   /* Main contextual action sits left of JUMP. PLACE uses that slot only when
+      no second hauling action is available. If ADD LOG appears, it moves above
+      PLACE instead of expanding sideways across the screen. */
+   #carry-place-button{right:94px;bottom:22px;background:#d2ae69dd}
+   body.single-carry-place.haul-pickup-available #action-button{
+    display:flex!important;right:94px!important;bottom:86px!important;
+    opacity:1!important;pointer-events:auto!important;z-index:47!important;
+   }
    body.build-material-in-hand.haul-pickup-available #action-button{display:flex!important}
+
    @media(max-width:620px){
-    #carry-place-button{right:90px}
-    body.single-carry-place #action-button{right:164px}
+    #carry-place-button{right:86px;bottom:20px}
+    body.single-carry-place.haul-pickup-available #action-button{
+     right:86px!important;bottom:80px!important;
+    }
    }
   `;
   document.head.appendChild(this.style);
@@ -59,8 +68,7 @@ export class LogHaulingInteractionSystem{
    if(!carried)return;
 
    // A log can have ADD 2ND LOG as the contextual interaction at the same time.
-   // Call the construction path directly so the dedicated PLACE button never
-   // gets stolen by the hauling interaction.
+   // Call the construction path directly so PLACE never steals the hauling tap.
    if(carried.type==='log')this.interaction.beginLogPlacement?.();
    else this.originalPerform?.();
   },{passive:false});
@@ -106,8 +114,12 @@ export class LogHaulingInteractionSystem{
 
  updateButton(){
   this.originalUpdateButton();
-  const available=this.interaction?.current?.type==='haul-add';
-  document.body.classList.toggle('haul-pickup-available',available);
+  const type=this.interaction?.current?.type||null;
+  const addAvailable=type==='haul-add';
+  const dropStack=type==='haul-drop';
+  document.body.classList.toggle('haul-pickup-available',addAvailable);
+  document.body.classList.toggle('haul-drop-available',dropStack);
+  document.body.classList.toggle('haul-stack-active',this.hauling.count()>=2);
   this.updateCarryPlaceButton();
  }
 
@@ -188,8 +200,6 @@ export class LogHaulingInteractionSystem{
  }
 
  bindBuildDrawer(drawer){
-  // The drawer owns DROP directly now. Keep this hook only so older bootstrap code
-  // remains compatible and no capture listener can turn DROP back into PLACE.
   this.drawer=drawer||null;
  }
 }
