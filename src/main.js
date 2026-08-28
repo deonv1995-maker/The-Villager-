@@ -2,6 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.m
 import { GameBootstrap } from './systems/GameBootstrap.js?v=611';
 import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=624';
 import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem.js?v=626';
+import { InteriorStructureTransparencySystem } from './systems/rendering/InteriorStructureTransparencySystem.js?v=627';
 
 const game=new GameBootstrap(THREE);
 game.start();
@@ -22,3 +23,11 @@ const contextActionIcons=new ContextActionIconSystem({
 });
 contextActionIcons.initialize();
 game.contextActionIcons=contextActionIcons;
+
+const interiorTransparency=new InteriorStructureTransparencySystem({
+ buildingModes:game.buildModes,
+ player:game.player,
+ camera:game.camera
+});
+interiorTransparency.initialize();
+game.interiorTransparency=interiorTransparency;
