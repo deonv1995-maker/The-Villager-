@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#101d15">
+<title>The Villager Recovery</title>
+<style>
+html,body{margin:0;width:100%;height:100%;display:grid;place-items:center;background:#101d15;color:#f2e7ce;font-family:system-ui,sans-serif}
+#card{max-width:320px;margin:24px;padding:20px;border:2px solid #8a7048;border-radius:14px;background:#17251d;text-align:center;box-shadow:0 8px 26px #0007}
+#title{font-weight:900;font-size:18px;margin-bottom:8px}
+#message{font-size:13px;line-height:1.45;opacity:.9}
+</style>
+</head>
+<body>
+<div id="card"><div id="title">Repairing The Villager</div><div id="message">Clearing the old game shell…</div></div>
+<script>
+(async()=>{
+ const message=document.getElementById('message');
+ try{
+  if('serviceWorker' in navigator){
+   const registrations=await navigator.serviceWorker.getRegistrations();
+   await Promise.all(registrations.map(reg=>reg.unregister()));
+  }
+  if('caches' in window){
+   const keys=await caches.keys();
+   await Promise.all(keys.map(key=>caches.delete(key)));
+  }
+  try{localStorage.setItem('villager-recovery-version','645')}catch{}
+  message.textContent='Cache cleared. Reloading the stable game…';
+  setTimeout(()=>location.replace('./?v=645&recovery='+Date.now()),250);
+ }catch(err){
+  message.textContent='Recovery completed with a warning. Reloading…';
+  setTimeout(()=>location.replace('./?v=645&recovery='+Date.now()),450);
+ }
+})();
+</script>
+</body>
+</html>
