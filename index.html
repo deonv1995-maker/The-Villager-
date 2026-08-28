@@ -33,12 +33,10 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
 #sprint-button{right:26px!important;bottom:92px!important;width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;background:#9abf79dd;display:flex!important;visibility:visible!important;opacity:1!important;pointer-events:auto!important;z-index:46}
 #action-button{right:92px;bottom:21px;width:58px;height:58px;min-width:58px}
 #jump-button,#sprint-button,#action-button{font-size:0!important;letter-spacing:0}
-#sprint-button::before,#action-button::before{display:block;line-height:1;font-family:Arial,sans-serif;font-weight:900;pointer-events:none}
-#jump-button::before{content:none!important;display:none!important}
-#jump-button .jump-icon{width:38px;height:38px;display:grid;place-items:center;pointer-events:none;color:currentColor}
-#jump-button .jump-icon svg{width:100%;height:100%;display:block;overflow:visible}
-#sprint-button::before{content:'»';font-size:31px;transform:translateY(-1px)}
-#action-button::before{content:'✦';font-size:27px}
+#jump-button::before,#sprint-button::before{content:none!important;display:none!important}
+#action-button::before{display:block;line-height:1;font-family:Arial,sans-serif;font-weight:900;pointer-events:none;content:'✦';font-size:27px}
+#jump-button .jump-icon{width:34px;height:34px;display:block;pointer-events:none;background:currentColor;-webkit-mask:url('./assets/ui/icons/actions/jump.svg') center/contain no-repeat;mask:url('./assets/ui/icons/actions/jump.svg') center/contain no-repeat}
+#sprint-button .sprint-icon{width:29px;height:29px;display:block;pointer-events:none;background:currentColor;-webkit-mask:url('./assets/ui/icons/actions/sprint.svg') center/contain no-repeat;mask:url('./assets/ui/icons/actions/sprint.svg') center/contain no-repeat}
 #build-mode-button{display:none!important;right:186px;background:#9abf79dd;font-size:10px}
 #build-mode-button[data-build-mode="frame"]{background:#c7a974dd}
 #build-mode-button[data-build-mode="wall"]{background:#b98b63dd}
@@ -57,8 +55,8 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
  #jump-button{right:16px;bottom:16px;width:60px;height:60px}
  #sprint-button{right:24px!important;bottom:86px!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important}
  #action-button{right:84px;bottom:19px;width:54px;height:54px;min-width:54px}
- #jump-button .jump-icon{width:35px;height:35px}
- #sprint-button::before{font-size:29px}
+ #jump-button .jump-icon{width:31px;height:31px}
+ #sprint-button .sprint-icon{width:27px;height:27px}
  #action-button::before{font-size:25px}
  #build-mode-button{right:164px;font-size:9px}
  #stamina-hud{right:76px;bottom:103px;width:102px;height:10px}
@@ -75,9 +73,9 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
 <div id="look-stick" class="stick"><div id="look-knob" class="knob"></div><div class="eye">👁️</div></div>
 <button id="build-mode-button" class="game-button" data-game-ui="true" data-build-mode="raw" type="button" aria-label="Legacy log construction mode">RAW</button>
 <button id="action-button" class="game-button hidden-action" data-game-ui="true" type="button" aria-label="Interact" disabled>USE</button>
-<button id="sprint-button" class="game-button" data-game-ui="true" type="button" aria-label="Sprint">SPRINT</button>
-<button id="jump-button" class="game-button" data-game-ui="true" type="button" aria-label="Jump"><span class="jump-icon" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="33" cy="11" r="5.5" fill="currentColor"/><path d="M30 20l8 10 11-7" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M31 21l-12 8" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M35 30l-8 12-11 5" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M35 30l8 12 10 5" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><path d="M27 20c5-3 10-2 13 2l-3 11-11-4z" fill="currentColor"/><path d="M20 54h7M35 56h8M50 51h6" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/></svg></span></button>
+<button id="sprint-button" class="game-button" data-game-ui="true" type="button" aria-label="Sprint"><span class="sprint-icon" aria-hidden="true"></span></button>
+<button id="jump-button" class="game-button" data-game-ui="true" type="button" aria-label="Jump"><span class="jump-icon" aria-hidden="true"></span></button>
 <script>(()=>{const release=async()=>{try{screen.orientation?.unlock?.()}catch{}try{await screen.orientation?.lock?.('any')}catch{}setTimeout(()=>dispatchEvent(new Event('resize')),0)};addEventListener('pageshow',release);addEventListener('orientationchange',()=>setTimeout(release,50));})();</script>
-<script type="module" src="./src/main.js?v=636"></script>
+<script type="module" src="./src/main.js?v=637"></script>
 </body>
 </html>
