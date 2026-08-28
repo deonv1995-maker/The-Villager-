@@ -12,6 +12,13 @@ export class DismantleReuseSystem{
   this.tmpWorld=buildingModes?.T?new buildingModes.T.Vector3():null;
   this.button=null;
   this.styleElement=null;
+
+  // Demolition selection feedback is intentionally visual-only. The overlay
+  // shares the selected object's geometry but owns its own material, so it does
+  // not mutate construction materials or interfere with interior transparency.
+  this.highlightObject=null;
+  this.highlightOverlay=null;
+  this.highlightMaterial=null;
  }
 
  initialize(){
@@ -21,14 +28,19 @@ export class DismantleReuseSystem{
   this.createModeButton();
 
   this.interaction.resolve=()=>{
-   if(!this.active)return this.originalResolve();
+   if(!this.active){
+    this.clearHighlight();
+    return this.originalResolve();
+   }
 
    if(this.interaction.pending||this.materials.carried){
+    this.clearHighlight();
     if(this.materials.carried)this.setActive(false);
     return this.originalResolve();
    }
 
    const target=this.findTarget();
+   this.syncHighlight(target);
    if(target)return {type:'dismantle',target,label:`TAKE DOWN ${this.labelFor(target)}`};
 
    // Disassembly mode is deliberately exclusive. Normal pickup / harvest
@@ -39,6 +51,7 @@ export class DismantleReuseSystem{
   this.interaction.perform=()=>{
    if(!this.active)return this.originalPerform();
    if(this.interaction.pending||this.materials.carried){
+    this.clearHighlight();
     if(this.materials.carried)this.setActive(false);
     return false;
    }
@@ -47,6 +60,7 @@ export class DismantleReuseSystem{
    if(resolved?.type!=='dismantle')return false;
 
    const label=this.labelFor(resolved.target);
+   this.clearHighlight();
    const returned=this.dismantle(resolved.target);
    if(!returned)return false;
 
@@ -104,9 +118,82 @@ export class DismantleReuseSystem{
   }
 
   document.body.classList.toggle('disassembly-mode-active',this.active);
+  if(this.active)this.syncHighlight(this.findTarget());
+  else this.clearHighlight();
   this.interaction.current=null;
   this.interaction.updateButton?.();
-  this.interaction.showFeedback?.(this.active?'DISASSEMBLY MODE · select a placed piece':'Disassembly mode off');
+  this.interaction.showFeedback?.(this.active?'DISASSEMBLY MODE · highlighted piece will be removed':'Disassembly mode off');
+ }
+
+ highlightObjectFor(target){
+  if(target?.kind==='raw')return target.item?.object||null;
+  if(target?.kind==='construction')return target.placement?.object||null;
+  return null;
+ }
+
+ syncHighlight(target){
+  const object=this.highlightObjectFor(target);
+  if(!object?.parent){
+   this.clearHighlight();
+   return;
+  }
+
+  if(this.highlightObject===object&&this.highlightOverlay?.parent){
+   this.animateHighlight();
+   return;
+  }
+
+  this.clearHighlight();
+
+  const T=this.buildingModes?.T;
+  if(!T)return;
+
+  const material=new T.MeshBasicMaterial({
+   color:0xffb347,
+   transparent:true,
+   opacity:.38,
+   depthTest:true,
+   depthWrite:false,
+   side:T.DoubleSide,
+   toneMapped:false,
+   polygonOffset:true,
+   polygonOffsetFactor:-2,
+   polygonOffsetUnits:-2
+  });
+
+  const overlay=object.clone(true);
+  overlay.name='DemolitionSelectionHighlight';
+  overlay.userData={...overlay.userData,demolitionHighlight:true};
+  overlay.traverse(child=>{
+   if(child.isMesh){
+    child.material=material;
+    child.castShadow=false;
+    child.receiveShadow=false;
+    child.renderOrder=950;
+   }else if(child.isLine||child.isPoints||child.isSprite){
+    child.visible=false;
+   }
+  });
+
+  object.parent.add(overlay);
+  this.highlightObject=object;
+  this.highlightOverlay=overlay;
+  this.highlightMaterial=material;
+  this.animateHighlight();
+ }
+
+ animateHighlight(){
+  if(!this.highlightMaterial)return;
+  const pulse=(Math.sin(performance.now()*.008)+1)*.5;
+  this.highlightMaterial.opacity=.30+pulse*.18;
+ }
+
+ clearHighlight(){
+  this.highlightOverlay?.removeFromParent?.();
+  this.highlightMaterial?.dispose?.();
+  this.highlightObject=null;
+  this.highlightOverlay=null;
+  this.highlightMaterial=null;
  }
 
  labelFor(target){
