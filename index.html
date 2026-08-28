@@ -10,7 +10,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>The Villager</title>
-<link rel="manifest" href="./manifest.webmanifest?v=646">
+<link rel="manifest" href="./manifest.webmanifest?v=647">
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./icons/icon.svg">
 <style>
@@ -62,15 +62,15 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
  #stamina-hud{right:76px;bottom:103px;width:102px;height:10px}
 }
 </style>
-<!-- Some Android WebViews used by installed PWAs support ES modules but do not
-     reliably support import maps. Load the standards-compatible shim before the
-     map so the Three.js addon specifiers resolve the same way everywhere. -->
-<script async src="https://ga.jspm.io/npm:es-module-shims@1.10.0/dist/es-module-shims.js"></script>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}}</script>
+<!-- Force ES Module Shims to own the whole graph. Native dynamic import cannot
+     reliably polyfill import maps in some installed Android PWA/WebView paths. -->
+<script>window.esmsInitOptions={shimMode:true};</script>
+<script src="https://ga.jspm.io/npm:es-module-shims@2.8.4/dist/es-module-shims.js"></script>
+<script type="importmap-shim">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}}</script>
 </head>
 <body>
-<div id="status">0.6.11 · shell 646</div>
-<div id="material-hud">STARTING GAME · dependency-safe boot</div>
+<div id="status">0.6.11 · shell 647</div>
+<div id="material-hud">STARTING GAME · forced module resolver</div>
 <div id="gameplay-feedback"></div>
 <div id="stamina-hud" role="progressbar" aria-label="Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div id="stamina-fill"></div></div>
 <div id="move-stick" class="stick"><div id="move-knob" class="knob"></div></div>
@@ -80,7 +80,7 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
 <button id="sprint-button" class="game-button" data-game-ui="true" type="button" aria-label="Sprint"><span class="sprint-icon" aria-hidden="true"></span></button>
 <button id="jump-button" class="game-button" data-game-ui="true" type="button" aria-label="Jump"><span class="jump-icon" aria-hidden="true"></span></button>
 <script>(()=>{const release=async()=>{try{screen.orientation?.unlock?.()}catch{}try{await screen.orientation?.lock?.('any')}catch{}setTimeout(()=>dispatchEvent(new Event('resize')),0)};addEventListener('pageshow',release);addEventListener('orientationchange',()=>setTimeout(release,50));})();</script>
-<script type="module">
+<script>
  const status=document.getElementById('status');
  const hud=document.getElementById('material-hud');
  let settled=false;
@@ -89,14 +89,19 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
   settled=true;
   const message=(err?.message||String(err)||'Unknown module error').replace(/\s+/g,' ').slice(0,180);
   console.error('[MODULE LOAD]',err);
-  if(status){status.textContent='0.6.11 · LOAD ERROR 646';status.style.background='#5b1818';status.style.maxWidth='290px';}
+  if(status){status.textContent='0.6.11 · LOAD ERROR 647';status.style.background='#5b1818';status.style.maxWidth='290px';}
   if(hud){hud.textContent=message;hud.style.maxWidth='84vw';hud.style.background='#4a1717';hud.style.borderColor='#a85b4d';}
  };
  addEventListener('error',event=>{if(event?.error)fail(event.error)});
  addEventListener('unhandledrejection',event=>fail(event.reason));
- if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js?v=646').catch(()=>{});}
+ if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js?v=647').catch(()=>{});}
  const timeout=setTimeout(()=>fail(new Error('Startup timed out while loading the module graph')),15000);
- import('./src/main.js?v=645').then(()=>{settled=true;clearTimeout(timeout);}).catch(fail);
+ if(typeof importShim!=='function'){
+  clearTimeout(timeout);
+  fail(new Error('Module resolver failed to initialize'));
+ }else{
+  importShim('./src/main.js?v=645').then(()=>{settled=true;clearTimeout(timeout);}).catch(fail);
+ }
 </script>
 </body>
 </html>
