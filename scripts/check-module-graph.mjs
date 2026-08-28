@@ -42,14 +42,26 @@ const sw=fs.readFileSync(path.join(root,'sw.js'),'utf8');
 
 const usesThreeBare=[...bareImports].some(spec=>spec==='three'||spec.startsWith('three/addons/'));
 if(usesThreeBare){
- if(!index.includes('es-module-shims@1.10.0')){
-  errors.push('index.html must load pinned es-module-shims when bare Three.js imports are present');
+ if(!index.includes('window.esmsInitOptions={shimMode:true}')){
+  errors.push('index.html must force es-module-shims shimMode when bare Three.js imports are present');
+ }
+ if(!index.includes('es-module-shims@2.8.4')){
+  errors.push('index.html must load the pinned es-module-shims 2.8.4 resolver');
+ }
+ if(!index.includes('type="importmap-shim"')){
+  errors.push('index.html must use importmap-shim for the forced resolver graph');
  }
  if(!index.includes('"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"')){
   errors.push('index.html is missing the pinned Three.js import-map entry');
  }
  if(!index.includes('"three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"')){
   errors.push('index.html is missing the pinned Three.js addons import-map entry');
+ }
+ if(!index.includes("importShim('./src/main.js")){
+  errors.push('index.html must boot main.js through importShim so dynamic import cannot bypass the resolver');
+ }
+ if(/\bimport\s*\(\s*['"]\.\/src\/main\.js/.test(index)){
+  errors.push('index.html must not boot main.js with native dynamic import while bare Three.js imports exist');
  }
 }
 
