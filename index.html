@@ -10,7 +10,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>The Villager</title>
-<link rel="manifest" href="./manifest.webmanifest?v=645">
+<link rel="manifest" href="./manifest.webmanifest?v=646">
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./icons/icon.svg">
 <style>
@@ -62,11 +62,15 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
  #stamina-hud{right:76px;bottom:103px;width:102px;height:10px}
 }
 </style>
+<!-- Some Android WebViews used by installed PWAs support ES modules but do not
+     reliably support import maps. Load the standards-compatible shim before the
+     map so the Three.js addon specifiers resolve the same way everywhere. -->
+<script async src="https://ga.jspm.io/npm:es-module-shims@1.10.0/dist/es-module-shims.js"></script>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}}</script>
 </head>
 <body>
-<div id="status">0.6.11 · shell 645</div>
-<div id="material-hud">STARTING GAME · stable recovery</div>
+<div id="status">0.6.11 · shell 646</div>
+<div id="material-hud">STARTING GAME · dependency-safe boot</div>
 <div id="gameplay-feedback"></div>
 <div id="stamina-hud" role="progressbar" aria-label="Stamina" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div id="stamina-fill"></div></div>
 <div id="move-stick" class="stick"><div id="move-knob" class="knob"></div></div>
@@ -85,12 +89,12 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
   settled=true;
   const message=(err?.message||String(err)||'Unknown module error').replace(/\s+/g,' ').slice(0,180);
   console.error('[MODULE LOAD]',err);
-  if(status){status.textContent='0.6.11 · LOAD ERROR 645';status.style.background='#5b1818';status.style.maxWidth='290px';}
+  if(status){status.textContent='0.6.11 · LOAD ERROR 646';status.style.background='#5b1818';status.style.maxWidth='290px';}
   if(hud){hud.textContent=message;hud.style.maxWidth='84vw';hud.style.background='#4a1717';hud.style.borderColor='#a85b4d';}
  };
  addEventListener('error',event=>{if(event?.error)fail(event.error)});
  addEventListener('unhandledrejection',event=>fail(event.reason));
- if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js?v=645').catch(()=>{});}
+ if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js?v=646').catch(()=>{});}
  const timeout=setTimeout(()=>fail(new Error('Startup timed out while loading the module graph')),15000);
  import('./src/main.js?v=645').then(()=>{settled=true;clearTimeout(timeout);}).catch(fail);
 </script>
