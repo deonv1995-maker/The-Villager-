@@ -1,11 +1,11 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
-import { GameBootstrap } from './systems/GameBootstrap.js?v=611';
+import { GameBootstrap } from './systems/GameBootstrap.js?v=645';
 import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=633';
-import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem.js?v=638';
+import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem.js?v=645';
 import { InteriorStructureTransparencySystem } from './systems/rendering/InteriorStructureTransparencySystem.js?v=627';
 import { EnvironmentVegetationColliderSystem } from './systems/world/EnvironmentVegetationColliderSystem.js?v=629';
 import { KenneyFantasyUiThemeSystem } from './systems/ui/KenneyFantasyUiThemeSystem.js?v=632';
-import { KenneyGameplayButtonThemeSystem } from './systems/ui/KenneyGameplayButtonThemeSystem.js?v=640';
+import { KenneyGameplayButtonThemeSystem } from './systems/ui/KenneyGameplayButtonThemeSystem.js?v=645';
 import { LocomotionAnimationSyncSystem } from './systems/player/LocomotionAnimationSyncSystem.js?v=639';
 
 const game=new GameBootstrap(THREE);
