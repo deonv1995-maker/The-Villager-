@@ -1,6 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 import { GameBootstrap } from './systems/GameBootstrap.js?v=611';
-import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=624';
+import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=633';
 import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem.js?v=630';
 import { InteriorStructureTransparencySystem } from './systems/rendering/InteriorStructureTransparencySystem.js?v=627';
 import { EnvironmentVegetationColliderSystem } from './systems/world/EnvironmentVegetationColliderSystem.js?v=629';
