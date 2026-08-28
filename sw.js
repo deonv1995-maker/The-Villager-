@@ -1,4 +1,3 @@
-const RECOVERY_VERSION='645';
 self.addEventListener('install',()=>self.skipWaiting());
 self.addEventListener('activate',event=>event.waitUntil((async()=>{
  const keys=await caches.keys();
@@ -10,15 +9,8 @@ self.addEventListener('fetch',event=>{
  if(request.method!=='GET')return;
  const url=new URL(request.url);
  if(url.origin!==self.location.origin)return;
-
- // Any cached/older shell may still request main.js with an old query key.
- // Route every main module request onto the current recovery graph.
- if(url.pathname.endsWith('/src/main.js')){
-  const fresh=new URL(url.href);
-  fresh.search=`?v=${RECOVERY_VERSION}`;
-  event.respondWith(fetch(fresh.href,{cache:'no-store'}));
-  return;
- }
-
+ // Never rewrite module URLs. Rewriting one versioned module onto another can
+ // create an incompatible dependency graph. Always request the exact URL the
+ // page asked for and bypass HTTP cache for same-origin game files.
  event.respondWith(fetch(request,{cache:'no-store'}));
 });
