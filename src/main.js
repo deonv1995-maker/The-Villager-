@@ -5,7 +5,7 @@ import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem
 import { InteriorStructureTransparencySystem } from './systems/rendering/InteriorStructureTransparencySystem.js?v=627';
 import { EnvironmentVegetationColliderSystem } from './systems/world/EnvironmentVegetationColliderSystem.js?v=629';
 import { KenneyFantasyUiThemeSystem } from './systems/ui/KenneyFantasyUiThemeSystem.js?v=632';
-import { KenneyGameplayButtonThemeSystem } from './systems/ui/KenneyGameplayButtonThemeSystem.js?v=635';
+import { KenneyGameplayButtonThemeSystem } from './systems/ui/KenneyGameplayButtonThemeSystem.js?v=640';
 import { LocomotionAnimationSyncSystem } from './systems/player/LocomotionAnimationSyncSystem.js?v=639';
 
 const game=new GameBootstrap(THREE);
