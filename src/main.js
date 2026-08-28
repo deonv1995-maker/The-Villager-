@@ -6,9 +6,14 @@ import { InteriorStructureTransparencySystem } from './systems/rendering/Interio
 import { EnvironmentVegetationColliderSystem } from './systems/world/EnvironmentVegetationColliderSystem.js?v=629';
 import { KenneyFantasyUiThemeSystem } from './systems/ui/KenneyFantasyUiThemeSystem.js?v=632';
 import { KenneyGameplayButtonThemeSystem } from './systems/ui/KenneyGameplayButtonThemeSystem.js?v=635';
+import { LocomotionAnimationSyncSystem } from './systems/player/LocomotionAnimationSyncSystem.js?v=639';
 
 const game=new GameBootstrap(THREE);
 game.start();
+
+const locomotionAnimationSync=new LocomotionAnimationSyncSystem({game,player:game.player});
+locomotionAnimationSync.initialize();
+game.locomotionAnimationSync=locomotionAnimationSync;
 
 const fantasyUiTheme=new KenneyFantasyUiThemeSystem();
 fantasyUiTheme.initialize();
