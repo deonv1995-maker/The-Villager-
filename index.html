@@ -62,7 +62,7 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
  #stamina-hud{right:76px;bottom:103px;width:102px;height:10px}
 }
 </style>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}}</script>
 </head>
 <body>
 <div id="status">0.6.11 · loading</div>
@@ -76,6 +76,6 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
 <button id="sprint-button" class="game-button" data-game-ui="true" type="button" aria-label="Sprint"><span class="sprint-icon" aria-hidden="true"></span></button>
 <button id="jump-button" class="game-button" data-game-ui="true" type="button" aria-label="Jump"><span class="jump-icon" aria-hidden="true"></span></button>
 <script>(()=>{const release=async()=>{try{screen.orientation?.unlock?.()}catch{}try{await screen.orientation?.lock?.('any')}catch{}setTimeout(()=>dispatchEvent(new Event('resize')),0)};addEventListener('pageshow',release);addEventListener('orientationchange',()=>setTimeout(release,50));})();</script>
-<script type="module" src="./src/main.js?v=640"></script>
+<script type="module" src="./src/main.js?v=641"></script>
 </body>
 </html>
