@@ -1,6 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 import { GameBootstrap } from './systems/GameBootstrap.js?v=611';
 import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=624';
+import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem.js?v=626';
 
 const game=new GameBootstrap(THREE);
 game.start();
@@ -13,3 +14,11 @@ const dismantleReuse=new DismantleReuseSystem({
 });
 dismantleReuse.initialize();
 game.dismantleReuse=dismantleReuse;
+
+const contextActionIcons=new ContextActionIconSystem({
+ interaction:game.survivalInteraction,
+ actionButton:document.getElementById('action-button'),
+ disassemblyButton:document.getElementById('disassembly-mode-button')
+});
+contextActionIcons.initialize();
+game.contextActionIcons=contextActionIcons;
