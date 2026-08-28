@@ -5,6 +5,7 @@ import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem
 import { InteriorStructureTransparencySystem } from './systems/rendering/InteriorStructureTransparencySystem.js?v=627';
 import { EnvironmentVegetationColliderSystem } from './systems/world/EnvironmentVegetationColliderSystem.js?v=629';
 import { KenneyFantasyUiThemeSystem } from './systems/ui/KenneyFantasyUiThemeSystem.js?v=632';
+import { KenneyGameplayButtonThemeSystem } from './systems/ui/KenneyGameplayButtonThemeSystem.js?v=634';
 
 const game=new GameBootstrap(THREE);
 game.start();
@@ -30,6 +31,10 @@ const contextActionIcons=new ContextActionIconSystem({
 });
 contextActionIcons.initialize();
 game.contextActionIcons=contextActionIcons;
+
+const gameplayButtonTheme=new KenneyGameplayButtonThemeSystem();
+gameplayButtonTheme.initialize();
+game.gameplayButtonTheme=gameplayButtonTheme;
 
 const interiorTransparency=new InteriorStructureTransparencySystem({
  buildingModes:game.buildModes,
