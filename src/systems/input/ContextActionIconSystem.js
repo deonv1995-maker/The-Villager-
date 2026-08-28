@@ -1,8 +1,9 @@
 export class ContextActionIconSystem{
- constructor({interaction,actionButton=null,disassemblyButton=null}){
+ constructor({interaction,actionButton=null,disassemblyButton=null,dropButton=null}){
   this.interaction=interaction;
   this.actionButton=actionButton||document.getElementById('action-button');
   this.disassemblyButton=disassemblyButton||document.getElementById('disassembly-mode-button');
+  this.dropButton=dropButton||document.getElementById('build-drawer-place');
   this.originalUpdateButton=null;
   this.styleElement=null;
   this.lastActionIcon=null;
@@ -12,6 +13,7 @@ export class ContextActionIconSystem{
   if(!this.interaction)return;
   this.injectStyles();
   this.decorateDisassemblyButton();
+  this.decorateDropButton();
   this.wrapInteractionButtonUpdate();
   this.interaction.updateButton?.();
  }
@@ -33,6 +35,12 @@ export class ContextActionIconSystem{
    #action-button .context-action-icon{width:34px;height:34px;display:grid;place-items:center;pointer-events:none;color:currentColor}
    #action-button .context-action-icon svg{width:100%;height:100%;display:block;overflow:visible}
 
+   /* The build drawer owns DROP. Keep the existing drawer layout and replace
+      only its old diagonal arrow with an open-hand release glyph. */
+   #build-drawer-place .place-arrow{display:none!important}
+   #build-drawer-place .context-drop-icon{width:25px;height:25px;display:grid;place-items:center;pointer-events:none;color:currentColor}
+   #build-drawer-place .context-drop-icon svg{width:100%;height:100%;display:block;overflow:visible}
+
    /* Stack disassembly directly below the collapsed build drawer and make both
       controls read as one compact right-edge tool rail. */
    #disassembly-mode-button{right:0!important;top:64px!important;width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;border:3px solid #3a2b21!important;border-right:0!important;border-radius:14px 0 0 14px!important;background:#314632e8!important;color:#f4ead8!important;padding:0!important;display:grid!important;place-items:center!important;gap:0!important;box-shadow:0 3px 10px #0005!important}
@@ -46,6 +54,7 @@ export class ContextActionIconSystem{
     #disassembly-mode-button{top:58px!important;width:42px!important;height:42px!important;min-width:42px!important;min-height:42px!important;border-width:3px!important}
     #disassembly-mode-button .context-tool-icon{width:24px;height:24px}
     #action-button .context-action-icon{width:31px;height:31px}
+    #build-drawer-place .context-drop-icon{width:23px;height:23px}
    }
   `;
   document.head.appendChild(style);
@@ -59,6 +68,7 @@ export class ContextActionIconSystem{
   this.interaction.updateButton=(...args)=>{
    const result=original(...args);
    this.syncActionButton();
+   this.decorateDropButton();
    return result;
   };
  }
@@ -69,6 +79,24 @@ export class ContextActionIconSystem{
   this.disassemblyButton=button;
   button.innerHTML=`<span class="context-tool-icon" aria-hidden="true">${this.iconSvg('hammer')}</span>`;
   button.title='';
+ }
+
+ decorateDropButton(){
+  const button=this.dropButton||document.getElementById('build-drawer-place');
+  if(!button)return;
+  this.dropButton=button;
+
+  let icon=button.querySelector('.context-drop-icon');
+  if(!icon){
+   icon=document.createElement('span');
+   icon.className='context-drop-icon';
+   icon.setAttribute('aria-hidden','true');
+   icon.innerHTML=this.iconSvg('openHand');
+   const label=button.querySelector('.build-drawer-label');
+   if(label)button.insertBefore(icon,label);
+   else button.prepend(icon);
+  }
+  button.querySelector('.place-arrow')?.remove();
  }
 
  syncActionButton(){
@@ -98,18 +126,19 @@ export class ContextActionIconSystem{
   if(!current)return null;
   const label=current.label||'Interact';
 
-  if(current.type==='pickup')return {icon:'hand',label};
+  if(current.type==='pickup'||current.type==='haul-add')return {icon:'closedHand',label};
+  if(current.type==='haul-drop')return {icon:'openHand',label};
   if(current.type==='dismantle')return {icon:'hammer',label};
   if(current.type==='harvest'){
    const kind=current.target?.profile?.kind;
    if(kind==='tree')return {icon:'axe',label};
    if(kind==='rock')return {icon:'hammer',label};
-   return {icon:'hand',label};
+   return {icon:'closedHand',label};
   }
   if(current.type==='reaction')return {icon:'fire',label};
-  if(current.type==='place'||current.type==='place-log')return {icon:'hand',label};
+  if(current.type==='place'||current.type==='place-log')return {icon:'openHand',label};
   if(current.type==='busy')return {icon:'busy',label};
-  return {icon:'hand',label};
+  return {icon:'openHand',label};
  }
 
  iconSvg(type){
@@ -140,6 +169,12 @@ export class ContextActionIconSystem{
   if(type==='busy')return `
    <svg viewBox="0 0 64 64" aria-hidden="true">
     <g fill="currentColor"><circle cx="16" cy="32" r="5"/><circle cx="32" cy="32" r="5"/><circle cx="48" cy="32" r="5"/></g>
+   </svg>`;
+
+  if(type==='closedHand')return `
+   <svg viewBox="0 0 64 64" aria-hidden="true">
+    <path d="M17 28c-3-5 4-9 7-5l2 3v-9c0-5 7-5 7 0v8h2v-9c0-5 7-5 7 0v10h2v-7c0-5 7-5 7 0v17c0 15-8 23-20 23-9 0-15-5-18-13l-4-10c-2-5 5-8 8-4l4 5-4-9z" fill="currentColor"/>
+    <path d="M22 31h24c4 0 7 3 7 7v3H25c-6 0-9-7-3-10z" fill="currentColor"/>
    </svg>`;
 
   return `
