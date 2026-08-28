@@ -1,9 +1,10 @@
 export class ContextActionIconSystem{
- constructor({interaction,actionButton=null,disassemblyButton=null,dropButton=null}){
+ constructor({interaction,actionButton=null,disassemblyButton=null,dropButton=null,carryPlaceButton=null}){
   this.interaction=interaction;
   this.actionButton=actionButton||document.getElementById('action-button');
   this.disassemblyButton=disassemblyButton||document.getElementById('disassembly-mode-button');
   this.dropButton=dropButton||document.getElementById('build-drawer-place');
+  this.carryPlaceButton=carryPlaceButton||document.getElementById('carry-place-button');
   this.originalUpdateButton=null;
   this.styleElement=null;
   this.lastActionIcon=null;
@@ -14,6 +15,7 @@ export class ContextActionIconSystem{
   this.injectStyles();
   this.decorateDisassemblyButton();
   this.decorateDropButton();
+  this.decorateCarryPlaceButton();
   this.wrapInteractionButtonUpdate();
   this.interaction.updateButton?.();
  }
@@ -35,6 +37,10 @@ export class ContextActionIconSystem{
    #action-button .context-action-icon{width:34px;height:34px;display:grid;place-items:center;pointer-events:none;color:currentColor}
    #action-button .context-action-icon svg{width:100%;height:100%;display:block;overflow:visible}
 
+   #carry-place-button{font-size:0!important;letter-spacing:0!important}
+   #carry-place-button .context-place-icon{width:31px;height:31px;display:grid;place-items:center;pointer-events:none;color:currentColor}
+   #carry-place-button .context-place-icon svg{width:100%;height:100%;display:block;overflow:visible}
+
    /* The build drawer owns DROP. Keep the existing drawer layout and replace
       only its old diagonal arrow with an open-hand release glyph. */
    #build-drawer-place .place-arrow{display:none!important}
@@ -54,6 +60,7 @@ export class ContextActionIconSystem{
     #disassembly-mode-button{top:58px!important;width:42px!important;height:42px!important;min-width:42px!important;min-height:42px!important;border-width:3px!important}
     #disassembly-mode-button .context-tool-icon{width:24px;height:24px}
     #action-button .context-action-icon{width:31px;height:31px}
+    #carry-place-button .context-place-icon{width:29px;height:29px}
     #build-drawer-place .context-drop-icon{width:23px;height:23px}
    }
   `;
@@ -69,6 +76,7 @@ export class ContextActionIconSystem{
    const result=original(...args);
    this.syncActionButton();
    this.decorateDropButton();
+   this.decorateCarryPlaceButton();
    return result;
   };
  }
@@ -97,6 +105,19 @@ export class ContextActionIconSystem{
    else button.prepend(icon);
   }
   button.querySelector('.place-arrow')?.remove();
+ }
+
+ decorateCarryPlaceButton(){
+  const button=this.carryPlaceButton||document.getElementById('carry-place-button');
+  if(!button)return;
+  this.carryPlaceButton=button;
+
+  // LogHaulingInteractionSystem updates textContent every refresh. Replacing it
+  // here after that refresh keeps the control purely icon-based without changing
+  // any placement behavior.
+  if(button.querySelector('.context-place-icon'))return;
+  button.innerHTML=`<span class="context-place-icon" aria-hidden="true">${this.iconSvg('openHand')}</span>`;
+  button.title='';
  }
 
  syncActionButton(){
