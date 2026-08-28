@@ -8,7 +8,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#101d15">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-touch-web-app-capable" content="yes">
 <title>The Villager</title>
 <link rel="manifest" href="./manifest.webmanifest?v=625">
 <link rel="icon" href="./icons/icon.svg" type="image/svg+xml">
@@ -35,8 +35,8 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
 #jump-button,#sprint-button,#action-button{font-size:0!important;letter-spacing:0}
 #jump-button::before,#sprint-button::before{content:none!important;display:none!important}
 #action-button::before{display:block;line-height:1;font-family:Arial,sans-serif;font-weight:900;pointer-events:none;content:'✦';font-size:27px}
-#jump-button .jump-icon{width:34px;height:34px;display:block;pointer-events:none;background:currentColor;-webkit-mask:url('./assets/ui/icons/actions/jump.svg') center/contain no-repeat;mask:url('./assets/ui/icons/actions/jump.svg') center/contain no-repeat}
-#sprint-button .sprint-icon{width:29px;height:29px;display:block;pointer-events:none;background:currentColor;-webkit-mask:url('./assets/ui/icons/actions/sprint.svg') center/contain no-repeat;mask:url('./assets/ui/icons/actions/sprint.svg') center/contain no-repeat}
+#jump-button .jump-icon{width:34px;height:34px;display:block;pointer-events:none;background:currentColor;-webkit-mask:url('./assets/ui/icons/actions/jump.svg?v=638') center/contain no-repeat;mask:url('./assets/ui/icons/actions/jump.svg?v=638') center/contain no-repeat}
+#sprint-button .sprint-icon{width:31px;height:31px;display:block;pointer-events:none;background:currentColor;-webkit-mask:url('./assets/ui/icons/actions/sprint.svg?v=638') center/contain no-repeat;mask:url('./assets/ui/icons/actions/sprint.svg?v=638') center/contain no-repeat}
 #build-mode-button{display:none!important;right:186px;background:#9abf79dd;font-size:10px}
 #build-mode-button[data-build-mode="frame"]{background:#c7a974dd}
 #build-mode-button[data-build-mode="wall"]{background:#b98b63dd}
@@ -55,8 +55,8 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
  #jump-button{right:16px;bottom:16px;width:60px;height:60px}
  #sprint-button{right:24px!important;bottom:86px!important;width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important}
  #action-button{right:84px;bottom:19px;width:54px;height:54px;min-width:54px}
- #jump-button .jump-icon{width:31px;height:31px}
- #sprint-button .sprint-icon{width:27px;height:27px}
+ #jump-button .jump-icon{width:32px;height:32px}
+ #sprint-button .sprint-icon{width:29px;height:29px}
  #action-button::before{font-size:25px}
  #build-mode-button{right:164px;font-size:9px}
  #stamina-hud{right:76px;bottom:103px;width:102px;height:10px}
@@ -76,6 +76,6 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
 <button id="sprint-button" class="game-button" data-game-ui="true" type="button" aria-label="Sprint"><span class="sprint-icon" aria-hidden="true"></span></button>
 <button id="jump-button" class="game-button" data-game-ui="true" type="button" aria-label="Jump"><span class="jump-icon" aria-hidden="true"></span></button>
 <script>(()=>{const release=async()=>{try{screen.orientation?.unlock?.()}catch{}try{await screen.orientation?.lock?.('any')}catch{}setTimeout(()=>dispatchEvent(new Event('resize')),0)};addEventListener('pageshow',release);addEventListener('orientationchange',()=>setTimeout(release,50));})();</script>
-<script type="module" src="./src/main.js?v=637"></script>
+<script type="module" src="./src/main.js?v=638"></script>
 </body>
 </html>
