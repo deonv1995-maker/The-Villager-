@@ -1,7 +1,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js';
 import { GameBootstrap } from './systems/GameBootstrap.js?v=611';
 import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=624';
-import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem.js?v=626';
+import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem.js?v=630';
 import { InteriorStructureTransparencySystem } from './systems/rendering/InteriorStructureTransparencySystem.js?v=627';
 import { EnvironmentVegetationColliderSystem } from './systems/world/EnvironmentVegetationColliderSystem.js?v=629';
 
@@ -20,7 +20,8 @@ game.dismantleReuse=dismantleReuse;
 const contextActionIcons=new ContextActionIconSystem({
  interaction:game.survivalInteraction,
  actionButton:document.getElementById('action-button'),
- disassemblyButton:document.getElementById('disassembly-mode-button')
+ disassemblyButton:document.getElementById('disassembly-mode-button'),
+ dropButton:document.getElementById('build-drawer-place')
 });
 contextActionIcons.initialize();
 game.contextActionIcons=contextActionIcons;
