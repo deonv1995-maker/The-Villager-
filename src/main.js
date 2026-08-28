@@ -3,7 +3,7 @@ import { GameBootstrap } from './systems/GameBootstrap.js?v=611';
 import { DismantleReuseSystem } from './systems/gameplay/DismantleReuseSystem.js?v=624';
 import { ContextActionIconSystem } from './systems/input/ContextActionIconSystem.js?v=626';
 import { InteriorStructureTransparencySystem } from './systems/rendering/InteriorStructureTransparencySystem.js?v=627';
-import { EnvironmentVegetationColliderSystem } from './systems/world/EnvironmentVegetationColliderSystem.js?v=628';
+import { EnvironmentVegetationColliderSystem } from './systems/world/EnvironmentVegetationColliderSystem.js?v=629';
 
 const game=new GameBootstrap(THREE);
 game.start();
