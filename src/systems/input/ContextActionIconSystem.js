@@ -41,24 +41,20 @@ export class ContextActionIconSystem{
    #carry-place-button .context-place-icon{width:31px;height:31px;display:grid;place-items:center;pointer-events:none;color:currentColor}
    #carry-place-button .context-place-icon svg{width:100%;height:100%;display:block;overflow:visible}
 
-   /* The build drawer owns DROP. Keep the existing drawer layout and replace
-      only its old diagonal arrow with an open-hand release glyph. */
    #build-drawer-place .place-arrow{display:none!important}
    #build-drawer-place .context-drop-icon{width:25px;height:25px;display:grid;place-items:center;pointer-events:none;color:currentColor}
    #build-drawer-place .context-drop-icon svg{width:100%;height:100%;display:block;overflow:visible}
 
-   /* Stack disassembly directly below the collapsed build drawer and make both
-      controls read as one compact right-edge tool rail. */
    #disassembly-mode-button{right:0!important;top:64px!important;width:46px!important;height:46px!important;min-width:46px!important;min-height:46px!important;border:3px solid #3a2b21!important;border-right:0!important;border-radius:14px 0 0 14px!important;background:#314632e8!important;color:#f4ead8!important;padding:0!important;display:grid!important;place-items:center!important;gap:0!important;box-shadow:0 3px 10px #0005!important}
    #disassembly-mode-button .disassembly-label{display:none!important}
    #disassembly-mode-button .disassembly-icon{display:none!important}
-   #disassembly-mode-button .context-tool-icon{width:27px;height:27px;display:grid;place-items:center;pointer-events:none}
+   #disassembly-mode-button .context-tool-icon{width:29px;height:29px;display:grid;place-items:center;pointer-events:none}
    #disassembly-mode-button .context-tool-icon svg{width:100%;height:100%;display:block;overflow:visible}
    #disassembly-mode-button.active{background:#a75d43!important;color:#fff5e7!important;border-color:#5a2f24!important;box-shadow:0 0 0 2px #d7a06466,0 3px 10px #0005!important}
 
    @media(max-width:760px){
     #disassembly-mode-button{top:58px!important;width:42px!important;height:42px!important;min-width:42px!important;min-height:42px!important;border-width:3px!important}
-    #disassembly-mode-button .context-tool-icon{width:24px;height:24px}
+    #disassembly-mode-button .context-tool-icon{width:26px;height:26px}
     #action-button .context-action-icon{width:31px;height:31px}
     #carry-place-button .context-place-icon{width:29px;height:29px}
     #build-drawer-place .context-drop-icon{width:23px;height:23px}
@@ -85,7 +81,7 @@ export class ContextActionIconSystem{
   const button=this.disassemblyButton||document.getElementById('disassembly-mode-button');
   if(!button)return;
   this.disassemblyButton=button;
-  button.innerHTML=`<span class="context-tool-icon" aria-hidden="true">${this.iconSvg('hammer')}</span>`;
+  button.innerHTML=`<span class="context-tool-icon" aria-hidden="true">${this.iconSvg('demolition')}</span>`;
   button.title='';
  }
 
@@ -111,10 +107,6 @@ export class ContextActionIconSystem{
   const button=this.carryPlaceButton||document.getElementById('carry-place-button');
   if(!button)return;
   this.carryPlaceButton=button;
-
-  // LogHaulingInteractionSystem updates textContent every refresh. Replacing it
-  // here after that refresh keeps the control purely icon-based without changing
-  // any placement behavior.
   if(button.querySelector('.context-place-icon'))return;
   button.innerHTML=`<span class="context-place-icon" aria-hidden="true">${this.iconSvg('openHand')}</span>`;
   button.title='';
@@ -149,7 +141,7 @@ export class ContextActionIconSystem{
 
   if(current.type==='pickup'||current.type==='haul-add')return {icon:'closedHand',label};
   if(current.type==='haul-drop')return {icon:'openHand',label};
-  if(current.type==='dismantle')return {icon:'hammer',label};
+  if(current.type==='dismantle')return {icon:'demolition',label};
   if(current.type==='harvest'){
    const kind=current.target?.profile?.kind;
    if(kind==='tree')return {icon:'axe',label};
@@ -172,13 +164,23 @@ export class ContextActionIconSystem{
     </g>
    </svg>`;
 
+  if(type==='demolition')return `
+   <svg viewBox="0 0 64 64" aria-hidden="true">
+    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+     <path d="M34 12l9-7 14 14-8 9z" fill="currentColor" stroke-width="4.5"/>
+     <path d="M43 24L20 47" stroke-width="6"/>
+     <path d="M15 52l7-7" stroke-width="6"/>
+     <path d="M14 37l-8-4M12 45H4M18 31l-4-7" stroke-width="3.8"/>
+     <path d="M31 47h18l-4 8H27z" fill="currentColor" stroke-width="3.5"/>
+    </g>
+   </svg>`;
+
   if(type==='hammer')return `
    <svg viewBox="0 0 64 64" aria-hidden="true">
     <g stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
      <path d="M28 17l9-8 16 16-9 9z" fill="currentColor"/>
      <path d="M37 29L15 52" fill="none"/>
      <path d="M10 54l8-8" fill="none"/>
-     <path d="M15 23l-6-5M12 33H5M24 14V7" fill="none" stroke-width="4"/>
     </g>
    </svg>`;
 
