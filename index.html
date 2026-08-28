@@ -76,6 +76,18 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
 <button id="sprint-button" class="game-button" data-game-ui="true" type="button" aria-label="Sprint"><span class="sprint-icon" aria-hidden="true"></span></button>
 <button id="jump-button" class="game-button" data-game-ui="true" type="button" aria-label="Jump"><span class="jump-icon" aria-hidden="true"></span></button>
 <script>(()=>{const release=async()=>{try{screen.orientation?.unlock?.()}catch{}try{await screen.orientation?.lock?.('any')}catch{}setTimeout(()=>dispatchEvent(new Event('resize')),0)};addEventListener('pageshow',release);addEventListener('orientationchange',()=>setTimeout(release,50));})();</script>
-<script type="module" src="./src/main.js?v=643"></script>
+<script type="module">
+ const status=document.getElementById('status');
+ const hud=document.getElementById('material-hud');
+ const fail=err=>{
+  const message=(err?.message||String(err)||'Unknown module error').replace(/\s+/g,' ').slice(0,160);
+  console.error('[MODULE LOAD]',err);
+  if(status){status.textContent='0.6.11 · LOAD ERROR';status.style.background='#5b1818';status.style.maxWidth='280px';}
+  if(hud){hud.textContent=message;hud.style.maxWidth='80vw';hud.style.background='#4a1717';hud.style.borderColor='#a85b4d';}
+ };
+ addEventListener('error',event=>{if(event?.error)fail(event.error)});
+ addEventListener('unhandledrejection',event=>fail(event.reason));
+ import('./src/main.js?v=644').catch(fail);
+</script>
 </body>
 </html>
