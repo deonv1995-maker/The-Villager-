@@ -1,0 +1,11 @@
+UI Pack (2.0)
+Created/distributed by Kenney (www.kenney.nl)
+Creation date: 12-06-2024
+
+License: Creative Commons Zero (CC0 1.0)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+This content is free to use in personal, educational and commercial projects.
+Attribution to Kenney is appreciated but not required.
+
+The Villager uses recolored derivatives of selected Kenney UI Pack vector button assets.
