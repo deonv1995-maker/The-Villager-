@@ -76,6 +76,6 @@ canvas{display:block;position:fixed;inset:0;z-index:0}
 <button id="sprint-button" class="game-button" data-game-ui="true" type="button" aria-label="Sprint"><span class="sprint-icon" aria-hidden="true"></span></button>
 <button id="jump-button" class="game-button" data-game-ui="true" type="button" aria-label="Jump"><span class="jump-icon" aria-hidden="true"></span></button>
 <script>(()=>{const release=async()=>{try{screen.orientation?.unlock?.()}catch{}try{await screen.orientation?.lock?.('any')}catch{}setTimeout(()=>dispatchEvent(new Event('resize')),0)};addEventListener('pageshow',release);addEventListener('orientationchange',()=>setTimeout(release,50));})();</script>
-<script type="module" src="./src/main.js?v=641"></script>
+<script type="module" src="./src/main.js?v=642"></script>
 </body>
 </html>
